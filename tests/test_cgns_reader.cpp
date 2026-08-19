@@ -31,6 +31,25 @@ void test_2d(const char* path)
     WCNS_REQUIRE(block.coordinates.x(4, 3, 0) == 1.0);
     WCNS_REQUIRE(block.coordinates.y(4, 3, 0) == 1.0);
     WCNS_REQUIRE(block.coordinates.z(4, 3, 0) == 0.0);
+    WCNS_REQUIRE(block.boundaries.size() == 4);
+
+    const auto& imin = block.boundaries[0];
+    WCNS_REQUIRE(imin.name == "imin");
+    WCNS_REQUIRE(imin.type == wcns::BoundaryType::Inflow);
+    WCNS_REQUIRE(imin.face == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Lower}));
+    WCNS_REQUIRE(imin.vertex_range == (wcns::IndexRange3 {{0, 0, 0}, {0, 3, 0}}));
+    WCNS_REQUIRE(imin.cell_face_range == (wcns::IndexRange3 {{0, 0, 0}, {0, 2, 0}}));
+
+    const auto& imax = block.boundaries[1];
+    WCNS_REQUIRE(imax.type == wcns::BoundaryType::Outflow);
+    WCNS_REQUIRE(imax.face == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Upper}));
+    WCNS_REQUIRE(imax.cell_face_range == (wcns::IndexRange3 {{3, 0, 0}, {3, 2, 0}}));
+
+    const auto& jmax = block.boundaries[3];
+    WCNS_REQUIRE(jmax.type == wcns::BoundaryType::SlipWall);
+    WCNS_REQUIRE(jmax.face == (wcns::FaceLocation {wcns::Axis::J, wcns::Side::Upper}));
+    WCNS_REQUIRE(jmax.vertex_range == (wcns::IndexRange3 {{4, 3, 0}, {0, 3, 0}}));
+    WCNS_REQUIRE(jmax.cell_face_range == (wcns::IndexRange3 {{3, 2, 0}, {0, 2, 0}}));
 }
 
 void test_3d(const char* path)
@@ -51,6 +70,14 @@ void test_3d(const char* path)
     WCNS_REQUIRE(block.coordinates.x(3, 2, 2) == 3.0);
     WCNS_REQUIRE(block.coordinates.y(3, 2, 2) == 1.0);
     WCNS_REQUIRE(block.coordinates.z(3, 2, 2) == 0.5);
+    WCNS_REQUIRE(block.boundaries.size() == 6);
+    WCNS_REQUIRE(block.boundaries[0].type == wcns::BoundaryType::Farfield);
+    WCNS_REQUIRE(
+        block.boundaries[3].cell_face_range
+        == (wcns::IndexRange3 {{2, 1, 0}, {0, 1, 1}}));
+    WCNS_REQUIRE(
+        block.boundaries[5].face
+        == (wcns::FaceLocation {wcns::Axis::K, wcns::Side::Upper}));
 }
 
 } // namespace
@@ -71,4 +98,3 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 }
-

@@ -109,7 +109,8 @@ void write_2d(const std::string& path)
     write_boundary(file.id(), base, zone, "imin", BCInflow, {1, 1, 1, nj});
     write_boundary(file.id(), base, zone, "imax", BCOutflow, {ni, 1, ni, nj});
     write_boundary(file.id(), base, zone, "jmin", BCWall, {1, 1, ni, 1});
-    write_boundary(file.id(), base, zone, "jmax", BCWall, {1, nj, ni, nj});
+    // Reverse the tangential direction to exercise directed PointRange handling.
+    write_boundary(file.id(), base, zone, "jmax", BCWall, {ni, nj, 1, nj});
     file.close();
 }
 
@@ -157,7 +158,7 @@ void write_3d(const std::string& path)
     write_boundary(file.id(), base, zone, "imin", BCFarfield, {1, 1, 1, 1, nj, nk});
     write_boundary(file.id(), base, zone, "imax", BCFarfield, {ni, 1, 1, ni, nj, nk});
     write_boundary(file.id(), base, zone, "jmin", BCWall, {1, 1, 1, ni, 1, nk});
-    write_boundary(file.id(), base, zone, "jmax", BCWall, {1, nj, 1, ni, nj, nk});
+    write_boundary(file.id(), base, zone, "jmax", BCWall, {ni, nj, 1, 1, nj, nk});
     write_boundary(file.id(), base, zone, "kmin", BCWall, {1, 1, 1, ni, nj, 1});
     write_boundary(file.id(), base, zone, "kmax", BCWall, {1, 1, nk, ni, nj, nk});
     file.close();
@@ -209,4 +210,3 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 }
-

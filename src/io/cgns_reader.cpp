@@ -3,6 +3,7 @@
 #include <cgnslib.h>
 
 #include <array>
+#include <cstdlib>
 #include <cstddef>
 #include <limits>
 #include <string>
@@ -140,6 +141,199 @@ bool coordinate_exists(int file, const CgnsZoneMetadata& zone, const char* expec
     return false;
 }
 
+BoundaryType convert_boundary_type(BCType_t type)
+{
+    switch (type) {
+    case BCFarfield:
+        return BoundaryType::Farfield;
+    case BCInflow:
+    case BCInflowSubsonic:
+    case BCInflowSupersonic:
+        return BoundaryType::Inflow;
+    case BCOutflow:
+    case BCOutflowSubsonic:
+    case BCOutflowSupersonic:
+        return BoundaryType::Outflow;
+    case BCSymmetryPlane:
+    case BCSymmetryPolar:
+        return BoundaryType::Symmetry;
+    case BCWall:
+    case BCWallInviscid:
+        return BoundaryType::SlipWall;
+    case BCWallViscous:
+        return BoundaryType::NoSlipAdiabaticWall;
+    case BCWallViscousIsothermal:
+        return BoundaryType::NoSlipIsothermalWall;
+    default:
+        return BoundaryType::Undefined;
+    }
+}
+
+IndexRange3 convert_vertex_range(const std::vector<cgsize_t>& points, int cell_dimension)
+{
+    IndexRange3 range;
+    for (int axis = 0; axis < cell_dimension; ++axis) {
+        range.begin[static_cast<std::size_t>(axis)] = checked_dimension(
+            points[static_cast<std::size_t>(axis)], "boundary range begin")
+            - 1;
+        range.end[static_cast<std::size_t>(axis)] = checked_dimension(
+            points[static_cast<std::size_t>(cell_dimension + axis)],
+            "boundary range end")
+            - 1;
+    }
+    if (cell_dimension == 2) {
+        range.begin.k = 0;
+        range.end.k = 0;
+    }
+    return range;
+}
+
+FaceLocation identify_boundary_face(
+    const IndexRange3& vertex_range,
+    Extent3 vertex_extent,
+    int cell_dimension)
+{
+    int normal_axis = -1;
+    Side side = Side::Lower;
+    for (int axis = 0; axis < cell_dimension; ++axis) {
+        const auto coordinate = vertex_range.begin[static_cast<std::size_t>(axis)];
+        if (coordinate != vertex_range.end[static_cast<std::size_t>(axis)]) {
+            continue;
+        }
+        if (coordinate == 0) {
+            if (normal_axis >= 0) {
+                throw CgnsError("boundary PointRange describes an edge or corner, not a face");
+            }
+            normal_axis = axis;
+            side = Side::Lower;
+        } else if (coordinate == vertex_extent[static_cast<std::size_t>(axis)] - 1) {
+            if (normal_axis >= 0) {
+                throw CgnsError("boundary PointRange describes an edge or corner, not a face");
+            }
+            normal_axis = axis;
+            side = Side::Upper;
+        }
+    }
+    if (normal_axis < 0) {
+        throw CgnsError("boundary PointRange is not located on a block face");
+    }
+    return {static_cast<Axis>(normal_axis), side};
+}
+
+IndexRange3 make_cell_face_range(
+    const IndexRange3& vertex_range,
+    FaceLocation face,
+    Extent3 cell_extent,
+    int cell_dimension)
+{
+    IndexRange3 cells;
+    const int normal_axis = static_cast<int>(face.axis);
+    for (int axis = 0; axis < cell_dimension; ++axis) {
+        if (axis == normal_axis) {
+            const int coordinate = face.side == Side::Lower
+                ? 0
+                : cell_extent[static_cast<std::size_t>(axis)] - 1;
+            cells.begin[static_cast<std::size_t>(axis)] = coordinate;
+            cells.end[static_cast<std::size_t>(axis)] = coordinate;
+            continue;
+        }
+
+        const int first = vertex_range.begin[static_cast<std::size_t>(axis)];
+        const int last = vertex_range.end[static_cast<std::size_t>(axis)];
+        if (first == last) {
+            throw CgnsError("boundary PointRange must span cells in every tangential direction");
+        }
+        if (last > first) {
+            cells.begin[static_cast<std::size_t>(axis)] = first;
+            cells.end[static_cast<std::size_t>(axis)] = last - 1;
+        } else {
+            cells.begin[static_cast<std::size_t>(axis)] = first - 1;
+            cells.end[static_cast<std::size_t>(axis)] = last;
+        }
+    }
+    if (cell_dimension == 2) {
+        cells.begin.k = 0;
+        cells.end.k = 0;
+    }
+    return cells;
+}
+
+void read_boundaries(int file, const CgnsZoneMetadata& zone, StructuredBlock& block)
+{
+    int boundary_count = 0;
+    check_cgns(
+        cg_nbocos(file, zone.base_file_index, zone.zone_file_index, &boundary_count),
+        "cg_nbocos");
+    block.boundaries.reserve(static_cast<std::size_t>(boundary_count));
+
+    for (int boundary_index = 1; boundary_index <= boundary_count; ++boundary_index) {
+        char name[33] = {};
+        BCType_t boundary_type = BCTypeNull;
+        PointSetType_t point_set_type = PointSetTypeNull;
+        cgsize_t point_count = 0;
+        int normal_index[3] = {};
+        cgsize_t normal_list_size = 0;
+        DataType_t normal_data_type = DataTypeNull;
+        int data_set_count = 0;
+        check_cgns(
+            cg_boco_info(
+                file,
+                zone.base_file_index,
+                zone.zone_file_index,
+                boundary_index,
+                name,
+                &boundary_type,
+                &point_set_type,
+                &point_count,
+                normal_index,
+                &normal_list_size,
+                &normal_data_type,
+                &data_set_count),
+            "cg_boco_info");
+        if (point_set_type != PointRange || point_count != 2) {
+            throw CgnsError("only PointRange physical boundaries are supported");
+        }
+
+        GridLocation_t location = GridLocationNull;
+        check_cgns(
+            cg_boco_gridlocation_read(
+                file,
+                zone.base_file_index,
+                zone.zone_file_index,
+                boundary_index,
+                &location),
+            "cg_boco_gridlocation_read");
+        if (location != Vertex) {
+            throw CgnsError("only Vertex-located boundary PointRange is supported");
+        }
+
+        std::vector<cgsize_t> points(
+            static_cast<std::size_t>(point_count * zone.cell_dimension));
+        check_cgns(
+            cg_boco_read(
+                file,
+                zone.base_file_index,
+                zone.zone_file_index,
+                boundary_index,
+                points.data(),
+                nullptr),
+            "cg_boco_read");
+
+        const auto vertex_range = convert_vertex_range(points, zone.cell_dimension);
+        const auto face = identify_boundary_face(
+            vertex_range, zone.vertex_extent, zone.cell_dimension);
+        block.boundaries.push_back({
+            name,
+            convert_boundary_type(boundary_type),
+            face,
+            vertex_range,
+            make_cell_face_range(
+                vertex_range, face, zone.cell_extent, zone.cell_dimension),
+            {},
+        });
+    }
+}
+
 } // namespace
 
 CgnsMeshMetadata CgnsReader::read_metadata(const std::string& path) const
@@ -226,8 +420,9 @@ StructuredBlock CgnsReader::read_block(
         block.coordinates.z.fill(0.0);
     }
 
+    read_boundaries(file.id(), zone, block);
+
     return block;
 }
 
 } // namespace wcns
-
