@@ -14,7 +14,7 @@ if(WCNS_ENABLE_CGNS)
     add_executable(wcns_generate_test_cgns
         ${CMAKE_CURRENT_SOURCE_DIR}/../tools/generate_test_cgns.cpp
     )
-    target_link_libraries(wcns_generate_test_cgns PRIVATE wcns::cgns)
+    target_link_libraries(wcns_generate_test_cgns PRIVATE wcns::core wcns::cgns)
 
     add_test(
         NAME wcns.generate_test_cgns
