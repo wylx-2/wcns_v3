@@ -4,8 +4,12 @@ add_executable(wcns_stage_a_tests
     test_array3d.cpp
     test_field.cpp
     test_structured_block.cpp
+    test_cgns_link.cpp
 )
 
 target_link_libraries(wcns_stage_a_tests PRIVATE wcns::core)
+if(WCNS_ENABLE_CGNS)
+    target_link_libraries(wcns_stage_a_tests PRIVATE wcns::cgns)
+endif()
 
 add_test(NAME wcns.stage_a COMMAND wcns_stage_a_tests)
