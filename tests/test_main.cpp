@@ -5,6 +5,7 @@
 #include <type_traits>
 
 void test_index();
+void test_array3d();
 
 int main()
 {
@@ -19,6 +20,7 @@ int main()
         }
 
         test_index();
+        test_array3d();
 
         std::cout << "stage A tests passed\n";
         return EXIT_SUCCESS;
