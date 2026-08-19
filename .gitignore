@@ -1,0 +1,11 @@
+/build/
+/cmake-build-*/
+/.cache/
+/.vscode/
+/.idea/
+*.user
+*.suo
+*.obj
+*.o
+*.exe
+
