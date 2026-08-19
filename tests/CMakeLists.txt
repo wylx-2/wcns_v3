@@ -27,7 +27,7 @@ if(WCNS_ENABLE_CGNS)
     add_executable(wcns_cgns_reader_tests
         test_cgns_reader.cpp
     )
-    target_link_libraries(wcns_cgns_reader_tests PRIVATE wcns::io)
+    target_link_libraries(wcns_cgns_reader_tests PRIVATE wcns::io wcns::mesh)
     add_test(
         NAME wcns.cgns_reader
         COMMAND wcns_cgns_reader_tests

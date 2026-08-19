@@ -22,6 +22,12 @@ else()
     target_compile_options(wcns_core INTERFACE -Wall -Wextra -Wpedantic)
 endif()
 
+add_library(wcns_mesh STATIC
+    src/mesh/metrics.cpp
+)
+add_library(wcns::mesh ALIAS wcns_mesh)
+target_link_libraries(wcns_mesh PUBLIC wcns::core)
+
 if(WCNS_ENABLE_CGNS)
     include(FetchContent)
     if(POLICY CMP0135)

@@ -1,6 +1,7 @@
 #include "test_support.hpp"
 
 #include <wcns/io/cgns_reader.hpp>
+#include <wcns/mesh/metrics.hpp>
 
 #include <cstdlib>
 #include <exception>
@@ -23,7 +24,7 @@ void test_2d(const char* path)
     WCNS_REQUIRE(zone.vertex_extent == (wcns::Extent3 {5, 4, 1}));
     WCNS_REQUIRE(zone.cell_extent == (wcns::Extent3 {4, 3, 1}));
 
-    const auto block = reader.read_block(path, zone, 0, 3);
+    auto block = reader.read_block(path, zone, 0, 3);
     WCNS_REQUIRE(block.id() == 0);
     WCNS_REQUIRE(block.owner_rank() == 0);
     WCNS_REQUIRE(block.ghost_width() == 3);
@@ -50,6 +51,25 @@ void test_2d(const char* path)
     WCNS_REQUIRE(jmax.face == (wcns::FaceLocation {wcns::Axis::J, wcns::Side::Upper}));
     WCNS_REQUIRE(jmax.vertex_range == (wcns::IndexRange3 {{4, 3, 0}, {0, 3, 0}}));
     WCNS_REQUIRE(jmax.cell_face_range == (wcns::IndexRange3 {{3, 2, 0}, {0, 2, 0}}));
+
+    wcns::compute_metrics(block);
+    WCNS_REQUIRE_NEAR(block.cell_metrics.center_x(0, 0, 0), 0.125, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.cell_metrics.center_y(0, 0, 0), 1.0 / 6.0, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.cell_metrics.volume(0, 0, 0), 1.0 / 12.0, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.cell_metrics.jacobian(3, 2, 0), 1.0 / 12.0, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.face_metrics.i_faces.area(0, 0, 0), 1.0 / 3.0, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.face_metrics.i_faces.normal_x(0, 0, 0), 1.0, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.face_metrics.i_faces.normal_y(0, 0, 0), 0.0, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.face_metrics.j_faces.area(0, 0, 0), 0.25, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.face_metrics.j_faces.normal_y(0, 0, 0), 1.0, 1.0e-14);
+
+    double total_area = 0.0;
+    for (int j = 0; j < block.cell_extent().nj; ++j) {
+        for (int i = 0; i < block.cell_extent().ni; ++i) {
+            total_area += block.cell_metrics.volume(i, j, 0);
+        }
+    }
+    WCNS_REQUIRE_NEAR(total_area, 1.0, 1.0e-13);
 }
 
 void test_3d(const char* path)
@@ -65,7 +85,7 @@ void test_3d(const char* path)
     WCNS_REQUIRE(zone.vertex_extent == (wcns::Extent3 {4, 3, 3}));
     WCNS_REQUIRE(zone.cell_extent == (wcns::Extent3 {3, 2, 2}));
 
-    const auto block = reader.read_block(path, zone, 2, 2);
+    auto block = reader.read_block(path, zone, 2, 2);
     WCNS_REQUIRE(block.owner_rank() == 2);
     WCNS_REQUIRE(block.coordinates.x(3, 2, 2) == 3.0);
     WCNS_REQUIRE(block.coordinates.y(3, 2, 2) == 1.0);
@@ -78,6 +98,28 @@ void test_3d(const char* path)
     WCNS_REQUIRE(
         block.boundaries[5].face
         == (wcns::FaceLocation {wcns::Axis::K, wcns::Side::Upper}));
+
+    wcns::compute_metrics(block);
+    WCNS_REQUIRE_NEAR(block.cell_metrics.center_x(0, 0, 0), 0.5, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.cell_metrics.center_y(0, 0, 0), 0.25, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.cell_metrics.center_z(0, 0, 0), 0.125, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.cell_metrics.volume(0, 0, 0), 0.125, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.face_metrics.i_faces.area(0, 0, 0), 0.125, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.face_metrics.i_faces.normal_x(0, 0, 0), 1.0, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.face_metrics.j_faces.area(0, 0, 0), 0.25, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.face_metrics.j_faces.normal_y(0, 0, 0), 1.0, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.face_metrics.k_faces.area(0, 0, 0), 0.5, 1.0e-14);
+    WCNS_REQUIRE_NEAR(block.face_metrics.k_faces.normal_z(0, 0, 0), 1.0, 1.0e-14);
+
+    double total_volume = 0.0;
+    for (int k = 0; k < block.cell_extent().nk; ++k) {
+        for (int j = 0; j < block.cell_extent().nj; ++j) {
+            for (int i = 0; i < block.cell_extent().ni; ++i) {
+                total_volume += block.cell_metrics.volume(i, j, k);
+            }
+        }
+    }
+    WCNS_REQUIRE_NEAR(total_volume, 1.5, 1.0e-13);
 }
 
 } // namespace
