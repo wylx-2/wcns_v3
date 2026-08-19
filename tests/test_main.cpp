@@ -7,6 +7,7 @@
 void test_index();
 void test_array3d();
 void test_field();
+void test_structured_block();
 
 int main()
 {
@@ -23,6 +24,7 @@ int main()
         test_index();
         test_array3d();
         test_field();
+        test_structured_block();
 
         std::cout << "stage A tests passed\n";
         return EXIT_SUCCESS;
