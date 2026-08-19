@@ -9,6 +9,7 @@ void test_array3d();
 void test_field();
 void test_structured_block();
 void test_cgns_link();
+void test_metrics();
 
 int main()
 {
@@ -27,6 +28,7 @@ int main()
         test_field();
         test_structured_block();
         test_cgns_link();
+        test_metrics();
 
         std::cout << "stage A tests passed\n";
         return EXIT_SUCCESS;
