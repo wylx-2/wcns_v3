@@ -48,6 +48,12 @@ if(WCNS_ENABLE_CGNS)
     if(MINGW)
         target_compile_definitions(wcns_cgns INTERFACE "__int64=long long")
     endif()
+
+    add_library(wcns_io STATIC
+        src/io/cgns_reader.cpp
+    )
+    add_library(wcns::io ALIAS wcns_io)
+    target_link_libraries(wcns_io PUBLIC wcns::core PRIVATE wcns::cgns)
 endif()
 
 if(WCNS_BUILD_TESTS)

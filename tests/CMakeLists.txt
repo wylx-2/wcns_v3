@@ -22,6 +22,19 @@ if(WCNS_ENABLE_CGNS)
             ${CMAKE_CURRENT_BINARY_DIR}/generated_2d.cgns
             ${CMAKE_CURRENT_BINARY_DIR}/generated_3d.cgns
     )
+    set_tests_properties(wcns.generate_test_cgns PROPERTIES FIXTURES_SETUP cgns_files)
+
+    add_executable(wcns_cgns_reader_tests
+        test_cgns_reader.cpp
+    )
+    target_link_libraries(wcns_cgns_reader_tests PRIVATE wcns::io)
+    add_test(
+        NAME wcns.cgns_reader
+        COMMAND wcns_cgns_reader_tests
+            ${CMAKE_CURRENT_BINARY_DIR}/generated_2d.cgns
+            ${CMAKE_CURRENT_BINARY_DIR}/generated_3d.cgns
+    )
+    set_tests_properties(wcns.cgns_reader PROPERTIES FIXTURES_REQUIRED cgns_files)
 endif()
 
 add_test(NAME wcns.unit COMMAND wcns_unit_tests)
