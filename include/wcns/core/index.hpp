@@ -39,7 +39,15 @@ struct Index3 {
         }
     }
 
-    friend constexpr bool operator==(const Index3&, const Index3&) = default;
+    friend constexpr bool operator==(const Index3& lhs, const Index3& rhs)
+    {
+        return lhs.i == rhs.i && lhs.j == rhs.j && lhs.k == rhs.k;
+    }
+
+    friend constexpr bool operator!=(const Index3& lhs, const Index3& rhs)
+    {
+        return !(lhs == rhs);
+    }
 };
 
 struct Extent3 {
@@ -94,7 +102,15 @@ struct Extent3 {
             * static_cast<std::size_t>(nk);
     }
 
-    friend constexpr bool operator==(const Extent3&, const Extent3&) = default;
+    friend constexpr bool operator==(const Extent3& lhs, const Extent3& rhs)
+    {
+        return lhs.ni == rhs.ni && lhs.nj == rhs.nj && lhs.nk == rhs.nk;
+    }
+
+    friend constexpr bool operator!=(const Extent3& lhs, const Extent3& rhs)
+    {
+        return !(lhs == rhs);
+    }
 };
 
 // Inclusive, directed index range. Each axis may increase, decrease, or stay fixed.
@@ -140,7 +156,15 @@ struct IndexRange3 {
         };
     }
 
-    friend constexpr bool operator==(const IndexRange3&, const IndexRange3&) = default;
+    friend constexpr bool operator==(const IndexRange3& lhs, const IndexRange3& rhs)
+    {
+        return lhs.begin == rhs.begin && lhs.end == rhs.end;
+    }
+
+    friend constexpr bool operator!=(const IndexRange3& lhs, const IndexRange3& rhs)
+    {
+        return !(lhs == rhs);
+    }
 
 private:
     static constexpr int direction(int first, int last)
