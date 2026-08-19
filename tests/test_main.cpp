@@ -30,7 +30,7 @@ int main()
         test_cgns_link();
         test_metrics();
 
-        std::cout << "stage A tests passed\n";
+        std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';
