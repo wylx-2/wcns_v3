@@ -24,6 +24,9 @@ endif()
 
 if(WCNS_ENABLE_CGNS)
     include(FetchContent)
+    if(POLICY CMP0135)
+        cmake_policy(SET CMP0135 NEW)
+    endif()
 
     set(CGNS_ENABLE_HDF5 OFF CACHE BOOL "" FORCE)
     set(CGNS_BUILD_SHARED OFF CACHE BOOL "" FORCE)
@@ -35,7 +38,6 @@ if(WCNS_ENABLE_CGNS)
         wcns_cgns_source
         URL ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cgns/CGNS-4.4.0.zip
         URL_HASH SHA256=72AD499936089102C1D77E3CDD78A623D61D1C6AD94C4DF3B23F36DB9DDFAD6A
-        SOURCE_SUBDIR CGNS-4.4.0
     )
     FetchContent_MakeAvailable(wcns_cgns_source)
 
