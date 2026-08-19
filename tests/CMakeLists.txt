@@ -1,4 +1,4 @@
-add_executable(wcns_stage_a_tests
+add_executable(wcns_unit_tests
     test_main.cpp
     test_index.cpp
     test_array3d.cpp
@@ -7,9 +7,21 @@ add_executable(wcns_stage_a_tests
     test_cgns_link.cpp
 )
 
-target_link_libraries(wcns_stage_a_tests PRIVATE wcns::core)
+target_link_libraries(wcns_unit_tests PRIVATE wcns::core)
 if(WCNS_ENABLE_CGNS)
-    target_link_libraries(wcns_stage_a_tests PRIVATE wcns::cgns)
+    target_link_libraries(wcns_unit_tests PRIVATE wcns::cgns)
+
+    add_executable(wcns_generate_test_cgns
+        ${CMAKE_CURRENT_SOURCE_DIR}/../tools/generate_test_cgns.cpp
+    )
+    target_link_libraries(wcns_generate_test_cgns PRIVATE wcns::cgns)
+
+    add_test(
+        NAME wcns.generate_test_cgns
+        COMMAND wcns_generate_test_cgns
+            ${CMAKE_CURRENT_BINARY_DIR}/generated_2d.cgns
+            ${CMAKE_CURRENT_BINARY_DIR}/generated_3d.cgns
+    )
 endif()
 
-add_test(NAME wcns.stage_a COMMAND wcns_stage_a_tests)
+add_test(NAME wcns.unit COMMAND wcns_unit_tests)
