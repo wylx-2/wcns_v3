@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstddef>
+#include <limits>
 #include <stdexcept>
 
 namespace wcns {
@@ -98,8 +99,9 @@ struct Extent3 {
         if (!valid()) {
             throw std::invalid_argument("Extent3 dimensions must be non-negative");
         }
-        return static_cast<std::size_t>(ni) * static_cast<std::size_t>(nj)
-            * static_cast<std::size_t>(nk);
+        const auto ij = checked_product(
+            static_cast<std::size_t>(ni), static_cast<std::size_t>(nj));
+        return checked_product(ij, static_cast<std::size_t>(nk));
     }
 
     friend constexpr bool operator==(const Extent3& lhs, const Extent3& rhs)
@@ -110,6 +112,15 @@ struct Extent3 {
     friend constexpr bool operator!=(const Extent3& lhs, const Extent3& rhs)
     {
         return !(lhs == rhs);
+    }
+
+private:
+    static constexpr std::size_t checked_product(std::size_t lhs, std::size_t rhs)
+    {
+        if (lhs != 0 && rhs > std::numeric_limits<std::size_t>::max() / lhs) {
+            throw std::overflow_error("Extent3 size exceeds addressable range");
+        }
+        return lhs * rhs;
     }
 };
 

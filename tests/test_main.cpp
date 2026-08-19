@@ -6,6 +6,7 @@
 
 void test_index();
 void test_array3d();
+void test_field();
 
 int main()
 {
@@ -21,6 +22,7 @@ int main()
 
         test_index();
         test_array3d();
+        test_field();
 
         std::cout << "stage A tests passed\n";
         return EXIT_SUCCESS;

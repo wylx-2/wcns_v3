@@ -3,6 +3,7 @@
 #include <wcns/core/index.hpp>
 
 #include <stdexcept>
+#include <limits>
 
 void test_index()
 {
@@ -20,6 +21,13 @@ void test_index()
     WCNS_REQUIRE(extent.size() == 24);
     WCNS_REQUIRE((Extent3 {4, 3, 0}.empty()));
     WCNS_REQUIRE_THROWS(std::invalid_argument, (Extent3 {-1, 2, 3}.size()));
+    WCNS_REQUIRE_THROWS(
+        std::overflow_error,
+        (Extent3 {
+             std::numeric_limits<int>::max(),
+             std::numeric_limits<int>::max(),
+             std::numeric_limits<int>::max()}
+             .size()));
 
     const IndexRange3 forward {{1, 2, 3}, {3, 5, 3}};
     WCNS_REQUIRE(forward.step() == (Index3 {1, 1, 0}));
