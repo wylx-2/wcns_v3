@@ -224,15 +224,31 @@ void test_unknown_donor(const char* path)
     throw std::runtime_error("unknown CGNS donor zone was accepted");
 }
 
+void test_out_of_extent_connectivity(const char* path)
+{
+    wcns::CgnsReader reader;
+    try {
+        static_cast<void>(reader.read_mesh(path, 0, 3));
+    } catch (const wcns::CgnsError& error) {
+        WCNS_REQUIRE(
+            std::string(error.what()).find(
+                "connectivity receiver vertex range end J index 4 is outside [0, 3]")
+            != std::string::npos);
+        return;
+    }
+    throw std::runtime_error("out-of-extent CGNS connectivity was accepted");
+}
+
 } // namespace
 
 int main(int argc, char** argv)
 {
-    if (argc != 8) {
+    if (argc != 9) {
         std::cerr
             << "usage: wcns_cgns_reader_tests <2d.cgns> <3d.cgns> "
                "<invalid-2d.cgns> <multi-2d.cgns> <multi-3d.cgns> "
-               "<one-sided-2d.cgns> <unknown-donor-2d.cgns>\n";
+               "<one-sided-2d.cgns> <unknown-donor-2d.cgns> "
+               "<invalid-connectivity-range-2d.cgns>\n";
         return EXIT_FAILURE;
     }
     try {
@@ -243,6 +259,7 @@ int main(int argc, char** argv)
         test_multiblock_3d(argv[5]);
         test_one_sided_connectivity(argv[6]);
         test_unknown_donor(argv[7]);
+        test_out_of_extent_connectivity(argv[8]);
         std::cout << "CGNS reader tests passed\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {

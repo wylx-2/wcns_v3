@@ -28,6 +28,7 @@ if(WCNS_ENABLE_CGNS)
             ${CMAKE_CURRENT_BINARY_DIR}/generated_multi_3d.cgns
             ${CMAKE_CURRENT_BINARY_DIR}/generated_one_sided_2d.cgns
             ${CMAKE_CURRENT_BINARY_DIR}/generated_unknown_donor_2d.cgns
+            ${CMAKE_CURRENT_BINARY_DIR}/generated_invalid_connectivity_range_2d.cgns
     )
     set_tests_properties(wcns.generate_test_cgns PROPERTIES FIXTURES_SETUP cgns_files)
 
@@ -45,6 +46,7 @@ if(WCNS_ENABLE_CGNS)
             ${CMAKE_CURRENT_BINARY_DIR}/generated_multi_3d.cgns
             ${CMAKE_CURRENT_BINARY_DIR}/generated_one_sided_2d.cgns
             ${CMAKE_CURRENT_BINARY_DIR}/generated_unknown_donor_2d.cgns
+            ${CMAKE_CURRENT_BINARY_DIR}/generated_invalid_connectivity_range_2d.cgns
     )
     set_tests_properties(wcns.cgns_reader PROPERTIES FIXTURES_REQUIRED cgns_files)
 endif()

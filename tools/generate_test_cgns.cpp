@@ -197,7 +197,8 @@ void write_3d(const std::string& path)
 void write_multiblock_2d(
     const std::string& path,
     bool reciprocal = true,
-    const char* first_donor_name = "Right2D")
+    const char* first_donor_name = "Right2D",
+    bool invalid_receiver_range = false)
 {
     constexpr int left_ni = 5;
     constexpr int left_nj = 4;
@@ -264,7 +265,7 @@ void write_multiblock_2d(
         left_zone,
         "left-to-right",
         first_donor_name,
-        {left_ni, 1, left_ni, left_nj},
+        {left_ni, 1, left_ni, left_nj + (invalid_receiver_range ? 1 : 0)},
         {right_ni, 1, 1, 1},
         {2, -1});
     if (reciprocal) {
@@ -404,12 +405,13 @@ void verify(
 
 int main(int argc, char** argv)
 {
-    if (argc != 8) {
+    if (argc != 9) {
         std::cerr
             << "usage: wcns_generate_test_cgns <2d-output.cgns> <3d-output.cgns> "
                "<invalid-2d-output.cgns> <multi-2d-output.cgns> "
                "<multi-3d-output.cgns> <one-sided-2d-output.cgns> "
-               "<unknown-donor-2d-output.cgns>\n";
+               "<unknown-donor-2d-output.cgns> "
+               "<invalid-connectivity-range-2d-output.cgns>\n";
         return EXIT_FAILURE;
     }
 
@@ -422,6 +424,7 @@ int main(int argc, char** argv)
         write_multiblock_3d(argv[5]);
         write_multiblock_2d(argv[6], false);
         write_multiblock_2d(argv[7], false, "Missing2D");
+        write_multiblock_2d(argv[8], false, "Right2D", true);
         verify(argv[1], 2, 1, 4);
         verify(argv[2], 3, 1, 6);
         verify(argv[3], 2, 1, 5);
@@ -429,6 +432,7 @@ int main(int argc, char** argv)
         verify(argv[5], 3, 2, 0);
         verify(argv[6], 2, 2, 0);
         verify(argv[7], 2, 2, 0);
+        verify(argv[8], 2, 2, 0);
         std::cout << "generated and verified CGNS test grids\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {
