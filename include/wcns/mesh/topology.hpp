@@ -4,6 +4,8 @@
 #include <wcns/core/types.hpp>
 
 #include <array>
+#include <cstdlib>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 
@@ -55,17 +57,68 @@ struct BoundaryPatch {
 struct IndexTransform {
     std::array<int, 3> receiver_to_donor {{1, 2, 3}};
 
-    [[nodiscard]] bool valid() const
+    [[nodiscard]] bool valid(int dimension = 3) const
     {
+        if (dimension != 2 && dimension != 3) {
+            return false;
+        }
         std::array<bool, 3> used {{false, false, false}};
-        for (const int entry : receiver_to_donor) {
-            const int axis = entry < 0 ? -entry : entry;
-            if (axis < 1 || axis > 3 || used[static_cast<std::size_t>(axis - 1)]) {
+        for (int receiver_axis = 0; receiver_axis < dimension; ++receiver_axis) {
+            const int entry = receiver_to_donor[static_cast<std::size_t>(receiver_axis)];
+            const int axis = std::abs(entry);
+            if (axis < 1 || axis > dimension
+                || used[static_cast<std::size_t>(axis - 1)]) {
                 return false;
             }
             used[static_cast<std::size_t>(axis - 1)] = true;
         }
+        for (int axis = dimension; axis < 3; ++axis) {
+            if (receiver_to_donor[static_cast<std::size_t>(axis)] != axis + 1) {
+                return false;
+            }
+        }
         return true;
+    }
+
+    [[nodiscard]] Index3 map(
+        Index3 receiver,
+        Index3 receiver_origin,
+        Index3 donor_origin,
+        int dimension) const
+    {
+        if (!valid(dimension)) {
+            throw std::invalid_argument("cannot apply an invalid index transform");
+        }
+        Index3 donor = donor_origin;
+        for (int receiver_axis = 0; receiver_axis < dimension; ++receiver_axis) {
+            const int entry = receiver_to_donor[static_cast<std::size_t>(receiver_axis)];
+            const auto donor_axis = static_cast<std::size_t>(std::abs(entry) - 1);
+            const int sign = entry < 0 ? -1 : 1;
+            donor[donor_axis] += sign
+                * (receiver[static_cast<std::size_t>(receiver_axis)]
+                    - receiver_origin[static_cast<std::size_t>(receiver_axis)]);
+        }
+        return donor;
+    }
+
+    [[nodiscard]] IndexTransform inverse(int dimension) const
+    {
+        if (!valid(dimension)) {
+            throw std::invalid_argument("cannot invert an invalid index transform");
+        }
+        IndexTransform result;
+        for (int receiver_axis = 0; receiver_axis < dimension; ++receiver_axis) {
+            const int entry = receiver_to_donor[static_cast<std::size_t>(receiver_axis)];
+            const auto donor_axis = static_cast<std::size_t>(std::abs(entry) - 1);
+            result.receiver_to_donor[donor_axis]
+                = (entry < 0 ? -1 : 1) * (receiver_axis + 1);
+        }
+        return result;
+    }
+
+    friend bool operator==(const IndexTransform& lhs, const IndexTransform& rhs)
+    {
+        return lhs.receiver_to_donor == rhs.receiver_to_donor;
     }
 };
 
@@ -85,4 +138,3 @@ struct ConnectivityPatch {
 };
 
 } // namespace wcns
-

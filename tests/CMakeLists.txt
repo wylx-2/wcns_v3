@@ -6,6 +6,7 @@ add_executable(wcns_unit_tests
     test_structured_block.cpp
     test_cgns_link.cpp
     test_metrics.cpp
+    test_topology.cpp
 )
 
 target_link_libraries(wcns_unit_tests PRIVATE wcns::core wcns::mesh)

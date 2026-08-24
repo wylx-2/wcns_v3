@@ -24,6 +24,7 @@ endif()
 
 add_library(wcns_mesh STATIC
     src/mesh/metrics.cpp
+    src/mesh/structured_mesh.cpp
 )
 add_library(wcns::mesh ALIAS wcns_mesh)
 target_link_libraries(wcns_mesh PUBLIC wcns::core)
@@ -59,7 +60,7 @@ if(WCNS_ENABLE_CGNS)
         src/io/cgns_reader.cpp
     )
     add_library(wcns::io ALIAS wcns_io)
-    target_link_libraries(wcns_io PUBLIC wcns::core PRIVATE wcns::cgns)
+    target_link_libraries(wcns_io PUBLIC wcns::mesh PRIVATE wcns::cgns)
 endif()
 
 if(WCNS_BUILD_TESTS)
