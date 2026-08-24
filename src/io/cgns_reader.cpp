@@ -201,29 +201,29 @@ void validate_range_within_extent(
 IndexRange3 convert_vertex_range(
     const std::vector<cgsize_t>& points,
     Extent3 vertex_extent,
-    int cell_dimension)
+    int cell_dimension,
+    const char* label)
 {
     const auto expected_point_values = static_cast<std::size_t>(2 * cell_dimension);
     if (points.size() != expected_point_values) {
-        throw CgnsError("boundary PointRange has an unexpected number of index values");
+        throw CgnsError(std::string(label) + " has an unexpected number of index values");
     }
 
     IndexRange3 range;
     for (int axis = 0; axis < cell_dimension; ++axis) {
         range.begin[static_cast<std::size_t>(axis)] = checked_dimension(
-            points[static_cast<std::size_t>(axis)], "boundary range begin")
+            points[static_cast<std::size_t>(axis)], label)
             - 1;
         range.end[static_cast<std::size_t>(axis)] = checked_dimension(
             points[static_cast<std::size_t>(cell_dimension + axis)],
-            "boundary range end")
+            label)
             - 1;
     }
     if (cell_dimension == 2) {
         range.begin.k = 0;
         range.end.k = 0;
     }
-    validate_range_within_extent(
-        range, vertex_extent, cell_dimension, "boundary vertex PointRange");
+    validate_range_within_extent(range, vertex_extent, cell_dimension, label);
     return range;
 }
 
@@ -263,7 +263,8 @@ IndexRange3 make_cell_face_range(
     const IndexRange3& vertex_range,
     FaceLocation face,
     Extent3 cell_extent,
-    int cell_dimension)
+    int cell_dimension,
+    const char* label)
 {
     IndexRange3 cells;
     const int normal_axis = static_cast<int>(face.axis);
@@ -294,8 +295,7 @@ IndexRange3 make_cell_face_range(
         cells.begin.k = 0;
         cells.end.k = 0;
     }
-    validate_range_within_extent(
-        cells, cell_extent, cell_dimension, "boundary cell-face range");
+    validate_range_within_extent(cells, cell_extent, cell_dimension, label);
     return cells;
 }
 
@@ -361,7 +361,10 @@ void read_boundaries(int file, const CgnsZoneMetadata& zone, StructuredBlock& bl
             "cg_boco_read");
 
         const auto vertex_range = convert_vertex_range(
-            points, block.vertex_extent(), zone.cell_dimension);
+            points,
+            block.vertex_extent(),
+            zone.cell_dimension,
+            "boundary vertex PointRange");
         const auto face = identify_boundary_face(
             vertex_range, block.vertex_extent(), zone.cell_dimension);
         block.boundaries.push_back({
@@ -370,10 +373,178 @@ void read_boundaries(int file, const CgnsZoneMetadata& zone, StructuredBlock& bl
             face,
             vertex_range,
             make_cell_face_range(
-                vertex_range, face, block.cell_extent(), zone.cell_dimension),
+                vertex_range,
+                face,
+                block.cell_extent(),
+                zone.cell_dimension,
+                "boundary cell-face range"),
             {},
         });
     }
+}
+
+const CgnsZoneMetadata& find_donor_zone(
+    const CgnsMeshMetadata& metadata,
+    int base_file_index,
+    const char* donor_name)
+{
+    const CgnsZoneMetadata* result = nullptr;
+    for (const auto& candidate : metadata.zones) {
+        if (candidate.base_file_index == base_file_index && candidate.name == donor_name) {
+            if (result != nullptr) {
+                throw CgnsError(
+                    std::string("CGNS donor zone name is ambiguous: ") + donor_name);
+            }
+            result = &candidate;
+        }
+    }
+    if (result == nullptr) {
+        throw CgnsError(std::string("CGNS connectivity references unknown donor zone: ")
+            + donor_name);
+    }
+    return *result;
+}
+
+void read_connectivities(
+    int file,
+    const CgnsZoneMetadata& zone,
+    const CgnsMeshMetadata& metadata,
+    StructuredBlock& block)
+{
+    int connection_count = 0;
+    check_cgns(
+        cg_n1to1(file, zone.base_file_index, zone.zone_file_index, &connection_count),
+        "cg_n1to1");
+    block.connectivities.reserve(static_cast<std::size_t>(connection_count));
+
+    for (int connection_index = 1; connection_index <= connection_count;
+         ++connection_index) {
+        char name[33] = {};
+        char donor_name[33] = {};
+        std::array<cgsize_t, 6> receiver_points {};
+        std::array<cgsize_t, 6> donor_points {};
+        std::array<int, 3> raw_transform {{1, 2, 3}};
+        check_cgns(
+            cg_1to1_read(
+                file,
+                zone.base_file_index,
+                zone.zone_file_index,
+                connection_index,
+                name,
+                donor_name,
+                receiver_points.data(),
+                donor_points.data(),
+                raw_transform.data()),
+            "cg_1to1_read");
+
+        const auto& donor_zone = find_donor_zone(
+            metadata, zone.base_file_index, donor_name);
+        if (zone.cell_dimension != donor_zone.cell_dimension) {
+            throw CgnsError(
+                std::string("connectivity ") + name
+                + " joins zones with different cell dimensions");
+        }
+
+        const auto value_count = static_cast<std::size_t>(2 * zone.cell_dimension);
+        const std::vector<cgsize_t> receiver_values(
+            receiver_points.begin(), receiver_points.begin() + value_count);
+        const std::vector<cgsize_t> donor_values(
+            donor_points.begin(), donor_points.begin() + value_count);
+        const auto receiver_vertex_range = convert_vertex_range(
+            receiver_values,
+            block.vertex_extent(),
+            zone.cell_dimension,
+            "connectivity receiver vertex range");
+        const auto donor_vertex_range = convert_vertex_range(
+            donor_values,
+            donor_zone.vertex_extent,
+            zone.cell_dimension,
+            "connectivity donor vertex range");
+        const auto receiver_face = identify_boundary_face(
+            receiver_vertex_range, block.vertex_extent(), zone.cell_dimension);
+        const auto donor_face = identify_boundary_face(
+            donor_vertex_range, donor_zone.vertex_extent, zone.cell_dimension);
+
+        IndexTransform transform;
+        for (int axis = 0; axis < zone.cell_dimension; ++axis) {
+            transform.receiver_to_donor[static_cast<std::size_t>(axis)]
+                = raw_transform[static_cast<std::size_t>(axis)];
+        }
+        if (!transform.valid(zone.cell_dimension)) {
+            throw CgnsError(std::string("connectivity ") + name
+                + " has an invalid CGNS Transform");
+        }
+        if (transform.map(
+                receiver_vertex_range.end,
+                receiver_vertex_range.begin,
+                donor_vertex_range.begin,
+                zone.cell_dimension)
+            != donor_vertex_range.end) {
+            throw CgnsError(std::string("connectivity ") + name
+                + " Transform does not map receiver range onto donor range");
+        }
+
+        block.connectivities.push_back({
+            name,
+            block.id(),
+            donor_zone.block_id,
+            invalid_rank_id,
+            receiver_face,
+            donor_face,
+            receiver_vertex_range,
+            donor_vertex_range,
+            make_cell_face_range(
+                receiver_vertex_range,
+                receiver_face,
+                block.cell_extent(),
+                zone.cell_dimension,
+                "connectivity receiver cell-face range"),
+            make_cell_face_range(
+                donor_vertex_range,
+                donor_face,
+                donor_zone.cell_extent,
+                zone.cell_dimension,
+                "connectivity donor cell-face range"),
+            transform,
+            block.ghost_width(),
+        });
+    }
+}
+
+StructuredBlock read_block_data(
+    int file,
+    const CgnsZoneMetadata& zone,
+    const CgnsMeshMetadata& metadata,
+    RankId owner_rank,
+    int ghost_width)
+{
+    StructuredBlock block(
+        zone.block_id,
+        zone.name,
+        owner_rank,
+        zone.cell_dimension,
+        zone.physical_dimension,
+        zone.vertex_extent,
+        ghost_width);
+
+    if (!coordinate_exists(file, zone, "CoordinateX")
+        || !coordinate_exists(file, zone, "CoordinateY")) {
+        throw CgnsError("structured zone must provide CoordinateX and CoordinateY");
+    }
+    copy_coordinate(read_coordinate(file, zone, "CoordinateX"), block.coordinates.x);
+    copy_coordinate(read_coordinate(file, zone, "CoordinateY"), block.coordinates.y);
+
+    if (coordinate_exists(file, zone, "CoordinateZ")) {
+        copy_coordinate(read_coordinate(file, zone, "CoordinateZ"), block.coordinates.z);
+    } else if (zone.physical_dimension == 3) {
+        throw CgnsError("three-dimensional physical space requires CoordinateZ");
+    } else {
+        block.coordinates.z.fill(0.0);
+    }
+
+    read_boundaries(file, zone, block);
+    read_connectivities(file, zone, metadata, block);
+    return block;
 }
 
 } // namespace
@@ -437,34 +608,37 @@ StructuredBlock CgnsReader::read_block(
     RankId owner_rank,
     int ghost_width) const
 {
+    const auto metadata = read_metadata(path);
     FileHandle file(path);
-    StructuredBlock block(
-        zone.block_id,
-        zone.name,
-        owner_rank,
-        zone.cell_dimension,
-        zone.physical_dimension,
-        zone.vertex_extent,
-        ghost_width);
+    return read_block_data(file.id(), zone, metadata, owner_rank, ghost_width);
+}
 
-    if (!coordinate_exists(file.id(), zone, "CoordinateX")
-        || !coordinate_exists(file.id(), zone, "CoordinateY")) {
-        throw CgnsError("structured zone must provide CoordinateX and CoordinateY");
-    }
-    copy_coordinate(read_coordinate(file.id(), zone, "CoordinateX"), block.coordinates.x);
-    copy_coordinate(read_coordinate(file.id(), zone, "CoordinateY"), block.coordinates.y);
-
-    if (coordinate_exists(file.id(), zone, "CoordinateZ")) {
-        copy_coordinate(read_coordinate(file.id(), zone, "CoordinateZ"), block.coordinates.z);
-    } else if (zone.physical_dimension == 3) {
-        throw CgnsError("three-dimensional physical space requires CoordinateZ");
-    } else {
-        block.coordinates.z.fill(0.0);
+StructuredMesh CgnsReader::read_mesh(
+    const std::string& path,
+    RankId owner_rank,
+    int ghost_width) const
+{
+    const auto metadata = read_metadata(path);
+    FileHandle file(path);
+    std::vector<StructuredBlock> blocks;
+    blocks.reserve(metadata.zones.size());
+    for (const auto& zone : metadata.zones) {
+        blocks.push_back(
+            read_block_data(file.id(), zone, metadata, owner_rank, ghost_width));
     }
 
-    read_boundaries(file.id(), zone, block);
-
-    return block;
+    StructuredMesh mesh(std::move(blocks));
+    for (auto& block : mesh.blocks()) {
+        for (auto& connection : block.connectivities) {
+            connection.donor_rank = mesh.block(connection.donor_block).owner_rank();
+        }
+    }
+    try {
+        mesh.validate_connectivities();
+    } catch (const TopologyError& error) {
+        throw CgnsError(std::string("invalid CGNS multiblock topology: ") + error.what());
+    }
+    return mesh;
 }
 
 } // namespace wcns

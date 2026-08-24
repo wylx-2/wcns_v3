@@ -3,6 +3,7 @@
 #include <wcns/core/index.hpp>
 #include <wcns/core/types.hpp>
 #include <wcns/mesh/structured_block.hpp>
+#include <wcns/mesh/structured_mesh.hpp>
 
 #include <stdexcept>
 #include <string>
@@ -48,7 +49,11 @@ public:
         const CgnsZoneMetadata& zone,
         RankId owner_rank,
         int ghost_width) const;
+
+    [[nodiscard]] StructuredMesh read_mesh(
+        const std::string& path,
+        RankId owner_rank,
+        int ghost_width) const;
 };
 
 } // namespace wcns
-

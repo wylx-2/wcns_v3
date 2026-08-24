@@ -141,20 +141,93 @@ void test_out_of_extent_boundary(const char* path)
     throw std::runtime_error("out-of-extent CGNS boundary was accepted");
 }
 
+void test_multiblock_2d(const char* path)
+{
+    wcns::CgnsReader reader;
+    auto mesh = reader.read_mesh(path, 2, 3);
+    WCNS_REQUIRE(mesh.block_count() == 2);
+    const auto& left = mesh.block(0);
+    const auto& right = mesh.block(1);
+    WCNS_REQUIRE(left.name() == "Left2D");
+    WCNS_REQUIRE(right.name() == "Right2D");
+    WCNS_REQUIRE(left.connectivities.size() == 1);
+    WCNS_REQUIRE(right.connectivities.size() == 1);
+
+    const auto& connection = left.connectivities.front();
+    WCNS_REQUIRE(connection.receiver_block == 0);
+    WCNS_REQUIRE(connection.donor_block == 1);
+    WCNS_REQUIRE(connection.donor_rank == 2);
+    WCNS_REQUIRE(
+        connection.receiver_face
+        == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Upper}));
+    WCNS_REQUIRE(
+        connection.donor_face
+        == (wcns::FaceLocation {wcns::Axis::J, wcns::Side::Lower}));
+    WCNS_REQUIRE(
+        connection.receiver_vertex_range
+        == (wcns::IndexRange3 {{4, 0, 0}, {4, 3, 0}}));
+    WCNS_REQUIRE(
+        connection.donor_vertex_range
+        == (wcns::IndexRange3 {{3, 0, 0}, {0, 0, 0}}));
+    WCNS_REQUIRE(connection.transform == (wcns::IndexTransform {{{2, -1, 3}}}));
+    WCNS_REQUIRE(connection.ghost_width == 3);
+}
+
+void test_multiblock_3d(const char* path)
+{
+    wcns::CgnsReader reader;
+    auto mesh = reader.read_mesh(path, 0, 2);
+    WCNS_REQUIRE(mesh.block_count() == 2);
+    const auto& connection = mesh.block(0).connectivities.front();
+    WCNS_REQUIRE(connection.receiver_block == 0);
+    WCNS_REQUIRE(connection.donor_block == 1);
+    WCNS_REQUIRE(
+        connection.receiver_face
+        == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Upper}));
+    WCNS_REQUIRE(
+        connection.donor_face
+        == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Lower}));
+    WCNS_REQUIRE(connection.transform == (wcns::IndexTransform {{{1, -2, 3}}}));
+    WCNS_REQUIRE(
+        connection.donor_vertex_range
+        == (wcns::IndexRange3 {{0, 2, 0}, {0, 0, 2}}));
+    WCNS_REQUIRE(
+        connection.donor_cell_range
+        == (wcns::IndexRange3 {{0, 1, 0}, {0, 0, 1}}));
+}
+
+void test_one_sided_connectivity(const char* path)
+{
+    wcns::CgnsReader reader;
+    try {
+        static_cast<void>(reader.read_mesh(path, 0, 3));
+    } catch (const wcns::CgnsError& error) {
+        WCNS_REQUIRE(
+            std::string(error.what()).find("has no reciprocal donor record")
+            != std::string::npos);
+        return;
+    }
+    throw std::runtime_error("one-sided CGNS connectivity was accepted");
+}
+
 } // namespace
 
 int main(int argc, char** argv)
 {
-    if (argc != 4) {
+    if (argc != 7) {
         std::cerr
             << "usage: wcns_cgns_reader_tests <2d.cgns> <3d.cgns> "
-               "<invalid-2d.cgns>\n";
+               "<invalid-2d.cgns> <multi-2d.cgns> <multi-3d.cgns> "
+               "<one-sided-2d.cgns>\n";
         return EXIT_FAILURE;
     }
     try {
         test_2d(argv[1]);
         test_3d(argv[2]);
         test_out_of_extent_boundary(argv[3]);
+        test_multiblock_2d(argv[4]);
+        test_multiblock_3d(argv[5]);
+        test_one_sided_connectivity(argv[6]);
         std::cout << "CGNS reader tests passed\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {
