@@ -227,12 +227,16 @@ void test_unknown_donor(const char* path)
 void test_out_of_extent_connectivity(const char* path)
 {
     wcns::CgnsReader reader;
+    const auto metadata = reader.read_metadata(path);
+    auto reduced_zone = metadata.zones.front();
+    reduced_zone.vertex_extent.nj = 3;
+    reduced_zone.cell_extent.nj = 2;
     try {
-        static_cast<void>(reader.read_mesh(path, 0, 3));
+        static_cast<void>(reader.read_block(path, reduced_zone, 0, 3));
     } catch (const wcns::CgnsError& error) {
         WCNS_REQUIRE(
             std::string(error.what()).find(
-                "connectivity receiver vertex range end J index 4 is outside [0, 3]")
+                "connectivity receiver vertex range end J index 3 is outside [0, 2]")
             != std::string::npos);
         return;
     }
@@ -243,12 +247,11 @@ void test_out_of_extent_connectivity(const char* path)
 
 int main(int argc, char** argv)
 {
-    if (argc != 9) {
+    if (argc != 8) {
         std::cerr
             << "usage: wcns_cgns_reader_tests <2d.cgns> <3d.cgns> "
                "<invalid-2d.cgns> <multi-2d.cgns> <multi-3d.cgns> "
-               "<one-sided-2d.cgns> <unknown-donor-2d.cgns> "
-               "<invalid-connectivity-range-2d.cgns>\n";
+               "<one-sided-2d.cgns> <unknown-donor-2d.cgns>\n";
         return EXIT_FAILURE;
     }
     try {
@@ -259,7 +262,7 @@ int main(int argc, char** argv)
         test_multiblock_3d(argv[5]);
         test_one_sided_connectivity(argv[6]);
         test_unknown_donor(argv[7]);
-        test_out_of_extent_connectivity(argv[8]);
+        test_out_of_extent_connectivity(argv[4]);
         std::cout << "CGNS reader tests passed\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {
