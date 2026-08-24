@@ -369,7 +369,11 @@ void write_multiblock_3d(const std::string& path)
     file.close();
 }
 
-void verify(const std::string& path, int expected_dimension, int expected_boundaries)
+void verify(
+    const std::string& path,
+    int expected_dimension,
+    int expected_zones,
+    int expected_boundaries)
 {
     CgnsFile file(path, CG_MODE_READ);
     int bases = 0;
@@ -388,7 +392,7 @@ void verify(const std::string& path, int expected_dimension, int expected_bounda
     check_cgns(cg_nzones(file.id(), 1, &zones), "cg_nzones");
     check_cgns(cg_nbocos(file.id(), 1, 1, &boundaries), "cg_nbocos");
     if (cell_dimension != expected_dimension || physical_dimension != expected_dimension
-        || zones != 1 || boundaries != expected_boundaries) {
+        || zones != expected_zones || boundaries != expected_boundaries) {
         throw std::runtime_error("generated CGNS metadata does not match expectations");
     }
 }
@@ -413,12 +417,12 @@ int main(int argc, char** argv)
         write_multiblock_2d(argv[4]);
         write_multiblock_3d(argv[5]);
         write_multiblock_2d(argv[6], false);
-        verify(argv[1], 2, 4);
-        verify(argv[2], 3, 6);
-        verify(argv[3], 2, 5);
-        verify(argv[4], 2, 0);
-        verify(argv[5], 3, 0);
-        verify(argv[6], 2, 0);
+        verify(argv[1], 2, 1, 4);
+        verify(argv[2], 3, 1, 6);
+        verify(argv[3], 2, 1, 5);
+        verify(argv[4], 2, 2, 0);
+        verify(argv[5], 3, 2, 0);
+        verify(argv[6], 2, 2, 0);
         std::cout << "generated and verified CGNS test grids\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {
