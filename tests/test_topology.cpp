@@ -55,11 +55,11 @@ void test_topology()
     WCNS_REQUIRE(transform.map({4, 3, 0}, {4, 0, 0}, {3, 0, 0}, 2)
         == (Index3 {0, 0, 0}));
     WCNS_REQUIRE(transform.inverse(2) == (IndexTransform {{{-2, 1, 3}}}));
-    WCNS_REQUIRE((!IndexTransform {{{2, 1, 3}}}.valid(2)));
+    WCNS_REQUIRE((!IndexTransform {{{2, 2, 3}}}.valid(2)));
     WCNS_REQUIRE((!IndexTransform {{{1, 2, -3}}}.valid(2)));
     WCNS_REQUIRE_THROWS(
         std::invalid_argument,
-        (IndexTransform {{{2, 1, 3}}}.map({0, 0, 0}, {0, 0, 0}, {0, 0, 0}, 2)));
+        (IndexTransform {{{2, 2, 3}}}.map({0, 0, 0}, {0, 0, 0}, {0, 0, 0}, 2)));
 
     StructuredBlock left(0, "left", 0, 2, 2, {5, 4, 1}, 3);
     StructuredBlock right(1, "right", 1, 2, 2, {4, 5, 1}, 3);
@@ -85,4 +85,3 @@ void test_topology()
     WCNS_REQUIRE_THROWS(TopologyError, incomplete.validate_connectivities());
     WCNS_REQUIRE_THROWS(std::out_of_range, incomplete.block(7));
 }
-
