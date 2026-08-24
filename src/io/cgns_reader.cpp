@@ -169,8 +169,45 @@ BoundaryType convert_boundary_type(BCType_t type)
     }
 }
 
-IndexRange3 convert_vertex_range(const std::vector<cgsize_t>& points, int cell_dimension)
+void validate_range_within_extent(
+    const IndexRange3& range,
+    Extent3 extent,
+    int dimension,
+    const char* label)
 {
+    constexpr std::array<const char*, 3> axis_names {{"I", "J", "K"}};
+    for (int axis = 0; axis < dimension; ++axis) {
+        const auto axis_index = static_cast<std::size_t>(axis);
+        const int axis_extent = extent[axis_index];
+        if (axis_extent <= 0) {
+            throw CgnsError(
+                std::string(label) + " has a non-positive " + axis_names[axis_index]
+                + " extent");
+        }
+
+        const auto validate_endpoint = [&](int coordinate, const char* endpoint) {
+            if (coordinate < 0 || coordinate >= axis_extent) {
+                throw CgnsError(
+                    std::string(label) + " " + endpoint + " " + axis_names[axis_index]
+                    + " index " + std::to_string(coordinate)
+                    + " is outside [0, " + std::to_string(axis_extent - 1) + "]");
+            }
+        };
+        validate_endpoint(range.begin[axis_index], "begin");
+        validate_endpoint(range.end[axis_index], "end");
+    }
+}
+
+IndexRange3 convert_vertex_range(
+    const std::vector<cgsize_t>& points,
+    Extent3 vertex_extent,
+    int cell_dimension)
+{
+    const auto expected_point_values = static_cast<std::size_t>(2 * cell_dimension);
+    if (points.size() != expected_point_values) {
+        throw CgnsError("boundary PointRange has an unexpected number of index values");
+    }
+
     IndexRange3 range;
     for (int axis = 0; axis < cell_dimension; ++axis) {
         range.begin[static_cast<std::size_t>(axis)] = checked_dimension(
@@ -185,6 +222,8 @@ IndexRange3 convert_vertex_range(const std::vector<cgsize_t>& points, int cell_d
         range.begin.k = 0;
         range.end.k = 0;
     }
+    validate_range_within_extent(
+        range, vertex_extent, cell_dimension, "boundary vertex PointRange");
     return range;
 }
 
@@ -255,6 +294,8 @@ IndexRange3 make_cell_face_range(
         cells.begin.k = 0;
         cells.end.k = 0;
     }
+    validate_range_within_extent(
+        cells, cell_extent, cell_dimension, "boundary cell-face range");
     return cells;
 }
 
@@ -319,16 +360,17 @@ void read_boundaries(int file, const CgnsZoneMetadata& zone, StructuredBlock& bl
                 nullptr),
             "cg_boco_read");
 
-        const auto vertex_range = convert_vertex_range(points, zone.cell_dimension);
+        const auto vertex_range = convert_vertex_range(
+            points, block.vertex_extent(), zone.cell_dimension);
         const auto face = identify_boundary_face(
-            vertex_range, zone.vertex_extent, zone.cell_dimension);
+            vertex_range, block.vertex_extent(), zone.cell_dimension);
         block.boundaries.push_back({
             name,
             convert_boundary_type(boundary_type),
             face,
             vertex_range,
             make_cell_face_range(
-                vertex_range, face, zone.cell_extent, zone.cell_dimension),
+                vertex_range, face, block.cell_extent(), zone.cell_dimension),
             {},
         });
     }

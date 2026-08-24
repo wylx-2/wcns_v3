@@ -22,6 +22,7 @@ if(WCNS_ENABLE_CGNS)
         COMMAND wcns_generate_test_cgns
             ${CMAKE_CURRENT_BINARY_DIR}/generated_2d.cgns
             ${CMAKE_CURRENT_BINARY_DIR}/generated_3d.cgns
+            ${CMAKE_CURRENT_BINARY_DIR}/generated_invalid_2d.cgns
     )
     set_tests_properties(wcns.generate_test_cgns PROPERTIES FIXTURES_SETUP cgns_files)
 
@@ -34,6 +35,7 @@ if(WCNS_ENABLE_CGNS)
         COMMAND wcns_cgns_reader_tests
             ${CMAKE_CURRENT_BINARY_DIR}/generated_2d.cgns
             ${CMAKE_CURRENT_BINARY_DIR}/generated_3d.cgns
+            ${CMAKE_CURRENT_BINARY_DIR}/generated_invalid_2d.cgns
     )
     set_tests_properties(wcns.cgns_reader PROPERTIES FIXTURES_REQUIRED cgns_files)
 endif()

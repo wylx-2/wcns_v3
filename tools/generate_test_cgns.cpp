@@ -74,7 +74,7 @@ void write_boundary(
         "cg_boco_gridlocation_write");
 }
 
-void write_2d(const std::string& path)
+void write_2d(const std::string& path, bool add_invalid_boundary = false)
 {
     constexpr int ni = 5;
     constexpr int nj = 4;
@@ -111,6 +111,11 @@ void write_2d(const std::string& path)
     write_boundary(file.id(), base, zone, "jmin", BCWall, {1, 1, ni, 1});
     // Reverse the tangential direction to exercise directed PointRange handling.
     write_boundary(file.id(), base, zone, "jmax", BCWall, {ni, nj, 1, nj});
+    if (add_invalid_boundary) {
+        // I-min is a recognizable face, but its J endpoint exceeds the zone vertex extent.
+        write_boundary(
+            file.id(), base, zone, "invalid-j-extent", BCWall, {1, 1, 1, nj + 1});
+    }
     file.close();
 }
 
@@ -192,8 +197,10 @@ void verify(const std::string& path, int expected_dimension, int expected_bounda
 
 int main(int argc, char** argv)
 {
-    if (argc != 3) {
-        std::cerr << "usage: wcns_generate_test_cgns <2d-output.cgns> <3d-output.cgns>\n";
+    if (argc != 4) {
+        std::cerr
+            << "usage: wcns_generate_test_cgns <2d-output.cgns> <3d-output.cgns> "
+               "<invalid-2d-output.cgns>\n";
         return EXIT_FAILURE;
     }
 
@@ -201,8 +208,10 @@ int main(int argc, char** argv)
         check_cgns(cg_set_file_type(CG_FILE_ADF), "cg_set_file_type");
         write_2d(argv[1]);
         write_3d(argv[2]);
+        write_2d(argv[3], true);
         verify(argv[1], 2, 4);
         verify(argv[2], 3, 6);
+        verify(argv[3], 2, 5);
         std::cout << "generated and verified CGNS test grids\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {

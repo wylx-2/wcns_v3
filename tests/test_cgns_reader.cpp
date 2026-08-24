@@ -6,6 +6,8 @@
 #include <cstdlib>
 #include <exception>
 #include <iostream>
+#include <stdexcept>
+#include <string>
 
 namespace {
 
@@ -122,17 +124,37 @@ void test_3d(const char* path)
     WCNS_REQUIRE_NEAR(total_volume, 1.5, 1.0e-13);
 }
 
+void test_out_of_extent_boundary(const char* path)
+{
+    wcns::CgnsReader reader;
+    const auto metadata = reader.read_metadata(path);
+    WCNS_REQUIRE(metadata.zones.size() == 1);
+    try {
+        static_cast<void>(reader.read_block(path, metadata.zones.front(), 0, 3));
+    } catch (const wcns::CgnsError& error) {
+        WCNS_REQUIRE(
+            std::string(error.what()).find(
+                "boundary vertex PointRange end J index 4 is outside [0, 3]")
+            != std::string::npos);
+        return;
+    }
+    throw std::runtime_error("out-of-extent CGNS boundary was accepted");
+}
+
 } // namespace
 
 int main(int argc, char** argv)
 {
-    if (argc != 3) {
-        std::cerr << "usage: wcns_cgns_reader_tests <2d.cgns> <3d.cgns>\n";
+    if (argc != 4) {
+        std::cerr
+            << "usage: wcns_cgns_reader_tests <2d.cgns> <3d.cgns> "
+               "<invalid-2d.cgns>\n";
         return EXIT_FAILURE;
     }
     try {
         test_2d(argv[1]);
         test_3d(argv[2]);
+        test_out_of_extent_boundary(argv[3]);
         std::cout << "CGNS reader tests passed\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {

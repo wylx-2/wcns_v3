@@ -1,6 +1,6 @@
 # 阶段 B 候选验收报告
 
-日期：2026-08-19
+日期：2026-08-19（2026-08-24 补充范围校验复验）
 
 状态：等待项目负责人检测。
 
@@ -13,6 +13,8 @@
 - 读取 `CoordinateX/Y/Z` 节点坐标；二维缺省 Z 坐标置零。
 - 读取 `Vertex + PointRange` 物理边界，支持切向范围正向或反向排列。
 - 将 CGNS 1-based 节点范围转换为内部 0-based 节点范围和相邻单元范围。
+- 转换后逐轴验证节点范围位于 `vertex_extent` 内，并对推导后的单元面范围按
+  `cell_extent` 再做一次防御性校验。
 - 计算二维单元面积、三维单元体积、单元中心、方向面面积和单位法向。
 - 拒绝退化网格面和非正面积/体积单元。
 
@@ -28,11 +30,16 @@ ctest --test-dir build --output-on-failure --verbose
 
 测试包括：
 
-- `wcns.generate_test_cgns`：生成并重读二维、三维 CGNS 文件；
-- `wcns.cgns_reader`：验证元数据、坐标、边界索引转换和解析几何量；
+- `wcns.generate_test_cgns`：生成并重读二维、三维及边界越界 CGNS 文件；
+- `wcns.cgns_reader`：验证元数据、坐标、边界索引转换、越界拒绝和解析几何量；
 - `wcns.unit`：验证基础数组、字段、结构块、CGNS 链接和非法几何拒绝。
 
 生成文件还通过 CGNS 官方 `cgnscheck` 检查，二维和三维文件返回值均为 0。测试文件有未设置 family/dataclass 的推荐性警告；用于有向范围覆盖的反向 PointRange 也有方向提示，均不是合法性错误。
+
+补充负例 `generated_invalid_2d.cgns` 的 `I-min` 边界将 J 终点写为 5，而网格
+J 顶点范围为 1..4。CGNS 官方 `cgnscheck` 报告 `1 elements are out of range`；
+读取器稳定拒绝该文件，并报告内部索引 4 超出 `[0, 3]`。2026-08-24 已执行
+clean-first 综合构建，回归测试结果仍为 3/3 tests passed。
 
 ## 已记录的失败验收
 
@@ -67,5 +74,5 @@ ctest --test-dir build --output-on-failure --verbose
 
 ## GitHub 同步状态
 
-本地 `main` 包含全部阶段 B 提交。综合验收时网络无法连接 `github.com:443`，因此远程同步将在网络恢复后补充完成。
-
+远程仓库为 `https://github.com/wylx-2/wcns_v3.git`。阶段 B 候选提交及标签已同步；
+本次范围校验修复在验收提交后继续同步 `main`，并保留新的候选标签，不移动旧标签。
