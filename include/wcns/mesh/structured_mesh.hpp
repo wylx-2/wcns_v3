@@ -26,7 +26,6 @@ public:
     [[nodiscard]] StructuredBlock& block(BlockId id);
     [[nodiscard]] const StructuredBlock& block(BlockId id) const;
 
-    [[nodiscard]] std::vector<StructuredBlock>& blocks() noexcept { return blocks_; }
     [[nodiscard]] const std::vector<StructuredBlock>& blocks() const noexcept
     {
         return blocks_;
@@ -40,4 +39,3 @@ private:
 };
 
 } // namespace wcns
-

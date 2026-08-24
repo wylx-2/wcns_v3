@@ -626,13 +626,13 @@ StructuredMesh CgnsReader::read_mesh(
         blocks.push_back(
             read_block_data(file.id(), zone, metadata, owner_rank, ghost_width));
     }
-
-    StructuredMesh mesh(std::move(blocks));
-    for (auto& block : mesh.blocks()) {
+    for (auto& block : blocks) {
         for (auto& connection : block.connectivities) {
-            connection.donor_rank = mesh.block(connection.donor_block).owner_rank();
+            connection.donor_rank = owner_rank;
         }
     }
+
+    StructuredMesh mesh(std::move(blocks));
     try {
         mesh.validate_connectivities();
     } catch (const TopologyError& error) {

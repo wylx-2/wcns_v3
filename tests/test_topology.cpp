@@ -75,6 +75,15 @@ void test_topology()
     WCNS_REQUIRE(mesh.block(1).name() == "right");
     mesh.validate_connectivities();
 
+    mesh.block(0).connectivities.front().donor_rank = 7;
+    WCNS_REQUIRE_THROWS(TopologyError, mesh.validate_connectivities());
+    mesh.block(0).connectivities.front().donor_rank = 1;
+    mesh.block(0).connectivities.front().ghost_width = 2;
+    WCNS_REQUIRE_THROWS(TopologyError, mesh.validate_connectivities());
+    mesh.block(0).connectivities.front().ghost_width = 3;
+    mesh.block(1).coordinates.x(3, 0, 0) = 1.0;
+    WCNS_REQUIRE_THROWS(TopologyError, mesh.validate_connectivities());
+
     StructuredBlock incomplete_left(0, "left", 0, 2, 2, {5, 4, 1}, 3);
     StructuredBlock incomplete_right(1, "right", 1, 2, 2, {4, 5, 1}, 3);
     incomplete_left.connectivities.push_back(receiver_connection());
