@@ -4,16 +4,10 @@
 #include <wcns/mesh/structured_block.hpp>
 
 #include <cstddef>
-#include <stdexcept>
 #include <unordered_map>
 #include <vector>
 
 namespace wcns {
-
-class TopologyError : public std::runtime_error {
-public:
-    using std::runtime_error::runtime_error;
-};
 
 class StructuredMesh {
 public:

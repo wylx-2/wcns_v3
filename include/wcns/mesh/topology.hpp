@@ -11,6 +11,11 @@
 
 namespace wcns {
 
+class TopologyError : public std::runtime_error {
+public:
+    using std::runtime_error::runtime_error;
+};
+
 enum class Axis : int {
     I = 0,
     J = 1,

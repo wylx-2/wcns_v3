@@ -23,6 +23,7 @@ else()
 endif()
 
 add_library(wcns_mesh STATIC
+    src/mesh/halo_exchange.cpp
     src/mesh/metrics.cpp
     src/mesh/structured_mesh.cpp
 )
