@@ -48,6 +48,28 @@ if(WCNS_ENABLE_CGNS)
             ${CMAKE_CURRENT_BINARY_DIR}/generated_unknown_donor_2d.cgns
     )
     set_tests_properties(wcns.cgns_reader PROPERTIES FIXTURES_REQUIRED cgns_files)
+
+    add_executable(wcns_halo_exchange_tests test_halo_exchange.cpp)
+    target_link_libraries(
+        wcns_halo_exchange_tests
+        PRIVATE wcns::io wcns::parallel
+    )
+    add_test(
+        NAME wcns.halo_exchange.serial
+        COMMAND wcns_halo_exchange_tests
+            ${CMAKE_CURRENT_BINARY_DIR}/generated_multi_2d.cgns
+    )
+    set_tests_properties(wcns.halo_exchange.serial PROPERTIES FIXTURES_REQUIRED cgns_files)
+
+    if(WCNS_ENABLE_MPI)
+        add_test(
+            NAME wcns.halo_exchange.2
+            COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
+                $<TARGET_FILE:wcns_halo_exchange_tests>
+                ${CMAKE_CURRENT_BINARY_DIR}/generated_multi_2d.cgns
+        )
+        set_tests_properties(wcns.halo_exchange.2 PROPERTIES FIXTURES_REQUIRED cgns_files)
+    endif()
 endif()
 
 add_test(NAME wcns.unit COMMAND wcns_unit_tests)
