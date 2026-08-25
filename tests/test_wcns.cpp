@@ -5,6 +5,7 @@
 #include <wcns/solver/wcns_reconstruction.hpp>
 
 #include <array>
+#include <cmath>
 
 namespace {
 
@@ -40,6 +41,17 @@ void test_wcns()
     WCNS_REQUIRE_THROWS(
         std::invalid_argument,
         wcns5_reconstruct(linear, WcnsParameters {0.0, 2}));
+
+    const auto smooth_error = [](Real spacing) {
+        std::array<Real, 6> values {};
+        for (int point = 0; point < 6; ++point) {
+            values[static_cast<std::size_t>(point)]
+                = std::exp(static_cast<Real>(point - 2) * spacing);
+        }
+        return std::abs(
+            wcns5_reconstruct(values).left - std::exp(0.5 * spacing));
+    };
+    WCNS_REQUIRE(smooth_error(0.1) < smooth_error(0.2));
 
     Field<Real> primitive({4, 1, 1}, euler_components, 3);
     for (int i = -3; i < 7; ++i) {

@@ -45,9 +45,11 @@ void initialize(wcns::StructuredBlock& block, const wcns::PrimitiveState& state)
 {
     const auto conservative = wcns::to_conservative(state);
     const auto extent = block.cell_extent();
-    for (int j = 0; j < extent.nj; ++j) {
-        for (int i = 0; i < extent.ni; ++i) {
-            wcns::store_state(block.flow.conservative, {i, j, 0}, conservative);
+    for (int k = 0; k < extent.nk; ++k) {
+        for (int j = 0; j < extent.nj; ++j) {
+            for (int i = 0; i < extent.ni; ++i) {
+                wcns::store_state(block.flow.conservative, {i, j, k}, conservative);
+            }
         }
     }
 }
@@ -92,6 +94,52 @@ void test_spatial_operator()
     WCNS_REQUIRE_THROWS(
         std::invalid_argument,
         advance_ssprk3(blocks, -1.0, evaluate));
+
+    StructuredBlock block_3d(2, "uniform-3d", 0, 3, 3, {6, 6, 6}, 3);
+    const auto vertices_3d = block_3d.vertex_extent();
+    for (int k = 0; k < vertices_3d.nk; ++k) {
+        for (int j = 0; j < vertices_3d.nj; ++j) {
+            for (int i = 0; i < vertices_3d.ni; ++i) {
+                block_3d.coordinates.x(i, j, k) = 0.2 * static_cast<Real>(i);
+                block_3d.coordinates.y(i, j, k) = 0.2 * static_cast<Real>(j);
+                block_3d.coordinates.z(i, j, k) = 0.2 * static_cast<Real>(k);
+            }
+        }
+    }
+    compute_metrics(block_3d);
+    const auto cells_3d = block_3d.cell_extent();
+    block_3d.boundaries = {
+        {"i-lower", BoundaryType::Farfield, {Axis::I, Side::Lower},
+            {{0, 0, 0}, {0, vertices_3d.nj - 1, vertices_3d.nk - 1}},
+            {{0, 0, 0}, {0, cells_3d.nj - 1, cells_3d.nk - 1}}, {}},
+        {"i-upper", BoundaryType::Farfield, {Axis::I, Side::Upper},
+            {{vertices_3d.ni - 1, 0, 0},
+                {vertices_3d.ni - 1, vertices_3d.nj - 1, vertices_3d.nk - 1}},
+            {{cells_3d.ni, 0, 0},
+                {cells_3d.ni, cells_3d.nj - 1, cells_3d.nk - 1}}, {}},
+        {"j-lower", BoundaryType::Farfield, {Axis::J, Side::Lower},
+            {{0, 0, 0}, {vertices_3d.ni - 1, 0, vertices_3d.nk - 1}},
+            {{0, 0, 0}, {cells_3d.ni - 1, 0, cells_3d.nk - 1}}, {}},
+        {"j-upper", BoundaryType::Farfield, {Axis::J, Side::Upper},
+            {{0, vertices_3d.nj - 1, 0},
+                {vertices_3d.ni - 1, vertices_3d.nj - 1, vertices_3d.nk - 1}},
+            {{0, cells_3d.nj, 0},
+                {cells_3d.ni - 1, cells_3d.nj, cells_3d.nk - 1}}, {}},
+        {"k-lower", BoundaryType::Farfield, {Axis::K, Side::Lower},
+            {{0, 0, 0}, {vertices_3d.ni - 1, vertices_3d.nj - 1, 0}},
+            {{0, 0, 0}, {cells_3d.ni - 1, cells_3d.nj - 1, 0}}, {}},
+        {"k-upper", BoundaryType::Farfield, {Axis::K, Side::Upper},
+            {{0, 0, vertices_3d.nk - 1},
+                {vertices_3d.ni - 1, vertices_3d.nj - 1, vertices_3d.nk - 1}},
+            {{0, 0, cells_3d.nk},
+                {cells_3d.ni - 1, cells_3d.nj - 1, cells_3d.nk}}, {}},
+    };
+    initialize(block_3d, freestream);
+    update_primitive_interior(block_3d);
+    fill_physical_boundaries(block_3d, freestream);
+    compute_euler_residual(block_3d);
+    WCNS_REQUIRE(residual_l2(block_3d) < 1.0e-11);
+    WCNS_REQUIRE(stable_time_step(block_3d, 0.4) > 0.0);
 
     StructuredBlock shock(1, "sod", 0, 2, 2, {65, 9, 1}, 3);
     const auto shock_vertices = shock.vertex_extent();
