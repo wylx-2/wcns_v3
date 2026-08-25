@@ -92,4 +92,63 @@ void test_spatial_operator()
     WCNS_REQUIRE_THROWS(
         std::invalid_argument,
         advance_ssprk3(blocks, -1.0, evaluate));
+
+    StructuredBlock shock(1, "sod", 0, 2, 2, {65, 9, 1}, 3);
+    const auto shock_vertices = shock.vertex_extent();
+    for (int j = 0; j < shock_vertices.nj; ++j) {
+        for (int i = 0; i < shock_vertices.ni; ++i) {
+            shock.coordinates.x(i, j, 0) = static_cast<Real>(i) / 64.0;
+            shock.coordinates.y(i, j, 0) = static_cast<Real>(j) / 8.0;
+            shock.coordinates.z(i, j, 0) = 0.0;
+        }
+    }
+    compute_metrics(shock);
+    const auto shock_cells = shock.cell_extent();
+    shock.boundaries = {
+        {"left", BoundaryType::Inflow, {Axis::I, Side::Lower},
+            {{0, 0, 0}, {0, shock_vertices.nj - 1, 0}},
+            {{0, 0, 0}, {0, shock_cells.nj - 1, 0}}, {}},
+        {"right", BoundaryType::Outflow, {Axis::I, Side::Upper},
+            {{shock_vertices.ni - 1, 0, 0},
+                {shock_vertices.ni - 1, shock_vertices.nj - 1, 0}},
+            {{shock_cells.ni, 0, 0}, {shock_cells.ni, shock_cells.nj - 1, 0}}, {}},
+        {"bottom", BoundaryType::SlipWall, {Axis::J, Side::Lower},
+            {{0, 0, 0}, {shock_vertices.ni - 1, 0, 0}},
+            {{0, 0, 0}, {shock_cells.ni - 1, 0, 0}}, {}},
+        {"top", BoundaryType::SlipWall, {Axis::J, Side::Upper},
+            {{0, shock_vertices.nj - 1, 0},
+                {shock_vertices.ni - 1, shock_vertices.nj - 1, 0}},
+            {{0, shock_cells.nj, 0}, {shock_cells.ni - 1, shock_cells.nj, 0}}, {}},
+    };
+    const PrimitiveState left_state {1.0, 0.0, 0.0, 0.0, 1.0};
+    const PrimitiveState right_state {0.125, 0.0, 0.0, 0.0, 0.1};
+    for (int j = 0; j < shock_cells.nj; ++j) {
+        for (int i = 0; i < shock_cells.ni; ++i) {
+            store_state(
+                shock.flow.conservative,
+                {i, j, 0},
+                to_conservative(i < shock_cells.ni / 2 ? left_state : right_state));
+        }
+    }
+    const auto evaluate_shock = [&] {
+        update_primitive_interior(shock);
+        fill_physical_boundaries(shock, left_state);
+        compute_euler_residual(shock);
+    };
+    std::vector<StructuredBlock*> shock_blocks {&shock};
+    for (int step = 0; step < 3; ++step) {
+        evaluate_shock();
+        advance_ssprk3(shock_blocks, stable_time_step(shock, 0.15), evaluate_shock);
+    }
+    update_primitive_interior(shock);
+    for (int j = 0; j < shock_cells.nj; ++j) {
+        for (int i = 0; i < shock_cells.ni; ++i) {
+            const auto state = load_primitive(shock.flow.primitive, {i, j, 0});
+            for (const Real value : state) {
+                WCNS_REQUIRE(std::isfinite(value));
+            }
+            WCNS_REQUIRE(state[primitive_density] > 0.0);
+            WCNS_REQUIRE(state[pressure] > 0.0);
+        }
+    }
 }

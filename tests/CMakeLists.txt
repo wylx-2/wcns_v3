@@ -67,6 +67,18 @@ if(WCNS_ENABLE_CGNS)
     )
     set_tests_properties(wcns.halo_exchange.serial PROPERTIES FIXTURES_REQUIRED cgns_files)
 
+    add_executable(wcns_euler_solver_tests test_euler_solver.cpp)
+    target_link_libraries(
+        wcns_euler_solver_tests
+        PRIVATE wcns::io wcns::parallel wcns::solver
+    )
+    add_test(
+        NAME wcns.euler_solver.serial
+        COMMAND wcns_euler_solver_tests
+            ${CMAKE_CURRENT_BINARY_DIR}/generated_multi_2d.cgns
+    )
+    set_tests_properties(wcns.euler_solver.serial PROPERTIES FIXTURES_REQUIRED cgns_files)
+
     if(WCNS_ENABLE_MPI)
         add_test(
             NAME wcns.halo_exchange.2
@@ -75,6 +87,14 @@ if(WCNS_ENABLE_CGNS)
                 ${CMAKE_CURRENT_BINARY_DIR}/generated_multi_2d.cgns
         )
         set_tests_properties(wcns.halo_exchange.2 PROPERTIES FIXTURES_REQUIRED cgns_files)
+
+        add_test(
+            NAME wcns.euler_solver.2
+            COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
+                $<TARGET_FILE:wcns_euler_solver_tests>
+                ${CMAKE_CURRENT_BINARY_DIR}/generated_multi_2d.cgns
+        )
+        set_tests_properties(wcns.euler_solver.2 PROPERTIES FIXTURES_REQUIRED cgns_files)
     endif()
 endif()
 
