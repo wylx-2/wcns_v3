@@ -9,6 +9,7 @@ add_executable(wcns_unit_tests
     test_topology.cpp
     test_distribution.cpp
     test_euler.cpp
+    test_wcns.cpp
 )
 
 target_link_libraries(

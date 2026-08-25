@@ -13,6 +13,7 @@ void test_metrics();
 void test_topology();
 void test_distribution();
 void test_euler();
+void test_wcns();
 
 int main()
 {
@@ -35,6 +36,7 @@ int main()
         test_topology();
         test_distribution();
         test_euler();
+        test_wcns();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;

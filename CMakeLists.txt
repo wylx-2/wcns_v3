@@ -126,7 +126,9 @@ if(WCNS_ENABLE_CGNS)
 endif()
 
 add_library(wcns_solver STATIC
+    src/solver/boundary_conditions.cpp
     src/solver/euler.cpp
+    src/solver/wcns_reconstruction.cpp
 )
 add_library(wcns::solver ALIAS wcns_solver)
 target_link_libraries(wcns_solver PUBLIC wcns::parallel)
