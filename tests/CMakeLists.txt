@@ -10,6 +10,7 @@ add_executable(wcns_unit_tests
     test_distribution.cpp
     test_euler.cpp
     test_wcns.cpp
+    test_spatial_operator.cpp
 )
 
 target_link_libraries(

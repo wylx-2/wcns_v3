@@ -14,6 +14,7 @@ void test_topology();
 void test_distribution();
 void test_euler();
 void test_wcns();
+void test_spatial_operator();
 
 int main()
 {
@@ -37,6 +38,7 @@ int main()
         test_distribution();
         test_euler();
         test_wcns();
+        test_spatial_operator();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;
