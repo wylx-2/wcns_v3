@@ -1,4 +1,5 @@
 /build/
+/build-*/
 /cmake-build-*/
 /.cache/
 /.vscode/
@@ -8,4 +9,3 @@
 *.obj
 *.o
 *.exe
-

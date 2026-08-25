@@ -50,3 +50,17 @@ if(WCNS_ENABLE_CGNS)
 endif()
 
 add_test(NAME wcns.unit COMMAND wcns_unit_tests)
+
+add_executable(wcns_mpi_runtime_tests test_mpi_runtime.cpp)
+target_link_libraries(wcns_mpi_runtime_tests PRIVATE wcns::parallel)
+add_test(NAME wcns.mpi_runtime.serial COMMAND wcns_mpi_runtime_tests)
+
+if(WCNS_ENABLE_MPI)
+    if(NOT WCNS_MPIEXEC_EXECUTABLE)
+        message(FATAL_ERROR "MPI tests require WCNS_MPIEXEC_EXECUTABLE")
+    endif()
+    add_test(
+        NAME wcns.mpi_runtime.2
+        COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2 $<TARGET_FILE:wcns_mpi_runtime_tests>
+    )
+endif()

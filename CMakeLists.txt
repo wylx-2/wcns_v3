@@ -4,6 +4,7 @@ project(wcns VERSION 0.1.0 LANGUAGES C CXX)
 
 option(WCNS_BUILD_TESTS "Build WCNS unit tests" ON)
 option(WCNS_ENABLE_CGNS "Enable CGNS mesh I/O" ON)
+option(WCNS_ENABLE_MPI "Enable MPI parallel execution" OFF)
 
 add_library(wcns_core INTERFACE)
 add_library(wcns::core ALIAS wcns_core)
@@ -29,6 +30,63 @@ add_library(wcns_mesh STATIC
 )
 add_library(wcns::mesh ALIAS wcns_mesh)
 target_link_libraries(wcns_mesh PUBLIC wcns::core)
+
+set(WCNS_MPI_TARGET "")
+if(WCNS_ENABLE_MPI)
+    if(WIN32 AND MINGW)
+        find_path(
+            WCNS_INTEL_MPI_INCLUDE_DIR
+            mpi.h
+            HINTS
+                "$ENV{I_MPI_ROOT}/include"
+                "C:/Program Files (x86)/Intel/oneAPI/mpi/latest/include"
+        )
+        find_file(
+            WCNS_INTEL_MPI_LIBRARY
+            impi.lib
+            HINTS
+                "$ENV{I_MPI_ROOT}/lib/release"
+                "C:/Program Files (x86)/Intel/oneAPI/mpi/latest/lib/release"
+        )
+        find_program(
+            WCNS_MPIEXEC_EXECUTABLE
+            NAMES mpiexec mpiexec.exe
+            HINTS
+                "$ENV{I_MPI_ROOT}/bin"
+                "C:/Program Files (x86)/Intel/oneAPI/mpi/latest/bin"
+        )
+        if(NOT WCNS_INTEL_MPI_INCLUDE_DIR OR NOT WCNS_INTEL_MPI_LIBRARY)
+            message(FATAL_ERROR "WCNS_ENABLE_MPI requires an Intel MPI installation")
+        endif()
+        add_library(wcns_intel_mpi UNKNOWN IMPORTED)
+        set_target_properties(
+            wcns_intel_mpi
+            PROPERTIES
+                IMPORTED_LOCATION "${WCNS_INTEL_MPI_LIBRARY}"
+                INTERFACE_INCLUDE_DIRECTORIES "${WCNS_INTEL_MPI_INCLUDE_DIR}"
+        )
+        set(WCNS_MPI_TARGET wcns_intel_mpi)
+    else()
+        find_package(MPI REQUIRED COMPONENTS CXX)
+        set(WCNS_MPI_TARGET MPI::MPI_CXX)
+        set(WCNS_MPIEXEC_EXECUTABLE "${MPIEXEC_EXECUTABLE}")
+    endif()
+endif()
+
+add_library(wcns_parallel STATIC
+    src/parallel/mpi_runtime.cpp
+)
+add_library(wcns::parallel ALIAS wcns_parallel)
+target_link_libraries(wcns_parallel PUBLIC wcns::mesh)
+if(WCNS_ENABLE_MPI)
+    target_link_libraries(wcns_parallel PUBLIC ${WCNS_MPI_TARGET})
+    target_compile_definitions(wcns_parallel PUBLIC WCNS_HAS_MPI=1)
+    if(MINGW)
+        target_compile_definitions(wcns_parallel PUBLIC "__int64=long long")
+    endif()
+else()
+    target_compile_definitions(wcns_parallel PUBLIC WCNS_HAS_MPI=0)
+endif()
 
 if(WCNS_ENABLE_CGNS)
     include(FetchContent)
