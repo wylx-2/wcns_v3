@@ -8,9 +8,13 @@ add_executable(wcns_unit_tests
     test_metrics.cpp
     test_topology.cpp
     test_distribution.cpp
+    test_euler.cpp
 )
 
-target_link_libraries(wcns_unit_tests PRIVATE wcns::core wcns::mesh wcns::parallel)
+target_link_libraries(
+    wcns_unit_tests
+    PRIVATE wcns::core wcns::mesh wcns::parallel wcns::solver
+)
 if(WCNS_ENABLE_CGNS)
     target_link_libraries(wcns_unit_tests PRIVATE wcns::cgns)
 

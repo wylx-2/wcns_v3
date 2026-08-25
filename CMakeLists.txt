@@ -125,6 +125,12 @@ if(WCNS_ENABLE_CGNS)
     target_link_libraries(wcns_io PUBLIC wcns::mesh PRIVATE wcns::cgns)
 endif()
 
+add_library(wcns_solver STATIC
+    src/solver/euler.cpp
+)
+add_library(wcns::solver ALIAS wcns_solver)
+target_link_libraries(wcns_solver PUBLIC wcns::parallel)
+
 if(WCNS_BUILD_TESTS)
     include(CTest)
     add_subdirectory(tests)
