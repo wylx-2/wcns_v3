@@ -74,6 +74,8 @@ if(WCNS_ENABLE_MPI)
 endif()
 
 add_library(wcns_parallel STATIC
+    src/parallel/block_distribution.cpp
+    src/parallel/distributed_topology.cpp
     src/parallel/mpi_runtime.cpp
 )
 add_library(wcns::parallel ALIAS wcns_parallel)

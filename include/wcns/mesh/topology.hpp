@@ -140,6 +140,7 @@ struct ConnectivityPatch {
     IndexRange3 donor_cell_range;
     IndexTransform transform;
     int ghost_width = 0;
+    ConnectionId id = invalid_connection_id;
 };
 
 } // namespace wcns
