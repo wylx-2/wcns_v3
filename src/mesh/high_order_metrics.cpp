@@ -144,6 +144,53 @@ ScalarField refined_derivative(const ScalarField& field, int axis)
         [](const std::vector<Real>& line) { return grid_delta(line); });
 }
 
+ScalarField scmm_center_derivative(
+    const ScalarField& field,
+    int axis,
+    const AlgorithmProfile& profile)
+{
+    const int count = field.interior_extent()[static_cast<std::size_t>(axis)];
+    const auto operators = LineOperators::build(profile, count);
+    return apply_lines(
+        field,
+        axis,
+        field.interior_extent(),
+        [&operators](const std::vector<Real>& line) {
+            return operators.delta(line);
+        });
+}
+
+ScalarField scmm_center_to_faces(
+    const ScalarField& field,
+    int axis,
+    const AlgorithmProfile& profile)
+{
+    const int count = field.interior_extent()[static_cast<std::size_t>(axis)];
+    const auto operators = LineOperators::build(profile, count);
+    auto output_extent = field.interior_extent();
+    ++output_extent[static_cast<std::size_t>(axis)];
+    return apply_lines(
+        field,
+        axis,
+        output_extent,
+        [&operators](const std::vector<Real>& line) {
+            return operators.interpolate(line);
+        });
+}
+
+ScalarField vertices_to_centers_axis(const ScalarField& field, int axis)
+{
+    auto output_extent = field.interior_extent();
+    --output_extent[static_cast<std::size_t>(axis)];
+    return apply_lines(
+        field,
+        axis,
+        output_extent,
+        [](const std::vector<Real>& line) {
+            return interpolate_vertices_to_centers_i6(line);
+        });
+}
+
 ScalarField product_derivative(
     const ScalarField& first,
     const ScalarField& second_derivative,
@@ -166,6 +213,42 @@ ScalarField symmetric_component(
     const auto b = product_derivative(second, d_first_second, first_tangent);
     const auto c = product_derivative(first, d_second_second, first_tangent);
     const auto d = product_derivative(second, d_first_first, second_tangent);
+    return combine(a, b, c, d, 0.5);
+}
+
+ScalarField scmm_product_derivative(
+    const ScalarField& first,
+    const ScalarField& second_derivative,
+    int outer_axis,
+    const AlgorithmProfile& profile)
+{
+    return scmm_center_derivative(
+        multiply(first, second_derivative), outer_axis, profile);
+}
+
+ScalarField scmm_symmetric_component(
+    const ScalarField& first,
+    const ScalarField& second,
+    int first_tangent,
+    int second_tangent,
+    const AlgorithmProfile& profile)
+{
+    const auto d_first_first
+        = scmm_center_derivative(first, first_tangent, profile);
+    const auto d_first_second
+        = scmm_center_derivative(first, second_tangent, profile);
+    const auto d_second_first
+        = scmm_center_derivative(second, first_tangent, profile);
+    const auto d_second_second
+        = scmm_center_derivative(second, second_tangent, profile);
+    const auto a = scmm_product_derivative(
+        first, d_second_first, second_tangent, profile);
+    const auto b = scmm_product_derivative(
+        second, d_first_second, first_tangent, profile);
+    const auto c = scmm_product_derivative(
+        first, d_second_second, first_tangent, profile);
+    const auto d = scmm_product_derivative(
+        second, d_first_first, second_tangent, profile);
     return combine(a, b, c, d, 0.5);
 }
 
@@ -356,6 +439,156 @@ MetricField build_phenglei_metric(
     return metric;
 }
 
+VectorFields scmm_cell_coordinates(const StructuredBlock& block)
+{
+    const auto vertices = block.vertex_extent();
+    VectorFields vertex_fields(vertices);
+    const auto copy = [&](const Array3D<Real>& source, ScalarField& target) {
+        for (int k = 0; k < vertices.nk; ++k) {
+            for (int j = 0; j < vertices.nj; ++j) {
+                for (int i = 0; i < vertices.ni; ++i) {
+                    target(i, j, k) = source(i, j, k);
+                }
+            }
+        }
+    };
+    copy(block.coordinates.x, vertex_fields.x);
+    copy(block.coordinates.y, vertex_fields.y);
+    copy(block.coordinates.z, vertex_fields.z);
+
+    const auto interpolate = [&](ScalarField field) {
+        field = vertices_to_centers_axis(field, 0);
+        field = vertices_to_centers_axis(field, 1);
+        if (block.cell_dimension() == 3) {
+            field = vertices_to_centers_axis(field, 2);
+        }
+        return field;
+    };
+    VectorFields centers(block.cell_extent());
+    centers.x = interpolate(std::move(vertex_fields.x));
+    centers.y = interpolate(std::move(vertex_fields.y));
+    centers.z = interpolate(std::move(vertex_fields.z));
+    return centers;
+}
+
+void compute_scmm_symmetric_metrics(
+    const VectorFields& coordinates,
+    int dimension,
+    const AlgorithmProfile& profile,
+    VectorFields& s_i,
+    VectorFields& s_j,
+    VectorFields& s_k,
+    ScalarField& jacobian)
+{
+    const auto extent = coordinates.x.interior_extent();
+    if (dimension == 2) {
+        s_i.x = scmm_center_derivative(coordinates.y, 1, profile);
+        const auto dx_eta = scmm_center_derivative(coordinates.x, 1, profile);
+        const auto dy_xi = scmm_center_derivative(coordinates.y, 0, profile);
+        s_j.y = scmm_center_derivative(coordinates.x, 0, profile);
+        for (int j = 0; j < extent.nj; ++j) {
+            for (int i = 0; i < extent.ni; ++i) {
+                s_i.y(i, j, 0) = -dx_eta(i, j, 0);
+                s_j.x(i, j, 0) = -dy_xi(i, j, 0);
+            }
+        }
+        const auto di = scmm_center_derivative(
+            dot_product(coordinates, s_i), 0, profile);
+        const auto dj = scmm_center_derivative(
+            dot_product(coordinates, s_j), 1, profile);
+        for (int j = 0; j < extent.nj; ++j) {
+            for (int i = 0; i < extent.ni; ++i) {
+                jacobian(i, j, 0) = 0.5 * (di(i, j, 0) + dj(i, j, 0));
+            }
+        }
+        return;
+    }
+
+    s_i.x = scmm_symmetric_component(coordinates.z, coordinates.y, 1, 2, profile);
+    s_i.y = scmm_symmetric_component(coordinates.x, coordinates.z, 1, 2, profile);
+    s_i.z = scmm_symmetric_component(coordinates.y, coordinates.x, 1, 2, profile);
+    s_j.x = scmm_symmetric_component(coordinates.z, coordinates.y, 2, 0, profile);
+    s_j.y = scmm_symmetric_component(coordinates.x, coordinates.z, 2, 0, profile);
+    s_j.z = scmm_symmetric_component(coordinates.y, coordinates.x, 2, 0, profile);
+    s_k.x = scmm_symmetric_component(coordinates.z, coordinates.y, 0, 1, profile);
+    s_k.y = scmm_symmetric_component(coordinates.x, coordinates.z, 0, 1, profile);
+    s_k.z = scmm_symmetric_component(coordinates.y, coordinates.x, 0, 1, profile);
+    const auto di = scmm_center_derivative(
+        dot_product(coordinates, s_i), 0, profile);
+    const auto dj = scmm_center_derivative(
+        dot_product(coordinates, s_j), 1, profile);
+    const auto dk = scmm_center_derivative(
+        dot_product(coordinates, s_k), 2, profile);
+    for (int k = 0; k < extent.nk; ++k) {
+        for (int j = 0; j < extent.nj; ++j) {
+            for (int i = 0; i < extent.ni; ++i) {
+                jacobian(i, j, k)
+                    = (di(i, j, k) + dj(i, j, k) + dk(i, j, k)) / 3.0;
+            }
+        }
+    }
+}
+
+void copy_scmm_to_metric(
+    const VectorFields& coordinates,
+    const VectorFields& s_i,
+    const VectorFields& s_j,
+    const VectorFields& s_k,
+    const ScalarField& jacobian,
+    const AlgorithmProfile& profile,
+    MetricField& metric)
+{
+    auto& target_coordinates = MetricFieldBuilderAccess::cell_coordinates(metric);
+    auto& target_jacobian = MetricFieldBuilderAccess::jacobian(metric);
+    const auto cells = jacobian.interior_extent();
+    for (int k = 0; k < cells.nk; ++k) {
+        for (int j = 0; j < cells.nj; ++j) {
+            for (int i = 0; i < cells.ni; ++i) {
+                target_coordinates.x(i, j, k) = coordinates.x(i, j, k);
+                target_coordinates.y(i, j, k) = coordinates.y(i, j, k);
+                target_coordinates.z(i, j, k) = coordinates.z(i, j, k);
+                target_jacobian(i, j, k) = jacobian(i, j, k);
+            }
+        }
+    }
+    const auto interpolate_vector = [&](const VectorFields& source,
+                                        FaceAreaVectors& target,
+                                        int axis) {
+        target.x = scmm_center_to_faces(source.x, axis, profile);
+        target.y = scmm_center_to_faces(source.y, axis, profile);
+        target.z = scmm_center_to_faces(source.z, axis, profile);
+    };
+    interpolate_vector(s_i, MetricFieldBuilderAccess::i_faces(metric), 0);
+    interpolate_vector(s_j, MetricFieldBuilderAccess::j_faces(metric), 1);
+    if (metric.dimension() == 3) {
+        interpolate_vector(s_k, MetricFieldBuilderAccess::k_faces(metric), 2);
+    }
+}
+
+MetricField build_scmm_metric(
+    const StructuredBlock& block,
+    const AlgorithmProfile& profile)
+{
+    const auto vertices = block.vertex_extent();
+    for (int axis = 0; axis < block.cell_dimension(); ++axis) {
+        if (vertices[static_cast<std::size_t>(axis)] < 6) {
+            throw GeometryError("scmm6_wcns metrics require at least six vertices per active direction");
+        }
+    }
+    auto coordinates = scmm_cell_coordinates(block);
+    const auto cells = block.cell_extent();
+    VectorFields s_i(cells);
+    VectorFields s_j(cells);
+    VectorFields s_k(cells);
+    ScalarField jacobian(cells);
+    compute_scmm_symmetric_metrics(
+        coordinates, block.cell_dimension(), profile, s_i, s_j, s_k, jacobian);
+    MetricField metric(profile.kind(), cells, block.cell_dimension());
+    copy_scmm_to_metric(
+        coordinates, s_i, s_j, s_k, jacobian, profile, metric);
+    return metric;
+}
+
 GeometryDiagnostics capture_reference_geometry(const StructuredBlock& block)
 {
     const auto cells = block.cell_extent();
@@ -503,7 +736,7 @@ MetricInitializationResult initialize_metric_field(
         if (profile.kind() == AlgorithmProfileKind::PhengleiWcns) {
             return build_phenglei_metric(block, profile);
         }
-        throw ProfileError("scmm6_wcns metric method is not available before Stage I3");
+        return build_scmm_metric(block, profile);
     }();
     validate_metric(metric, diagnostics, options);
     return {std::move(metric), std::move(diagnostics)};
