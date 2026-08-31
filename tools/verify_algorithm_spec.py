@@ -301,6 +301,10 @@ def check_document_contracts() -> None:
         "enable_source_terms = false | true",
         "SourceTermOperator",
         "局部源项不需要连接通信",
+        "输入文件不得出现 `Re` 或 `Ma` 字段",
+        "物理边界 ghost 必须只有一个权威版本",
+        "禁止分别运行“无粘 ghost 填充”和“粘性 ghost 填充”",
+        "无滑移 ghost 还可能通过 Riemann 耗散产生非物理无粘切向动量通量",
     )
     for fragment in required_fragments:
         require(fragment in text, f"frozen document contract is missing: {fragment}")

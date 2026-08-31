@@ -81,3 +81,12 @@ python tools/verify_algorithm_spec.py
 - 阶段 H 将建立 `SourceTermConfig/Registry` 空框架；阶段 J 将实现 `uniform_conservative`、`body_force`、`manufactured` 及逐 RK 子步装配。
 
 `tools/verify_algorithm_spec.py` 已增加体力源动量/能量无量纲关系和源项文档契约检查，全部规格核验继续通过。
+
+## 2026-08-31 Re/Ma 输入与公共 ghost 修订
+
+- `Re`、`Ma` 改为只能由五个参考量和唯一 `GasModel` 输入派生；输入文件出现任一字段即失败，不再执行 Re/Ma 输入一致性断言。派生结果写入 log 和检查点供核查。
+- `molar_mass` 与 `specific_gas_constant` 改为严格二选一，从源头避免两套气体常数输入的一致性问题。
+- 物理边界采用唯一权威 primitive ghost：边界条件逐层给出 $\rho,u,v,w,T$，随后在同一事务中计算 $p$ 和 $U$，两者共享同一版本。
+- 无粘重构和粘性原始量导数读取同一份 ghost；仍不允许 ghost 坐标、度量、梯度或通量，也不需要边/角 ghost。
+- 采用“公共 ghost + 分开的真实面修正”方案：无粘面状态按 `strong_boundary_face_state` 决定是否覆写；粘性壁面迹在生产算法中始终强修正。
+- 不采用“同一 ghost 直接作为两种最终边界结果”的方案。无滑移 ghost 的切向速度跳跃若直接进入 Rusanov/HLLC，会产生非物理无粘切向耗散；默认无粘强修正会把固壁外侧迹改为只反射法向速度，从而移除该影响。
