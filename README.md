@@ -2,7 +2,9 @@
 
 一个面向结构多块网格、CGNS 和 MPI 并行设计的小型高阶 CFD 程序。
 
-阶段 A、B 已通过项目负责人验收，阶段 C、D、E 已按授权连续完成自动验收。
+项目的数学与算法约定见 [`算法补充.md`](算法补充.md)，阶段 H--M 的开发流程、Git 规则和人工检查卡口见 [`docs/development-roadmap.md`](docs/development-roadmap.md)。
+
+阶段 A、B 已通过项目负责人验收，阶段 C、D、E 已按授权连续完成自动验收；阶段 F、G 已完成算法审查、规格补充和自动验收，等待项目负责人确认。阶段 H 尚未开始。
 当前程序具备 CGNS 结构多块网格读取、几何度量、确定性块分配、同 rank/MPI
 非阻塞 halo 交换，以及 WCNS-Euler 空间离散和 SSPRK3 时间推进闭环。
 

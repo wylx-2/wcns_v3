@@ -309,6 +309,20 @@ def check_document_contracts() -> None:
     for fragment in required_fragments:
         require(fragment in text, f"frozen document contract is missing: {fragment}")
 
+    roadmap = document.parent / "docs" / "development-roadmap.md"
+    roadmap_text = roadmap.read_text(encoding="utf-8")
+    roadmap_fragments: Iterable[str] = (
+        "阶段严格按 H、I、J、K、L、M 顺序执行",
+        "正式验收无论成功或失败都必须进行一次 Git 管理",
+        "自动验收成功时创建不可移动的",
+        "自动验收失败时不创建候选标签",
+        "G8 人工放行",
+        "阶段 H：核心热力学、合法域与源项框架",
+        "阶段 M：多块/MPI 系统验收与发布准备",
+    )
+    for fragment in roadmap_fragments:
+        require(fragment in roadmap_text, f"development gate contract is missing: {fragment}")
+
 
 def main() -> None:
     checks = (
