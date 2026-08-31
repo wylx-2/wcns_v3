@@ -17,6 +17,7 @@ void test_euler();
 void test_thermodynamics();
 void test_wcns();
 void test_spatial_operator();
+void test_source_terms();
 
 int main()
 {
@@ -43,6 +44,7 @@ int main()
         test_thermodynamics();
         test_wcns();
         test_spatial_operator();
+        test_source_terms();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;

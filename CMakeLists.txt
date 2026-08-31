@@ -24,6 +24,7 @@ else()
 endif()
 
 add_library(wcns_physics STATIC
+    src/physics/source_terms.cpp
     src/physics/thermodynamics.cpp
 )
 add_library(wcns::physics ALIAS wcns_physics)

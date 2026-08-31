@@ -13,6 +13,7 @@ add_executable(wcns_unit_tests
     test_thermodynamics.cpp
     test_wcns.cpp
     test_spatial_operator.cpp
+    test_source_terms.cpp
 )
 
 target_link_libraries(

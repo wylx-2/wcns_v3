@@ -67,25 +67,55 @@ void test_spatial_operator()
     const PrimitiveState freestream {1.1, 0.7, -0.2, 0.0, 1.0};
     const auto initial = to_conservative(freestream);
     initialize(block, freestream);
+    auto configured_block = block;
+    const SpatialParameters configured_parameters {
+        {},
+        {},
+        0.4,
+        SourceTermConfig {},
+    };
 
     const auto evaluate = [&] {
         update_primitive_interior(block);
         fill_physical_boundaries(block, freestream);
         compute_euler_residual(block);
     };
+    const auto evaluate_configured = [&] {
+        update_primitive_interior(configured_block);
+        fill_physical_boundaries(configured_block, freestream);
+        compute_euler_residual(configured_block, configured_parameters);
+    };
     evaluate();
+    evaluate_configured();
     WCNS_REQUIRE(residual_l2(block) < 1.0e-12);
     const Real time_step = stable_time_step(block, 0.4);
     WCNS_REQUIRE(std::isfinite(time_step));
     WCNS_REQUIRE(time_step > 0.0);
 
-    std::vector<StructuredBlock*> blocks {&block};
-    advance_ssprk3(blocks, time_step, evaluate);
     const auto extent = block.cell_extent();
     for (int j = 0; j < extent.nj; ++j) {
         for (int i = 0; i < extent.ni; ++i) {
-            const auto state = load_conservative(block.flow.conservative, {i, j, 0});
             for (int component = 0; component < euler_components; ++component) {
+                WCNS_REQUIRE(
+                    block.flow.residual(i, j, 0, component)
+                    == configured_block.flow.residual(i, j, 0, component));
+            }
+        }
+    }
+
+    std::vector<StructuredBlock*> blocks {&block};
+    std::vector<StructuredBlock*> configured_blocks {&configured_block};
+    advance_ssprk3(blocks, time_step, evaluate);
+    advance_ssprk3(configured_blocks, time_step, evaluate_configured);
+    for (int j = 0; j < extent.nj; ++j) {
+        for (int i = 0; i < extent.ni; ++i) {
+            const auto state = load_conservative(block.flow.conservative, {i, j, 0});
+            const auto configured_state
+                = load_conservative(configured_block.flow.conservative, {i, j, 0});
+            for (int component = 0; component < euler_components; ++component) {
+                WCNS_REQUIRE(
+                    state[static_cast<std::size_t>(component)]
+                    == configured_state[static_cast<std::size_t>(component)]);
                 WCNS_REQUIRE_NEAR(
                     state[static_cast<std::size_t>(component)],
                     initial[static_cast<std::size_t>(component)],
