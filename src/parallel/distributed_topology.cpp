@@ -7,9 +7,11 @@
 namespace wcns {
 namespace {
 
-bool same_undirected_range(const IndexRange3& lhs, const IndexRange3& rhs)
+template<class LeftRange, class RightRange>
+bool same_undirected_range(const LeftRange& lhs, const RightRange& rhs)
 {
-    return lhs == rhs || (lhs.begin == rhs.end && lhs.end == rhs.begin);
+    return (lhs.begin == rhs.begin && lhs.end == rhs.end)
+        || (lhs.begin == rhs.end && lhs.end == rhs.begin);
 }
 
 bool reciprocal(
@@ -164,4 +166,3 @@ std::vector<const DirectedExchange*> DistributedTopology::local_copies(RankId ra
 }
 
 } // namespace wcns
-

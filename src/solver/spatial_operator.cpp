@@ -126,6 +126,15 @@ void SpatialParameters::validate() const
     if (!std::isfinite(cfl) || cfl <= 0.0) {
         throw std::invalid_argument("CFL number must be positive and finite");
     }
+    static_cast<void>(SourceTermRegistry::create_stage_h(source_terms));
+}
+
+void compute_euler_residual(
+    StructuredBlock& block,
+    const SpatialParameters& parameters)
+{
+    parameters.validate();
+    compute_euler_residual(block, parameters.gas, parameters.wcns);
 }
 
 void compute_euler_residual(

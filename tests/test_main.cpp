@@ -7,14 +7,17 @@
 void test_index();
 void test_array3d();
 void test_field();
+void test_topology_field();
 void test_structured_block();
 void test_cgns_link();
 void test_metrics();
 void test_topology();
 void test_distribution();
 void test_euler();
+void test_thermodynamics();
 void test_wcns();
 void test_spatial_operator();
+void test_source_terms();
 
 int main()
 {
@@ -31,14 +34,17 @@ int main()
         test_index();
         test_array3d();
         test_field();
+        test_topology_field();
         test_structured_block();
         test_cgns_link();
         test_metrics();
         test_topology();
         test_distribution();
         test_euler();
+        test_thermodynamics();
         test_wcns();
         test_spatial_operator();
+        test_source_terms();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;

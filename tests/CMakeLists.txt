@@ -3,14 +3,17 @@ add_executable(wcns_unit_tests
     test_index.cpp
     test_array3d.cpp
     test_field.cpp
+    test_topology_field.cpp
     test_structured_block.cpp
     test_cgns_link.cpp
     test_metrics.cpp
     test_topology.cpp
     test_distribution.cpp
     test_euler.cpp
+    test_thermodynamics.cpp
     test_wcns.cpp
     test_spatial_operator.cpp
+    test_source_terms.cpp
 )
 
 target_link_libraries(

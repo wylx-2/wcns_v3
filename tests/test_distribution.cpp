@@ -25,6 +25,7 @@ wcns::StructuredMesh make_two_block_mesh()
         {{3, 0, 0}, {0, 0, 0}},
         {{3, 0, 0}, {3, 2, 0}},
         {{2, 0, 0}, {0, 0, 0}},
+        {{4, 0, 0}, {4, 2, 0}},
         {{{2, -1, 3}}},
         3,
     });
@@ -39,6 +40,7 @@ wcns::StructuredMesh make_two_block_mesh()
         {{4, 0, 0}, {4, 3, 0}},
         {{2, 0, 0}, {0, 0, 0}},
         {{3, 0, 0}, {3, 2, 0}},
+        {{2, 0, 0}, {0, 0, 0}},
         {{{-2, 1, 3}}},
         3,
     });
@@ -98,4 +100,3 @@ void test_distribution()
     WCNS_REQUIRE(local_set.block(0).owner_rank() == 0);
     WCNS_REQUIRE_THROWS(std::out_of_range, local_set.block(1));
 }
-

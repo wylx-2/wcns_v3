@@ -52,7 +52,7 @@ void EulerSolver::compute_residuals()
     }
     for (auto& block : local_blocks_.blocks()) {
         fill_physical_boundaries(block, prescribed_state_, parameters_.gas);
-        compute_euler_residual(block, parameters_.gas, parameters_.wcns);
+        compute_euler_residual(block, parameters_);
     }
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <wcns/mesh/structured_block.hpp>
+#include <wcns/physics/source_terms.hpp>
 #include <wcns/solver/euler.hpp>
 #include <wcns/solver/wcns_reconstruction.hpp>
 
@@ -10,6 +11,7 @@ struct SpatialParameters {
     IdealGas gas {};
     WcnsParameters wcns {};
     Real cfl = 0.4;
+    SourceTermConfig source_terms {};
 
     void validate() const;
 };
@@ -20,6 +22,13 @@ void compute_euler_residual(
     StructuredBlock& block,
     const IdealGas& gas = {},
     const WcnsParameters& parameters = {});
+
+// Compatibility entry point for runtime configuration. In stage H the source
+// configuration is validated, while the disabled path delegates directly to
+// the unchanged Euler residual implementation.
+void compute_euler_residual(
+    StructuredBlock& block,
+    const SpatialParameters& parameters);
 
 [[nodiscard]] Real stable_time_step(
     const StructuredBlock& block,

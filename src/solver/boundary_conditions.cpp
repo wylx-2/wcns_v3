@@ -163,11 +163,11 @@ void fill_physical_boundaries(
         if (patch.face.axis == Axis::K && block.cell_dimension() == 2) {
             throw PhysicsError("a 2D block cannot have a K-normal physical boundary");
         }
-        const auto counts = patch.cell_face_range.counts();
+        const auto counts = patch.boundary_face_range.counts();
         for (int ok = 0; ok < counts.nk; ++ok) {
             for (int oj = 0; oj < counts.nj; ++oj) {
                 for (int oi = 0; oi < counts.ni; ++oi) {
-                    const auto face = patch.cell_face_range.at({oi, oj, ok});
+                    const auto face = patch.boundary_face_range.at({oi, oj, ok});
                     for (int layer = 1; layer <= ghost_width; ++layer) {
                         const auto ghost = ghost_index(
                             face,
