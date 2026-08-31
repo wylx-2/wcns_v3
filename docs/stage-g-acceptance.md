@@ -68,3 +68,16 @@ python tools/verify_algorithm_spec.py
 - 粘性时间步系数 $C_v$ 的 profile/维数/时间推进组合标定。
 
 人工检查通过前不进入阶段 H。
+
+## 2026-08-31 源项补充
+
+阶段 G 候选完成后按批示补充了方程源项规格，仍未修改求解器 C++：
+
+- 定义 $\mathcal S$ 为单位物理体积内五个守恒量的无量纲变化率；映射守恒方程使用 $J\mathcal S$，当前 `Residual=dU/dt` 只直接累加 $\mathcal S$，禁止重复乘 Jacobian。
+- 增加 `enable_source_terms=false|true` 和有序 `source_models`；默认关闭，关闭路径不分配或调用源项对象。
+- 给出质量、动量和总能源的有量纲到无量纲尺度，以及体力的动量/能量功一致形式。
+- 规定非刚性局部源项在每个 Runge--Kutta 子步按当前 $U^{(s)},\boldsymbol x_c,t^{(s)}$ 重新计算，只访问真实单元且不隐含 MPI 通信。
+- 把全局守恒验收扩展为物理边界净通量与 $\sum W_cJ_c\mathcal S_c$ 的共同平衡，并增加关闭等价性、常量源、体力、制造解、多块/MPI 和重启测试要求。
+- 阶段 H 将建立 `SourceTermConfig/Registry` 空框架；阶段 J 将实现 `uniform_conservative`、`body_force`、`manufactured` 及逐 RK 子步装配。
+
+`tools/verify_algorithm_spec.py` 已增加体力源动量/能量无量纲关系和源项文档契约检查，全部规格核验继续通过。

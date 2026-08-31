@@ -254,6 +254,36 @@ def check_nondimensionalization() -> None:
     sutherland_ratio_at_one = mu_at_reference_temperature / viscosity_ref
     require(sutherland_ratio_at_one == F(11, 10), "Sutherland reference viscosity scale mismatch")
 
+    velocity = (F(2, 5), F(-1, 4), F(1, 10))
+    acceleration_dimensional = (F(3), F(-2), F(1, 2))
+    acceleration = tuple(
+        length_ref * component / velocity_ref**2
+        for component in acceleration_dimensional
+    )
+    density_dimensional = rho * density_ref
+    momentum_source_dimensional = tuple(
+        density_dimensional * component for component in acceleration_dimensional
+    )
+    momentum_source = tuple(
+        length_ref * component / (density_ref * velocity_ref**2)
+        for component in momentum_source_dimensional
+    )
+    require(
+        momentum_source == tuple(rho * component for component in acceleration),
+        "dimensionless body-force momentum source mismatch",
+    )
+    velocity_dimensional = tuple(component * velocity_ref for component in velocity)
+    energy_source_dimensional = density_dimensional * sum(
+        (u * a for u, a in zip(velocity_dimensional, acceleration_dimensional)),
+        F(0),
+    )
+    energy_source = length_ref * energy_source_dimensional / (density_ref * velocity_ref**3)
+    require(
+        energy_source
+        == rho * sum((u * a for u, a in zip(velocity, acceleration)), F(0)),
+        "dimensionless body-force energy source mismatch",
+    )
+
 
 def check_document_contracts() -> None:
     document = Path(__file__).resolve().parents[1] / "算法补充.md"
@@ -268,6 +298,9 @@ def check_document_contracts() -> None:
         "FaceFluxHalo",
         "GeometryOperand",
         "不设计、不实现通量分裂接口",
+        "enable_source_terms = false | true",
+        "SourceTermOperator",
+        "局部源项不需要连接通信",
     )
     for fragment in required_fragments:
         require(fragment in text, f"frozen document contract is missing: {fragment}")
