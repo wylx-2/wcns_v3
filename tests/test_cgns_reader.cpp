@@ -40,19 +40,22 @@ void test_2d(const char* path)
     WCNS_REQUIRE(imin.name == "imin");
     WCNS_REQUIRE(imin.type == wcns::BoundaryType::Inflow);
     WCNS_REQUIRE(imin.face == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Lower}));
-    WCNS_REQUIRE(imin.vertex_range == (wcns::IndexRange3 {{0, 0, 0}, {0, 3, 0}}));
-    WCNS_REQUIRE(imin.cell_face_range == (wcns::IndexRange3 {{0, 0, 0}, {0, 2, 0}}));
+    WCNS_REQUIRE(imin.vertex_range.untyped() == (wcns::IndexRange3 {{0, 0, 0}, {0, 3, 0}}));
+    WCNS_REQUIRE(imin.adjacent_cell_range.untyped() == (wcns::IndexRange3 {{0, 0, 0}, {0, 2, 0}}));
+    WCNS_REQUIRE(imin.boundary_face_range.untyped() == (wcns::IndexRange3 {{0, 0, 0}, {0, 2, 0}}));
 
     const auto& imax = block.boundaries[1];
     WCNS_REQUIRE(imax.type == wcns::BoundaryType::Outflow);
     WCNS_REQUIRE(imax.face == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Upper}));
-    WCNS_REQUIRE(imax.cell_face_range == (wcns::IndexRange3 {{3, 0, 0}, {3, 2, 0}}));
+    WCNS_REQUIRE(imax.adjacent_cell_range.untyped() == (wcns::IndexRange3 {{3, 0, 0}, {3, 2, 0}}));
+    WCNS_REQUIRE(imax.boundary_face_range.untyped() == (wcns::IndexRange3 {{4, 0, 0}, {4, 2, 0}}));
 
     const auto& jmax = block.boundaries[3];
     WCNS_REQUIRE(jmax.type == wcns::BoundaryType::SlipWall);
     WCNS_REQUIRE(jmax.face == (wcns::FaceLocation {wcns::Axis::J, wcns::Side::Upper}));
-    WCNS_REQUIRE(jmax.vertex_range == (wcns::IndexRange3 {{4, 3, 0}, {0, 3, 0}}));
-    WCNS_REQUIRE(jmax.cell_face_range == (wcns::IndexRange3 {{3, 2, 0}, {0, 2, 0}}));
+    WCNS_REQUIRE(jmax.vertex_range.untyped() == (wcns::IndexRange3 {{4, 3, 0}, {0, 3, 0}}));
+    WCNS_REQUIRE(jmax.adjacent_cell_range.untyped() == (wcns::IndexRange3 {{3, 2, 0}, {0, 2, 0}}));
+    WCNS_REQUIRE(jmax.boundary_face_range.untyped() == (wcns::IndexRange3 {{3, 3, 0}, {0, 3, 0}}));
 
     wcns::compute_metrics(block);
     WCNS_REQUIRE_NEAR(block.cell_metrics.center_x(0, 0, 0), 0.125, 1.0e-14);
@@ -95,7 +98,7 @@ void test_3d(const char* path)
     WCNS_REQUIRE(block.boundaries.size() == 6);
     WCNS_REQUIRE(block.boundaries[0].type == wcns::BoundaryType::Farfield);
     WCNS_REQUIRE(
-        block.boundaries[3].cell_face_range
+        block.boundaries[3].adjacent_cell_range.untyped()
         == (wcns::IndexRange3 {{2, 1, 0}, {0, 1, 1}}));
     WCNS_REQUIRE(
         block.boundaries[5].face
@@ -164,12 +167,15 @@ void test_multiblock_2d(const char* path)
         connection.donor_face
         == (wcns::FaceLocation {wcns::Axis::J, wcns::Side::Lower}));
     WCNS_REQUIRE(
-        connection.receiver_vertex_range
+        connection.receiver_vertex_range.untyped()
         == (wcns::IndexRange3 {{4, 0, 0}, {4, 3, 0}}));
     WCNS_REQUIRE(
-        connection.donor_vertex_range
+        connection.donor_vertex_range.untyped()
         == (wcns::IndexRange3 {{3, 0, 0}, {0, 0, 0}}));
     WCNS_REQUIRE(connection.transform == (wcns::IndexTransform {{{2, -1, 3}}}));
+    WCNS_REQUIRE(
+        connection.shared_face_range.untyped()
+        == (wcns::IndexRange3 {{4, 0, 0}, {4, 2, 0}}));
     WCNS_REQUIRE(connection.ghost_width == 3);
 }
 
@@ -189,10 +195,10 @@ void test_multiblock_3d(const char* path)
         == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Lower}));
     WCNS_REQUIRE(connection.transform == (wcns::IndexTransform {{{1, -2, 3}}}));
     WCNS_REQUIRE(
-        connection.donor_vertex_range
+        connection.donor_vertex_range.untyped()
         == (wcns::IndexRange3 {{0, 2, 0}, {0, 0, 2}}));
     WCNS_REQUIRE(
-        connection.donor_cell_range
+        connection.donor_adjacent_cell_range.untyped()
         == (wcns::IndexRange3 {{0, 1, 0}, {0, 0, 1}}));
 }
 

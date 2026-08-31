@@ -1,6 +1,7 @@
 #pragma once
 
 #include <wcns/core/index.hpp>
+#include <wcns/core/tagged_range.hpp>
 #include <wcns/core/types.hpp>
 
 #include <array>
@@ -53,8 +54,9 @@ struct BoundaryPatch {
     std::string name;
     BoundaryType type = BoundaryType::Undefined;
     FaceLocation face;
-    IndexRange3 vertex_range;
-    IndexRange3 cell_face_range;
+    VertexRange vertex_range;
+    AdjacentCellRange adjacent_cell_range;
+    BoundaryFaceRange boundary_face_range;
     std::unordered_map<std::string, Real> parameters;
 };
 
@@ -134,10 +136,11 @@ struct ConnectivityPatch {
     RankId donor_rank = invalid_rank_id;
     FaceLocation receiver_face;
     FaceLocation donor_face;
-    IndexRange3 receiver_vertex_range;
-    IndexRange3 donor_vertex_range;
-    IndexRange3 receiver_cell_range;
-    IndexRange3 donor_cell_range;
+    ReceiverVertexRange receiver_vertex_range;
+    DonorVertexRange donor_vertex_range;
+    ReceiverAdjacentCellRange receiver_adjacent_cell_range;
+    DonorAdjacentCellRange donor_adjacent_cell_range;
+    SharedFaceRange shared_face_range;
     IndexTransform transform;
     int ghost_width = 0;
     ConnectionId id = invalid_connection_id;

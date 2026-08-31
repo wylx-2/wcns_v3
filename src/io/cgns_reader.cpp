@@ -259,7 +259,7 @@ FaceLocation identify_boundary_face(
     return {static_cast<Axis>(normal_axis), side};
 }
 
-IndexRange3 make_cell_face_range(
+IndexRange3 make_adjacent_cell_range(
     const IndexRange3& vertex_range,
     FaceLocation face,
     Extent3 cell_extent,
@@ -297,6 +297,31 @@ IndexRange3 make_cell_face_range(
     }
     validate_range_within_extent(cells, cell_extent, cell_dimension, label);
     return cells;
+}
+
+IndexRange3 make_boundary_face_range(
+    const IndexRange3& vertex_range,
+    FaceLocation face,
+    Extent3 cell_extent,
+    int cell_dimension,
+    const char* label)
+{
+    auto faces = make_adjacent_cell_range(
+        vertex_range,
+        face,
+        cell_extent,
+        cell_dimension,
+        label);
+    const auto normal_axis = static_cast<std::size_t>(face.axis);
+    const int normal_coordinate
+        = face.side == Side::Lower ? 0 : cell_extent[normal_axis];
+    faces.begin[normal_axis] = normal_coordinate;
+    faces.end[normal_axis] = normal_coordinate;
+
+    auto face_extent = cell_extent;
+    ++face_extent[normal_axis];
+    validate_range_within_extent(faces, face_extent, cell_dimension, label);
+    return faces;
 }
 
 void read_boundaries(int file, const CgnsZoneMetadata& zone, StructuredBlock& block)
@@ -371,13 +396,19 @@ void read_boundaries(int file, const CgnsZoneMetadata& zone, StructuredBlock& bl
             name,
             convert_boundary_type(boundary_type),
             face,
-            vertex_range,
-            make_cell_face_range(
+            VertexRange(vertex_range),
+            AdjacentCellRange(make_adjacent_cell_range(
                 vertex_range,
                 face,
                 block.cell_extent(),
                 zone.cell_dimension,
-                "boundary cell-face range"),
+                "boundary adjacent-cell range")),
+            BoundaryFaceRange(make_boundary_face_range(
+                vertex_range,
+                face,
+                block.cell_extent(),
+                zone.cell_dimension,
+                "boundary face range")),
             {},
         });
     }
@@ -491,20 +522,26 @@ void read_connectivities(
             invalid_rank_id,
             receiver_face,
             donor_face,
-            receiver_vertex_range,
-            donor_vertex_range,
-            make_cell_face_range(
+            ReceiverVertexRange(receiver_vertex_range),
+            DonorVertexRange(donor_vertex_range),
+            ReceiverAdjacentCellRange(make_adjacent_cell_range(
                 receiver_vertex_range,
                 receiver_face,
                 block.cell_extent(),
                 zone.cell_dimension,
-                "connectivity receiver cell-face range"),
-            make_cell_face_range(
+                "connectivity receiver adjacent-cell range")),
+            DonorAdjacentCellRange(make_adjacent_cell_range(
                 donor_vertex_range,
                 donor_face,
                 donor_zone.cell_extent,
                 zone.cell_dimension,
-                "connectivity donor cell-face range"),
+                "connectivity donor adjacent-cell range")),
+            SharedFaceRange(make_boundary_face_range(
+                receiver_vertex_range,
+                receiver_face,
+                block.cell_extent(),
+                zone.cell_dimension,
+                "connectivity shared-face range")),
             transform,
             block.ghost_width(),
         });

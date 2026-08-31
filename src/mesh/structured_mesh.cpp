@@ -9,9 +9,11 @@
 namespace wcns {
 namespace {
 
-bool same_undirected_range(const IndexRange3& lhs, const IndexRange3& rhs)
+template<class LeftRange, class RightRange>
+bool same_undirected_range(const LeftRange& lhs, const RightRange& rhs)
 {
-    return lhs == rhs || (lhs.begin == rhs.end && lhs.end == rhs.begin);
+    return (lhs.begin == rhs.begin && lhs.end == rhs.end)
+        || (lhs.begin == rhs.end && lhs.end == rhs.begin);
 }
 
 bool is_reciprocal(
@@ -28,9 +30,11 @@ bool is_reciprocal(
         && same_undirected_range(
             candidate.donor_vertex_range, connection.receiver_vertex_range)
         && same_undirected_range(
-            candidate.receiver_cell_range, connection.donor_cell_range)
+            candidate.receiver_adjacent_cell_range,
+            connection.donor_adjacent_cell_range)
         && same_undirected_range(
-            candidate.donor_cell_range, connection.receiver_cell_range)
+            candidate.donor_adjacent_cell_range,
+            connection.receiver_adjacent_cell_range)
         && candidate.transform == connection.transform.inverse(dimension);
 }
 

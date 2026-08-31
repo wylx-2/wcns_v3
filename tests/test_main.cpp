@@ -7,6 +7,7 @@
 void test_index();
 void test_array3d();
 void test_field();
+void test_topology_field();
 void test_structured_block();
 void test_cgns_link();
 void test_metrics();
@@ -32,6 +33,7 @@ int main()
         test_index();
         test_array3d();
         test_field();
+        test_topology_field();
         test_structured_block();
         test_cgns_link();
         test_metrics();

@@ -45,14 +45,18 @@ void add_farfield(wcns::StructuredBlock& block, wcns::FaceLocation face)
     patch.face = face;
     if (face.axis == Axis::I) {
         const int vertex_i = face.side == Side::Lower ? 0 : vertices.ni - 1;
-        const int cell_i = face.side == Side::Lower ? 0 : cells.ni;
+        const int adjacent_i = face.side == Side::Lower ? 0 : cells.ni - 1;
+        const int face_i = face.side == Side::Lower ? 0 : cells.ni;
         patch.vertex_range = {{vertex_i, 0, 0}, {vertex_i, vertices.nj - 1, 0}};
-        patch.cell_face_range = {{cell_i, 0, 0}, {cell_i, cells.nj - 1, 0}};
+        patch.adjacent_cell_range = {{adjacent_i, 0, 0}, {adjacent_i, cells.nj - 1, 0}};
+        patch.boundary_face_range = {{face_i, 0, 0}, {face_i, cells.nj - 1, 0}};
     } else {
         const int vertex_j = face.side == Side::Lower ? 0 : vertices.nj - 1;
-        const int cell_j = face.side == Side::Lower ? 0 : cells.nj;
+        const int adjacent_j = face.side == Side::Lower ? 0 : cells.nj - 1;
+        const int face_j = face.side == Side::Lower ? 0 : cells.nj;
         patch.vertex_range = {{0, vertex_j, 0}, {vertices.ni - 1, vertex_j, 0}};
-        patch.cell_face_range = {{0, cell_j, 0}, {cells.ni - 1, cell_j, 0}};
+        patch.adjacent_cell_range = {{0, adjacent_j, 0}, {cells.ni - 1, adjacent_j, 0}};
+        patch.boundary_face_range = {{0, face_j, 0}, {cells.ni - 1, face_j, 0}};
     }
     block.boundaries.push_back(std::move(patch));
 }
