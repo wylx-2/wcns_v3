@@ -68,6 +68,7 @@ public:
 
 private:
     friend struct MetricFieldBuilderAccess;
+    friend class SharedMetricSynchronizer;
 
     AlgorithmProfileKind profile_;
     int dimension_;

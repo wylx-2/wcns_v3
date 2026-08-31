@@ -24,6 +24,9 @@ void test_phenglei_high_order_metrics();
 void test_phenglei_high_order_metrics_3d();
 void test_scmm6_high_order_metrics();
 void test_scmm6_high_order_metrics_3d();
+void test_geometry_halo_plan();
+void test_shared_metric_synchronization();
+void test_periodic_shared_metric_synchronization();
 
 // 顺序运行不依赖独立输入文件的全部单元验收入口。
 int main()
@@ -58,6 +61,9 @@ int main()
         test_phenglei_high_order_metrics_3d();
         test_scmm6_high_order_metrics();
         test_scmm6_high_order_metrics_3d();
+        test_geometry_halo_plan();
+        test_shared_metric_synchronization();
+        test_periodic_shared_metric_synchronization();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;
