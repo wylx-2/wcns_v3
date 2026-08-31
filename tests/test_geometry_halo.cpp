@@ -1,6 +1,7 @@
 #include "test_support.hpp"
 
 #include <wcns/mesh/geometry_halo.hpp>
+#include <wcns/mesh/conservation_weights.hpp>
 
 #include <set>
 #include <unordered_map>
@@ -188,5 +189,30 @@ void test_periodic_shared_metric_synchronization()
         WCNS_REQUIRE_NEAR(owner.x(6, j, 0), 1.0, 2.0e-12);
         WCNS_REQUIRE_NEAR(donor.x(0, j, 0), 0.0, 2.0e-12);
         WCNS_REQUIRE_NEAR(donor.y(0, j, 0), 1.0, 2.0e-12);
+    }
+}
+
+// 验收多块轴置换连接上的张量积单元权重为正且共享面加权贡献抵消。
+void test_global_conservation_weights()
+{
+    using namespace wcns;
+    const auto mesh = make_geometry_mesh();
+    for (const auto kind : {
+             AlgorithmProfileKind::PhengleiWcns,
+             AlgorithmProfileKind::Scmm6Wcns}) {
+        const auto profile = ProfileFactory::create(kind);
+        const auto weights = GlobalConservationWeights::build(mesh, profile);
+        WCNS_REQUIRE(weights.maximum_line_residual() < 1.0e-11);
+        WCNS_REQUIRE(weights.maximum_shared_face_mismatch() < 1.0e-11);
+        for (const BlockId id : {BlockId {0}, BlockId {1}}) {
+            const auto& block_weights = weights.block(id).cell;
+            const auto extent = block_weights.interior_extent();
+            for (int j = 0; j < extent.nj; ++j) {
+                for (int i = 0; i < extent.ni; ++i) {
+                    WCNS_REQUIRE(block_weights(i, j, 0) > 0.0);
+                }
+            }
+        }
+        WCNS_REQUIRE_THROWS(std::out_of_range, weights.block(99));
     }
 }

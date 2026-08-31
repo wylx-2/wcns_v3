@@ -1,8 +1,12 @@
 #include "test_support.hpp"
 
 #include <wcns/mesh/high_order_metrics.hpp>
+#include <wcns/mesh/linear_operators.hpp>
 
+#include <algorithm>
+#include <cmath>
 #include <stdexcept>
+#include <vector>
 
 namespace {
 
@@ -16,6 +20,105 @@ void set_affine_2d(wcns::StructuredBlock& block)
             block.coordinates.z(i, j, 0) = 0.0;
         }
     }
+}
+
+struct WarpedMetricError {
+    wcns::Real jacobian_l2 = 0.0;
+    wcns::Real identity_max = 0.0;
+};
+
+WarpedMetricError warped_metric_error(
+    wcns::AlgorithmProfileKind kind,
+    int cell_count)
+{
+    using namespace wcns;
+    StructuredBlock block(
+        10 + cell_count,
+        "warped",
+        0,
+        2,
+        2,
+        {cell_count + 1, cell_count + 1, 1},
+        3);
+    constexpr Real amplitude = 0.01;
+    constexpr Real two_pi = 6.283185307179586476925286766559;
+    for (int j = 0; j <= cell_count; ++j) {
+        for (int i = 0; i <= cell_count; ++i) {
+            const Real s = static_cast<Real>(i) / cell_count;
+            const Real t = static_cast<Real>(j) / cell_count;
+            block.coordinates.x(i, j, 0)
+                = s + amplitude * std::sin(two_pi * s) * std::sin(two_pi * t);
+            block.coordinates.y(i, j, 0)
+                = t + amplitude * std::cos(two_pi * s) * std::sin(two_pi * t);
+            block.coordinates.z(i, j, 0) = 0.0;
+        }
+    }
+    const auto profile = ProfileFactory::create(kind);
+    MetricBuildOptions options;
+    options.maximum_reference_relative_difference = 1.0;
+    const auto result = initialize_metric_field(block, profile, options);
+    const auto line = LineOperators::build(profile, cell_count);
+    Real squared_error = 0.0;
+    std::size_t sample_count = 0;
+    const int margin = kind == AlgorithmProfileKind::PhengleiWcns ? 3 : 4;
+    for (int j = margin; j < cell_count - margin; ++j) {
+        for (int i = margin; i < cell_count - margin; ++i) {
+            const Real s = (static_cast<Real>(i) + 0.5) / cell_count;
+            const Real t = (static_cast<Real>(j) + 0.5) / cell_count;
+            const Real x_s = 1.0
+                + amplitude * two_pi * std::cos(two_pi * s) * std::sin(two_pi * t);
+            const Real x_t
+                = amplitude * two_pi * std::sin(two_pi * s) * std::cos(two_pi * t);
+            const Real y_s
+                = -amplitude * two_pi * std::sin(two_pi * s) * std::sin(two_pi * t);
+            const Real y_t = 1.0
+                + amplitude * two_pi * std::cos(two_pi * s) * std::cos(two_pi * t);
+            const Real exact = (x_s * y_t - x_t * y_s)
+                / static_cast<Real>(cell_count * cell_count);
+            const Real error = result.metric.jacobian()(i, j, 0) - exact;
+            squared_error += error * error;
+            ++sample_count;
+        }
+    }
+
+    Real identity_max = 0.0;
+    for (int component = 0; component < 3; ++component) {
+        const auto& i_component = component == 0 ? result.metric.i_faces().x
+            : component == 1                      ? result.metric.i_faces().y
+                                                  : result.metric.i_faces().z;
+        const auto& j_component = component == 0 ? result.metric.j_faces().x
+            : component == 1                      ? result.metric.j_faces().y
+                                                  : result.metric.j_faces().z;
+        std::vector<std::vector<Real>> di(
+            static_cast<std::size_t>(cell_count),
+            std::vector<Real>(static_cast<std::size_t>(cell_count)));
+        for (int j = 0; j < cell_count; ++j) {
+            std::vector<Real> faces(static_cast<std::size_t>(cell_count + 1));
+            for (int i = 0; i <= cell_count; ++i) {
+                faces[static_cast<std::size_t>(i)] = i_component(i, j, 0);
+            }
+            const auto derivative = line.differentiate(faces);
+            for (int i = 0; i < cell_count; ++i) {
+                di[static_cast<std::size_t>(j)][static_cast<std::size_t>(i)]
+                    = derivative[static_cast<std::size_t>(i)];
+            }
+        }
+        for (int i = 0; i < cell_count; ++i) {
+            std::vector<Real> faces(static_cast<std::size_t>(cell_count + 1));
+            for (int j = 0; j <= cell_count; ++j) {
+                faces[static_cast<std::size_t>(j)] = j_component(i, j, 0);
+            }
+            const auto derivative = line.differentiate(faces);
+            for (int j = 0; j < cell_count; ++j) {
+                identity_max = std::max(
+                    identity_max,
+                    std::abs(di[static_cast<std::size_t>(j)]
+                               [static_cast<std::size_t>(i)]
+                        + derivative[static_cast<std::size_t>(j)]));
+            }
+        }
+    }
+    return {std::sqrt(squared_error / sample_count), identity_max};
 }
 
 } // namespace
@@ -160,4 +263,25 @@ void test_scmm6_high_order_metrics_3d()
     WCNS_REQUIRE_NEAR(result.metric.j_faces().x(2, 2, 2), -2.0, 5.0e-10);
     WCNS_REQUIRE_NEAR(result.metric.j_faces().y(2, 2, 2), 4.0, 5.0e-10);
     WCNS_REQUIRE_NEAR(result.metric.k_faces().z(2, 2, 2), 7.0, 5.0e-10);
+}
+
+// 验收光滑扭曲网格的 profile 收敛趋势及离散度量恒等式自由流残差。
+void test_warped_metric_convergence()
+{
+    using namespace wcns;
+    const auto ph_coarse
+        = warped_metric_error(AlgorithmProfileKind::PhengleiWcns, 16);
+    const auto ph_fine
+        = warped_metric_error(AlgorithmProfileKind::PhengleiWcns, 32);
+    WCNS_REQUIRE(ph_coarse.jacobian_l2 / ph_fine.jacobian_l2 > 3.0);
+    WCNS_REQUIRE(ph_coarse.identity_max < 2.0e-12);
+    WCNS_REQUIRE(ph_fine.identity_max < 2.0e-12);
+
+    const auto scmm_coarse
+        = warped_metric_error(AlgorithmProfileKind::Scmm6Wcns, 16);
+    const auto scmm_fine
+        = warped_metric_error(AlgorithmProfileKind::Scmm6Wcns, 32);
+    WCNS_REQUIRE(scmm_coarse.jacobian_l2 / scmm_fine.jacobian_l2 > 20.0);
+    WCNS_REQUIRE(scmm_coarse.identity_max < 2.0e-11);
+    WCNS_REQUIRE(scmm_fine.identity_max < 2.0e-11);
 }

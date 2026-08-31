@@ -9,6 +9,7 @@ add_executable(wcns_unit_tests
     test_topology_field.cpp
     test_structured_block.cpp
     test_cgns_link.cpp
+    test_conservation_weights.cpp
     test_metrics.cpp
     test_topology.cpp
     test_distribution.cpp

@@ -32,6 +32,7 @@ target_link_libraries(wcns_physics PUBLIC wcns::core)
 
 add_library(wcns_mesh STATIC
     src/mesh/algorithm_profile.cpp
+    src/mesh/conservation_weights.cpp
     src/mesh/geometry_halo.cpp
     src/mesh/halo_exchange.cpp
     src/mesh/high_order_metrics.cpp
