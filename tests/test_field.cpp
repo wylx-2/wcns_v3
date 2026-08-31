@@ -4,6 +4,7 @@
 
 #include <stdexcept>
 
+// 验收多分量字段的布局、ghost 访问和批量赋值。
 void test_field()
 {
     using wcns::Extent3;
@@ -50,4 +51,3 @@ void test_field()
     WCNS_REQUIRE_THROWS(std::invalid_argument, (Field<double>({1, 1, 1}, 5, -1)));
     WCNS_REQUIRE_THROWS(std::invalid_argument, (Field<double>({-1, 1, 1}, 5, 0)));
 }
-

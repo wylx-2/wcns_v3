@@ -2,6 +2,7 @@
 
 #include <wcns/solver/euler.hpp>
 
+// 验收 Euler 状态换算、物理通量、声速和 Rusanov 通量。
 void test_euler()
 {
     using namespace wcns;
@@ -38,4 +39,3 @@ void test_euler()
         PhysicsError,
         to_conservative(primitive, IdealGas {1.0, 1.0e-12, 1.0e-12}));
 }
-

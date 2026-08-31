@@ -80,6 +80,7 @@ void prepare_block(wcns::StructuredBlock& block, const wcns::PrimitiveState& sta
 
 } // namespace
 
+// 验收多块 Euler 求解器在串行和双 rank 下保持自由流。
 int main(int argc, char** argv)
 {
     if (argc != 2) {

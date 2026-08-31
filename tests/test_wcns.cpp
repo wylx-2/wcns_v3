@@ -25,6 +25,7 @@ void set_cartesian_coordinates(wcns::StructuredBlock& block)
 
 } // namespace
 
+// 验收现有 WCNS 重构、物理边界 ghost 和守恒状态同步。
 void test_wcns()
 {
     using namespace wcns;

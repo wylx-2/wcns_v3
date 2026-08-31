@@ -6,6 +6,7 @@
 #include <exception>
 #include <iostream>
 
+// 验收 MPI 生命周期、rank/size 和全局归约封装。
 int main(int argc, char** argv)
 {
     try {
@@ -30,4 +31,3 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 }
-

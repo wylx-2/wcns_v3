@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <string>
 
+// 验收阶段 H 源项配置契约、关闭路径和未实现模型拒绝路径。
 void test_source_terms()
 {
     using namespace wcns;

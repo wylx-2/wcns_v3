@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <type_traits>
 
+// 验收强类型拓扑范围和不同 ghost 合法域的访问约束。
 void test_topology_field()
 {
     using namespace wcns;

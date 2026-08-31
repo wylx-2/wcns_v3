@@ -115,6 +115,8 @@ GitHub 暂时不可访问时，可以先保留本地提交和标签，但必须�
 
 ## 6. 阶段 I：两套几何 profile
 
+状态：项目负责人已批准进入阶段 I，正在 `stage/i-geometry-profiles` 分支实施。
+
 ### 6.1 目标与小任务
 
 1. I1：实现只能成套创建部件的 `AlgorithmProfile/ProfileFactory`，禁止跨 profile 拼装。

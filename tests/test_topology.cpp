@@ -49,6 +49,7 @@ wcns::ConnectivityPatch donor_connection()
 
 } // namespace
 
+// 验收多块连接变换、互反记录、坐标一致性和 halo 映射。
 void test_topology()
 {
     using namespace wcns;

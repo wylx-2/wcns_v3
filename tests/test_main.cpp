@@ -19,6 +19,7 @@ void test_wcns();
 void test_spatial_operator();
 void test_source_terms();
 
+// 顺序运行不依赖独立输入文件的全部单元验收入口。
 int main()
 {
     try {

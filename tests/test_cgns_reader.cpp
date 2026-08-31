@@ -11,6 +11,7 @@
 
 namespace {
 
+// 验收二维 CGNS 坐标、边界范围和参考度量读取。
 void test_2d(const char* path)
 {
     wcns::CgnsReader reader;
@@ -77,6 +78,7 @@ void test_2d(const char* path)
     WCNS_REQUIRE_NEAR(total_area, 1.0, 1.0e-13);
 }
 
+// 验收三维 CGNS 坐标、边界范围和参考度量读取。
 void test_3d(const char* path)
 {
     wcns::CgnsReader reader;
@@ -127,6 +129,7 @@ void test_3d(const char* path)
     WCNS_REQUIRE_NEAR(total_volume, 1.5, 1.0e-13);
 }
 
+// 验收越出顶点范围的 CGNS 物理边界被确定性拒绝。
 void test_out_of_extent_boundary(const char* path)
 {
     wcns::CgnsReader reader;
@@ -144,6 +147,7 @@ void test_out_of_extent_boundary(const char* path)
     throw std::runtime_error("out-of-extent CGNS boundary was accepted");
 }
 
+// 验收二维多块连接的强类型范围、变换和共享面。
 void test_multiblock_2d(const char* path)
 {
     wcns::CgnsReader reader;
@@ -179,6 +183,7 @@ void test_multiblock_2d(const char* path)
     WCNS_REQUIRE(connection.ghost_width == 3);
 }
 
+// 验收三维多块连接的轴置换和 donor 范围映射。
 void test_multiblock_3d(const char* path)
 {
     wcns::CgnsReader reader;
@@ -202,6 +207,7 @@ void test_multiblock_3d(const char* path)
         == (wcns::IndexRange3 {{0, 1, 0}, {0, 0, 1}}));
 }
 
+// 验收缺少互反记录的单边连接不能进入求解拓扑。
 void test_one_sided_connectivity(const char* path)
 {
     wcns::CgnsReader reader;
@@ -216,6 +222,7 @@ void test_one_sided_connectivity(const char* path)
     throw std::runtime_error("one-sided CGNS connectivity was accepted");
 }
 
+// 验收引用未知 donor zone 的 CGNS 连接被拒绝。
 void test_unknown_donor(const char* path)
 {
     wcns::CgnsReader reader;
@@ -230,6 +237,7 @@ void test_unknown_donor(const char* path)
     throw std::runtime_error("unknown CGNS donor zone was accepted");
 }
 
+// 验收越出 zone 范围的连接 PointRange 被拒绝。
 void test_out_of_extent_connectivity(const char* path)
 {
     wcns::CgnsReader reader;
@@ -251,6 +259,7 @@ void test_out_of_extent_connectivity(const char* path)
 
 } // namespace
 
+// 运行全部 CGNS 读取验收子项并汇总进程退出状态。
 int main(int argc, char** argv)
 {
     if (argc != 8) {
