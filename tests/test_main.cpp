@@ -20,6 +20,8 @@ void test_spatial_operator();
 void test_source_terms();
 void test_algorithm_profile();
 void test_geometry_line_operators();
+void test_phenglei_high_order_metrics();
+void test_phenglei_high_order_metrics_3d();
 
 // 顺序运行不依赖独立输入文件的全部单元验收入口。
 int main()
@@ -50,6 +52,8 @@ int main()
         test_source_terms();
         test_algorithm_profile();
         test_geometry_line_operators();
+        test_phenglei_high_order_metrics();
+        test_phenglei_high_order_metrics_3d();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;
