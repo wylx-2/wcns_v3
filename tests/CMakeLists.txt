@@ -9,6 +9,7 @@ add_executable(wcns_unit_tests
     test_topology.cpp
     test_distribution.cpp
     test_euler.cpp
+    test_thermodynamics.cpp
     test_wcns.cpp
     test_spatial_operator.cpp
 )

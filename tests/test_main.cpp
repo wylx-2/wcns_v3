@@ -13,6 +13,7 @@ void test_metrics();
 void test_topology();
 void test_distribution();
 void test_euler();
+void test_thermodynamics();
 void test_wcns();
 void test_spatial_operator();
 
@@ -37,6 +38,7 @@ int main()
         test_topology();
         test_distribution();
         test_euler();
+        test_thermodynamics();
         test_wcns();
         test_spatial_operator();
 

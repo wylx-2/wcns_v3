@@ -23,6 +23,12 @@ else()
     target_compile_options(wcns_core INTERFACE -Wall -Wextra -Wpedantic)
 endif()
 
+add_library(wcns_physics STATIC
+    src/physics/thermodynamics.cpp
+)
+add_library(wcns::physics ALIAS wcns_physics)
+target_link_libraries(wcns_physics PUBLIC wcns::core)
+
 add_library(wcns_mesh STATIC
     src/mesh/halo_exchange.cpp
     src/mesh/metrics.cpp
@@ -134,7 +140,7 @@ add_library(wcns_solver STATIC
     src/solver/wcns_reconstruction.cpp
 )
 add_library(wcns::solver ALIAS wcns_solver)
-target_link_libraries(wcns_solver PUBLIC wcns::parallel)
+target_link_libraries(wcns_solver PUBLIC wcns::parallel wcns::physics)
 
 if(WCNS_BUILD_TESTS)
     include(CTest)
