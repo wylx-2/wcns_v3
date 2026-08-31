@@ -18,6 +18,8 @@ void test_thermodynamics();
 void test_wcns();
 void test_spatial_operator();
 void test_source_terms();
+void test_algorithm_profile();
+void test_geometry_line_operators();
 
 // 顺序运行不依赖独立输入文件的全部单元验收入口。
 int main()
@@ -46,6 +48,8 @@ int main()
         test_wcns();
         test_spatial_operator();
         test_source_terms();
+        test_algorithm_profile();
+        test_geometry_line_operators();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;

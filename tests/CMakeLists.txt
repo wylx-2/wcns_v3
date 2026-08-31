@@ -3,6 +3,7 @@ add_executable(wcns_unit_tests
     test_index.cpp
     test_array3d.cpp
     test_field.cpp
+    test_geometry_operators.cpp
     test_topology_field.cpp
     test_structured_block.cpp
     test_cgns_link.cpp
