@@ -42,7 +42,7 @@ add_library(wcns_mesh STATIC
     src/mesh/topology.cpp
 )
 add_library(wcns::mesh ALIAS wcns_mesh)
-target_link_libraries(wcns_mesh PUBLIC wcns::core)
+target_link_libraries(wcns_mesh PUBLIC wcns::core wcns::physics)
 
 set(WCNS_MPI_TARGET "")
 if(WCNS_ENABLE_MPI)
