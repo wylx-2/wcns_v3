@@ -30,6 +30,8 @@ void test_shared_metric_synchronization();
 void test_periodic_shared_metric_synchronization();
 void test_line_conservation_weights();
 void test_global_conservation_weights();
+void test_physical_ghost_state();
+void test_inviscid_boundary_face_state();
 
 // 顺序运行不依赖独立输入文件的全部单元验收入口。
 int main()
@@ -70,6 +72,8 @@ int main()
         test_periodic_shared_metric_synchronization();
         test_line_conservation_weights();
         test_global_conservation_weights();
+        test_physical_ghost_state();
+        test_inviscid_boundary_face_state();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;

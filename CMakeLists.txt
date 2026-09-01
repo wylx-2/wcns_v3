@@ -142,6 +142,7 @@ add_library(wcns_solver STATIC
     src/solver/boundary_conditions.cpp
     src/solver/euler.cpp
     src/solver/euler_solver.cpp
+    src/solver/physical_boundary.cpp
     src/solver/spatial_operator.cpp
     src/solver/time_integrator.cpp
     src/solver/wcns_reconstruction.cpp
