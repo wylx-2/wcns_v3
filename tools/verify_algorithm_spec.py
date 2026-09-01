@@ -300,6 +300,7 @@ def check_document_contracts() -> None:
         "不设计、不实现通量分裂接口",
         "enable_source_terms = false | true",
         "SourceTermOperator",
+        "GradientOperandFaceHalo",
         "局部源项不需要连接通信",
         "输入文件不得出现 `Re` 或 `Ma` 字段",
         "物理边界 ghost 必须只有一个权威版本",

@@ -11,6 +11,7 @@
 ## 2. K0：配置、字段和版本语义
 
 - `TransportConfig` 只能选择 `constant | sutherland`，并保存严格正的 `Pr`。常黏度保存 `mu_const/mu_ref`；Sutherland 保存 `mu(T_ref)/mu_ref` 和 `S*/T_ref`，二者不得交叉使用。
+- `GradientOperandFaceField` 临时保存 `(u,v,w,T)\otimes(S_x,S_y,S_z)`，只拥有真实面和连接法向 halo：PH 层 0--1、SCMM6 层 0--2。状态 halo 不含邻块面度量，禁止接收块据此重复构造邻块 `q*S`。
 - `PrimitiveGradientField` 只以真实单元为权威域，保存 `(u,v,w,T)` 对 Cartesian `(x,y,z)` 的 12 个梯度分量。连接 halo 对 PH 为 2 层、对 SCMM6 为 3 层；物理边界方向及边角存储保持 NaN/非法。
 - `ViscousFaceFluxField` 只拥有真实面及 profile 散度所需的连接法向 halo：PH 层 0--1，SCMM6 层 0--2。它与无粘面通量使用不同消息种类、tag 空间和版本。
 - 梯度版本和粘性通量版本绑定当前 RK 子步及 profile。不同 profile、不同版本、缺层或非有限值在消费前确定性失败。
@@ -20,12 +21,13 @@
 
 1. 读取阶段 J 同一事务生成的温度型 primitive 真值，不建立第二套粘性 ghost。
 2. 在每个真实面按 profile 中心插值 `(u,v,w,T)`；内部及连接面使用状态 halo，物理边界只读取该面法向 ghost slab，不读取边/角 ghost。
-3. 形成 `q*S_x`、`q*S_y`、`q*S_z`，用 profile 对应的通量导数得到真实单元 Cartesian 梯度并除以一次正 Jacobian。
+3. 形成本块拥有的 `q*S_x`、`q*S_y`、`q*S_z`，由唯一共享面所有者发布并同步 `GradientOperandFaceHalo`，再用 profile 对应的通量导数得到真实单元 Cartesian 梯度并除以一次正 Jacobian。
 4. 连接附近采用与单块内部相同的中心导数；物理边界采用 PH `D2` 或 SCMM6 单边 `D4`。临时面值只使用真实面和连接面 halo，不存在物理 ghost 几何。
 5. 仿射网格上的常量及线性 `(u,v,w,T)` 必须达到舍入误差；将所有非状态物理 ghost 填为 NaN 后结果不变。
 
 ## 4. K2：`GradientHalo` 与面插值
 
+- `GradientOperandFaceHaloPlan` 使用 PH 层 0--1 或 SCMM6 层 0--2；普通连接施加面方向，旋转周期对速度三行执行二阶张量变换、对温度行执行矢量变换。该临时对象与粘性面通量具有不同消息 kind 和版本。
 - `GradientHaloPlan` 从权威连接描述生成 PH 2 层或 SCMM6 3 层 cell 对；同 rank 和 MPI 使用同一计划。
 - 普通连接只映射索引。旋转周期对标量温度梯度执行 `Q^T grad(T)_donor`，对速度梯度执行 `Q^T grad(u)_donor Q`，得到接收侧 Cartesian 张量。
 - 内部及连接面梯度用 PH `I4` 或 SCMM6 `I6` 中心插值；物理边界没有梯度 ghost，使用同 profile 的真实单元单边插值。
