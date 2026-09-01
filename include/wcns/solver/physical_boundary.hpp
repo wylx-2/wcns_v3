@@ -63,4 +63,11 @@ void update_temperature_primitive_interior(
     const ReferenceScales& reference,
     const NumericalFloors& floors);
 
+void update_temperature_primitive_cell(
+    StructuredBlock& block,
+    Index3 index,
+    const GasModel& gas,
+    const ReferenceScales& reference,
+    const NumericalFloors& floors);
+
 } // namespace wcns

@@ -334,19 +334,27 @@ void update_temperature_primitive_interior(
     for (int k = 0; k < extent.nk; ++k) {
         for (int j = 0; j < extent.nj; ++j) {
             for (int i = 0; i < extent.ni; ++i) {
-                const Index3 index {i, j, k};
-                const auto conservative = load_conservative(
-                    block.flow.conservative, index);
-                const auto temperature = temperature_primitive_from_conservative(
-                    conservative, gas, reference, floors, block.cell_dimension());
-                const auto pressure = pressure_primitive(
-                    temperature, gas, reference, floors, block.cell_dimension());
-                store_temperature(
-                    block.flow.temperature_primitive, index, temperature);
-                store_state(block.flow.primitive, index, pressure);
+                update_temperature_primitive_cell(
+                    block, {i, j, k}, gas, reference, floors);
             }
         }
     }
+}
+
+void update_temperature_primitive_cell(
+    StructuredBlock& block,
+    Index3 index,
+    const GasModel& gas,
+    const ReferenceScales& reference,
+    const NumericalFloors& floors)
+{
+    const auto conservative = load_conservative(block.flow.conservative, index);
+    const auto temperature = temperature_primitive_from_conservative(
+        conservative, gas, reference, floors, block.cell_dimension());
+    const auto pressure = pressure_primitive(
+        temperature, gas, reference, floors, block.cell_dimension());
+    store_temperature(block.flow.temperature_primitive, index, temperature);
+    store_state(block.flow.primitive, index, pressure);
 }
 
 } // namespace wcns

@@ -143,6 +143,7 @@ add_library(wcns_solver STATIC
     src/solver/euler.cpp
     src/solver/euler_solver.cpp
     src/solver/inviscid_flux.cpp
+    src/solver/inviscid_wcns_solver.cpp
     src/solver/physical_boundary.cpp
     src/solver/riemann_solver.cpp
     src/solver/source_operator.cpp

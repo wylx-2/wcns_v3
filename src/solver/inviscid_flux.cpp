@@ -12,6 +12,8 @@
 namespace wcns {
 namespace {
 
+constexpr std::uint64_t maximum_exact_message_version = 9007199254740992ULL;
+
 int side_sign(Side side)
 {
     return side == Side::Lower ? -1 : 1;
@@ -276,7 +278,8 @@ InviscidFaceFluxField::InviscidFaceFluxField(
     , j_({cells.ni, cells.nj + 1, cells.nk}, euler_components, halo_layers_)
     , k_({cells.ni, cells.nj, cells.nk + 1}, euler_components, halo_layers_)
 {
-    if ((dimension != 2 && dimension != 3) || version == 0) {
+    if ((dimension != 2 && dimension != 3) || version == 0
+        || version > maximum_exact_message_version) {
         throw std::invalid_argument("face-flux field has invalid dimension or version");
     }
     const Real nan = std::numeric_limits<Real>::quiet_NaN();
@@ -321,7 +324,7 @@ FaceFluxHaloPlan FaceFluxHaloPlan::build(
     const AlgorithmProfile& profile,
     std::uint64_t version)
 {
-    if (version == 0) {
+    if (version == 0 || version > maximum_exact_message_version) {
         throw TopologyError("face-flux plan version must be non-zero");
     }
     mesh.validate_connectivities();
@@ -387,7 +390,7 @@ void FaceFluxHaloExchanger::exchange(const FaceFluxFieldRegistry& fields) const
     std::vector<Pending> receives;
     std::vector<Pending> sends;
     for (const auto& descriptor : plan_.exchanges()) {
-        const std::size_t count = descriptor.pairs.size()
+        const std::size_t count = 1 + descriptor.pairs.size()
             * static_cast<std::size_t>(euler_components);
         if (descriptor.receiver_rank == rank && descriptor.donor_rank == rank) {
             auto& receiver = fields.field(descriptor.receiver_block);
@@ -407,7 +410,8 @@ void FaceFluxHaloExchanger::exchange(const FaceFluxFieldRegistry& fields) const
             const auto& donor = fields.field(descriptor.donor_block);
             validate_field(donor, descriptor);
             Pending pending {&descriptor, std::vector<Real>(count)};
-            std::size_t offset = 0;
+            pending.values[0] = static_cast<Real>(descriptor.version);
+            std::size_t offset = 1;
             for (const auto& pair : descriptor.pairs) {
                 const auto value = load_flux(donor, descriptor.donor_axis, pair.donor);
                 for (const auto component : value) pending.values[offset++] = component;
@@ -443,7 +447,11 @@ void FaceFluxHaloExchanger::exchange(const FaceFluxFieldRegistry& fields) const
 #endif
     for (const auto& pending : receives) {
         auto& receiver = fields.field(pending.descriptor->receiver_block);
-        std::size_t offset = 0;
+        if (pending.values.empty()
+            || pending.values[0] != static_cast<Real>(pending.descriptor->version)) {
+            throw MpiError("face-flux message version mismatch");
+        }
+        std::size_t offset = 1;
         for (const auto& pair : pending.descriptor->pairs) {
             ConservativeState donor {};
             for (auto& component : donor) component = pending.values[offset++];
