@@ -13,6 +13,12 @@
 namespace wcns {
 
 struct MetricFieldBuilderAccess {
+    static MetricField create(
+        AlgorithmProfileKind profile, Extent3 cell_extent, int dimension)
+    {
+        return MetricField(profile, cell_extent, dimension);
+    }
+
     static CellCoordinates& cell_coordinates(MetricField& metric)
     {
         return metric.cell_coordinates_;
@@ -434,7 +440,8 @@ MetricField build_phenglei_metric(
     ScalarField jacobian(refined_extent);
     compute_refined_symmetric_metrics(
         coordinates, block.cell_dimension(), s_i, s_j, s_k, jacobian);
-    MetricField metric(profile.kind(), block.cell_extent(), block.cell_dimension());
+    auto metric = MetricFieldBuilderAccess::create(
+        profile.kind(), block.cell_extent(), block.cell_dimension());
     copy_refined_to_metric(coordinates, s_i, s_j, s_k, jacobian, metric);
     return metric;
 }
@@ -583,7 +590,8 @@ MetricField build_scmm_metric(
     ScalarField jacobian(cells);
     compute_scmm_symmetric_metrics(
         coordinates, block.cell_dimension(), profile, s_i, s_j, s_k, jacobian);
-    MetricField metric(profile.kind(), cells, block.cell_dimension());
+    auto metric = MetricFieldBuilderAccess::create(
+        profile.kind(), cells, block.cell_dimension());
     copy_scmm_to_metric(
         coordinates, s_i, s_j, s_k, jacobian, profile, metric);
     return metric;

@@ -53,8 +53,6 @@ struct FaceAreaVectors {
 
 class MetricField {
 public:
-    MetricField(AlgorithmProfileKind profile, Extent3 cell_extent, int dimension);
-
     [[nodiscard]] AlgorithmProfileKind profile() const noexcept { return profile_; }
     [[nodiscard]] int dimension() const noexcept { return dimension_; }
     [[nodiscard]] const CellCoordinates& cell_coordinates() const noexcept
@@ -69,6 +67,8 @@ public:
 private:
     friend struct MetricFieldBuilderAccess;
     friend class SharedMetricSynchronizer;
+
+    MetricField(AlgorithmProfileKind profile, Extent3 cell_extent, int dimension);
 
     AlgorithmProfileKind profile_;
     int dimension_;
