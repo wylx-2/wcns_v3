@@ -3,6 +3,7 @@
 #include <wcns/mesh/algorithm_profile.hpp>
 #include <wcns/mesh/high_order_metrics.hpp>
 #include <wcns/solver/viscous_gradient.hpp>
+#include <wcns/solver/viscous_halo.hpp>
 
 #include <cmath>
 
@@ -99,4 +100,50 @@ void test_viscous_linear_gradients()
 {
     run_linear_gradient(wcns::AlgorithmProfileKind::PhengleiWcns);
     run_linear_gradient(wcns::AlgorithmProfileKind::Scmm6Wcns);
+}
+
+// 验收旋转周期的速度梯度二阶张量和温度梯度矢量接收侧变换。
+void test_viscous_gradient_periodic_transform()
+{
+    using namespace wcns;
+    GradientExchangeDescriptor descriptor;
+    descriptor.connection = 0;
+    descriptor.receiver_block = 0;
+    descriptor.donor_block = 1;
+    descriptor.dimension = 3;
+    descriptor.periodic.rotation = {{{{0.0, -1.0, 0.0}},
+        {{1.0, 0.0, 0.0}}, {{0.0, 0.0, 1.0}}}};
+    PrimitiveGradients donor {{
+        {{1.0, 2.0, 3.0}},
+        {{4.0, 5.0, 6.0}},
+        {{7.0, 8.0, 9.0}},
+        {{10.0, 11.0, 12.0}},
+    }};
+    const auto received = transform_primitive_gradients_for_receiver(
+        donor, descriptor);
+    WCNS_REQUIRE_NEAR(received[0][0], 5.0, 0.0);
+    WCNS_REQUIRE_NEAR(received[0][1], -4.0, 0.0);
+    WCNS_REQUIRE_NEAR(received[1][0], -2.0, 0.0);
+    WCNS_REQUIRE_NEAR(received[1][1], 1.0, 0.0);
+    WCNS_REQUIRE_NEAR(received[3][0], 11.0, 0.0);
+    WCNS_REQUIRE_NEAR(received[3][1], -10.0, 0.0);
+
+    FaceFluxExchangeDescriptor face;
+    face.connection = 0;
+    face.receiver_block = 0;
+    face.donor_block = 1;
+    face.orientation = -1.0;
+    face.periodic = descriptor.periodic;
+    GradientOperandState operand {};
+    for (int i = 0; i < gradient_operand_components; ++i) {
+        operand[static_cast<std::size_t>(i)] = static_cast<Real>(i + 1);
+    }
+    const auto transformed = transform_gradient_operand_for_receiver(
+        operand, face, 3);
+    WCNS_REQUIRE_NEAR(transformed[0], -5.0, 0.0);
+    WCNS_REQUIRE_NEAR(transformed[1], 4.0, 0.0);
+    WCNS_REQUIRE_NEAR(transformed[3], 2.0, 0.0);
+    WCNS_REQUIRE_NEAR(transformed[4], -1.0, 0.0);
+    WCNS_REQUIRE_NEAR(transformed[9], -11.0, 0.0);
+    WCNS_REQUIRE_NEAR(transformed[10], 10.0, 0.0);
 }

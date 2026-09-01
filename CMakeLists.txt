@@ -152,6 +152,7 @@ add_library(wcns_solver STATIC
     src/solver/transport_model.cpp
     src/solver/viscous_flux.cpp
     src/solver/viscous_gradient.cpp
+    src/solver/viscous_halo.cpp
     src/solver/wcns_reconstruction.cpp
 )
 add_library(wcns::solver ALIAS wcns_solver)

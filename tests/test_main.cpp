@@ -45,6 +45,7 @@ void test_timed_ssprk3_sources();
 void test_transport_model();
 void test_viscous_cartesian_flux();
 void test_viscous_linear_gradients();
+void test_viscous_gradient_periodic_transform();
 
 // 顺序运行不依赖独立输入文件的全部单元验收入口。
 int main()
@@ -100,6 +101,7 @@ int main()
         test_transport_model();
         test_viscous_cartesian_flux();
         test_viscous_linear_gradients();
+        test_viscous_gradient_periodic_transform();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;
