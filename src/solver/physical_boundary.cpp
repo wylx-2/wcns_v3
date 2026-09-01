@@ -80,6 +80,66 @@ TemperaturePrimitiveState reflected_velocity(
     return state;
 }
 
+PressurePrimitiveState characteristic_boundary_state(
+    const PressurePrimitiveState& interior,
+    const PressurePrimitiveState& target,
+    Normal3 outward_normal,
+    const GasModel& gas,
+    const NumericalFloors& floors,
+    int dimension)
+{
+    const Real rho = interior[0];
+    const Real pressure = interior[4];
+    const Real sound = std::sqrt(gas.gamma() * pressure / rho);
+    const Real normal_velocity = interior[1] * outward_normal.x
+        + interior[2] * outward_normal.y + interior[3] * outward_normal.z;
+    if (normal_velocity <= -sound) return target;
+    if (normal_velocity >= sound) return interior;
+
+    const Real density_delta = target[0] - interior[0];
+    const Real pressure_delta = target[4] - interior[4];
+    const std::array<Real, 3> velocity_delta {{
+        target[1] - interior[1],
+        target[2] - interior[2],
+        target[3] - interior[3],
+    }};
+    const Real normal_delta = velocity_delta[0] * outward_normal.x
+        + velocity_delta[1] * outward_normal.y
+        + velocity_delta[2] * outward_normal.z;
+    Real acoustic_minus = 0.5
+        * (pressure_delta / (sound * sound) - rho * normal_delta / sound);
+    Real acoustic_plus = 0.5
+        * (pressure_delta / (sound * sound) + rho * normal_delta / sound);
+    Real entropy = density_delta - pressure_delta / (sound * sound);
+    std::array<Real, 3> tangential {{
+        velocity_delta[0] - normal_delta * outward_normal.x,
+        velocity_delta[1] - normal_delta * outward_normal.y,
+        velocity_delta[2] - normal_delta * outward_normal.z,
+    }};
+    if (normal_velocity - sound >= 0.0) acoustic_minus = 0.0;
+    if (normal_velocity + sound >= 0.0) acoustic_plus = 0.0;
+    if (normal_velocity >= 0.0) {
+        entropy = 0.0;
+        tangential = {{0.0, 0.0, 0.0}};
+    }
+    const Real selected_normal
+        = sound * (acoustic_plus - acoustic_minus) / rho;
+    PressurePrimitiveState result {
+        interior[0] + acoustic_minus + acoustic_plus + entropy,
+        interior[1] + selected_normal * outward_normal.x + tangential[0],
+        interior[2] + selected_normal * outward_normal.y + tangential[1],
+        interior[3] + selected_normal * outward_normal.z + tangential[2],
+        interior[4] + sound * sound * (acoustic_minus + acoustic_plus),
+    };
+    if (dimension == 2) result[3] = 0.0;
+    if (!finite(result[0]) || !finite(result[4])
+        || result[0] <= floors.density || result[4] <= floors.pressure) {
+        throw PhysicsConfigurationError(
+            "characteristic boundary state is non-physical");
+    }
+    return result;
+}
+
 Normal3 patch_outward_normal(
     const StructuredBlock& block, const BoundaryPatch& patch, Index3 face)
 {
@@ -149,9 +209,17 @@ TemperaturePrimitiveState make_ghost(
     switch (type) {
     case BoundaryType::Farfield:
     case BoundaryType::Inflow:
-        return *data.target_state;
-    case BoundaryType::Outflow:
-        return interior;
+    case BoundaryType::Outflow: {
+        if (!data.target_state) return interior;
+        const auto interior_pressure = pressure_primitive(
+            interior, gas, reference, floors, dimension);
+        const auto target_pressure = pressure_primitive(
+            *data.target_state, gas, reference, floors, dimension);
+        return temperature_primitive(
+            characteristic_boundary_state(
+                interior_pressure, target_pressure, normal, gas, floors, dimension),
+            gas, reference, floors, dimension);
+    }
     case BoundaryType::SlipWall:
     case BoundaryType::Symmetry:
     case BoundaryType::NoSlipAdiabaticWall:
@@ -199,7 +267,8 @@ void BoundaryData::validate(BoundaryType type, int dimension) const
     }
     const bool needs_target = type == BoundaryType::Farfield
         || type == BoundaryType::Inflow;
-    if (needs_target != target_state.has_value()) {
+    const bool permits_target = needs_target || type == BoundaryType::Outflow;
+    if ((needs_target && !target_state) || (!permits_target && target_state)) {
         throw PhysicsConfigurationError(
             needs_target ? "boundary target state is required"
                          : "boundary target state is not valid for this boundary type");
@@ -312,10 +381,13 @@ PressurePrimitiveState apply_inviscid_boundary_face_state(
             interior_trace, outward_unit_normal, data.wall_velocity);
     case BoundaryType::Farfield:
     case BoundaryType::Inflow:
-        return pressure_primitive(
-            *data.target_state, gas, reference, floors, dimension);
     case BoundaryType::Outflow:
-        return interior_trace;
+        if (!data.target_state) return interior_trace;
+        return characteristic_boundary_state(
+            interior_trace,
+            pressure_primitive(
+                *data.target_state, gas, reference, floors, dimension),
+            outward_unit_normal, gas, floors, dimension);
     case BoundaryType::Periodic:
         throw PhysicsConfigurationError("periodic boundary must use a connectivity");
     case BoundaryType::Undefined:

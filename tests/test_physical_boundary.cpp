@@ -132,4 +132,24 @@ void test_inviscid_boundary_face_state()
         apply_inviscid_boundary_face_state(
             patch, interior, reconstructed, {-2.0, 0.0, 0.0}, data,
             {}, gas, reference, floors, 2));
+
+    BoundaryPatch farfield = patch;
+    farfield.type = BoundaryType::Farfield;
+    BoundaryData farfield_data;
+    auto subsonic_interior = interior;
+    subsonic_interior[1] = 0.2;
+    const auto interior_temperature = temperature_primitive(
+        subsonic_interior, gas, reference, floors, 2);
+    auto target_temperature = interior_temperature;
+    target_temperature[temperature_density] *= 1.1;
+    target_temperature[temperature_velocity_x] += 0.15;
+    target_temperature[temperature_value] *= 0.9;
+    farfield_data.target_state = target_temperature;
+    const auto target_pressure = pressure_primitive(
+        target_temperature, gas, reference, floors, 2);
+    const auto characteristic = apply_inviscid_boundary_face_state(
+        farfield, subsonic_interior, reconstructed, {1.0, 0.0, 0.0},
+        farfield_data, {}, gas, reference, floors, 2);
+    WCNS_REQUIRE(characteristic != subsonic_interior);
+    WCNS_REQUIRE(characteristic != target_pressure);
 }
