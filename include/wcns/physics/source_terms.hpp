@@ -1,5 +1,8 @@
 #pragma once
 
+#include <wcns/core/types.hpp>
+
+#include <array>
 #include <cstddef>
 #include <string>
 #include <vector>
@@ -17,6 +20,9 @@ enum class SourceModelKind {
 struct SourceTermConfig {
     bool enable_source_terms = false;
     std::vector<SourceModelKind> models;
+    std::array<Real, 5> uniform_conservative {{0.0, 0.0, 0.0, 0.0, 0.0}};
+    std::array<Real, 3> body_acceleration {{0.0, 0.0, 0.0}};
+    std::array<Real, 5> manufactured_amplitude {{0.0, 0.0, 0.0, 0.0, 0.0}};
 
     void validate() const;
     [[nodiscard]] std::string summary() const;
@@ -30,12 +36,21 @@ class SourceTermRegistry {
 public:
     [[nodiscard]] static SourceTermRegistry create_stage_h(
         const SourceTermConfig& config);
+    [[nodiscard]] static SourceTermRegistry create_stage_j(
+        const SourceTermConfig& config);
+
+    [[nodiscard]] std::array<Real, 5> evaluate(
+        const std::array<Real, 5>& conservative,
+        const std::array<Real, 3>& coordinates,
+        Real time,
+        int dimension) const;
 
     [[nodiscard]] constexpr bool empty() const noexcept { return model_count_ == 0; }
     [[nodiscard]] constexpr std::size_t size() const noexcept { return model_count_; }
 
 private:
     std::size_t model_count_ = 0;
+    SourceTermConfig config_ {};
 };
 
 } // namespace wcns

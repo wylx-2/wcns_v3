@@ -21,6 +21,7 @@ add_executable(wcns_unit_tests
     test_physical_boundary.cpp
     test_inviscid_reconstruction.cpp
     test_inviscid_flux.cpp
+    test_stage_j_sources.cpp
 )
 
 target_link_libraries(

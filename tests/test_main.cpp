@@ -38,6 +38,9 @@ void test_rusanov_riemann_solver();
 void test_wcns_inviscid_freestream();
 void test_wcns_strong_wall_flux();
 void test_face_flux_halo_plan();
+void test_stage_j_source_models();
+void test_source_operator_balance();
+void test_timed_ssprk3_sources();
 
 // 顺序运行不依赖独立输入文件的全部单元验收入口。
 int main()
@@ -86,6 +89,9 @@ int main()
         test_wcns_inviscid_freestream();
         test_wcns_strong_wall_flux();
         test_face_flux_halo_plan();
+        test_stage_j_source_models();
+        test_source_operator_balance();
+        test_timed_ssprk3_sources();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;

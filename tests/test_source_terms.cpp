@@ -19,7 +19,7 @@ void test_source_terms()
     WCNS_REQUIRE(disabled.summary() == "enable_source_terms=false;models=");
     WCNS_REQUIRE(
         disabled.restart_signature()
-        == "source_terms_v1;enable_source_terms=false;models=");
+        == "source_terms_v2;enable_source_terms=false;models=");
 
     WCNS_REQUIRE_THROWS(
         std::invalid_argument,
@@ -42,9 +42,8 @@ void test_source_terms()
         {SourceModelKind::BodyForce},
     };
     valid_but_unavailable.validate();
-    WCNS_REQUIRE(
-        valid_but_unavailable.summary()
-        == "enable_source_terms=true;models=body_force");
+    WCNS_REQUIRE(valid_but_unavailable.summary().find(
+        "enable_source_terms=true;models=body_force;uniform=") == 0);
     WCNS_REQUIRE_THROWS(
         std::logic_error,
         SourceTermRegistry::create_stage_h(valid_but_unavailable));
