@@ -4,6 +4,7 @@
 #include <wcns/core/types.hpp>
 
 #include <cstdint>
+#include <limits>
 
 namespace wcns {
 
@@ -16,6 +17,11 @@ struct FlowFields {
         , temperature_primitive(cell_extent, euler_components, ghost_width)
         , residual(cell_extent, euler_components, 0)
     {
+        const Real nan = std::numeric_limits<Real>::quiet_NaN();
+        conservative.fill(nan);
+        primitive.fill(nan);
+        temperature_primitive.fill(nan);
+        residual.fill(0.0);
     }
 
     Field<Real> conservative;

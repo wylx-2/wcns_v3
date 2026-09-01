@@ -3,6 +3,7 @@
 #include <wcns/mesh/structured_block.hpp>
 
 #include <stdexcept>
+#include <cmath>
 
 // 验收结构网格块的尺寸派生、字段配置和输入校验。
 void test_structured_block()
@@ -34,7 +35,11 @@ void test_structured_block()
     WCNS_REQUIRE(block.flow.conservative.components() == euler_components);
     WCNS_REQUIRE(block.flow.conservative.ghost_width() == 3);
     WCNS_REQUIRE(block.flow.primitive.ghost_width() == 3);
+    WCNS_REQUIRE(block.flow.temperature_primitive.ghost_width() == 3);
     WCNS_REQUIRE(block.flow.residual.ghost_width() == 0);
+    WCNS_REQUIRE(std::isnan(block.flow.conservative(-1, -1, 0, 0)));
+    WCNS_REQUIRE(std::isnan(block.flow.primitive(-1, -1, 0, 0)));
+    WCNS_REQUIRE(std::isnan(block.flow.temperature_primitive(-1, -1, 0, 0)));
 
     block.set_owner_rank(3);
     WCNS_REQUIRE(block.owner_rank() == 3);
