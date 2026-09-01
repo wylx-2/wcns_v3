@@ -131,6 +131,12 @@ void ReconstructionConfig::validate() const
     nonlinear.validate();
     scaling.validate();
     floors.validate();
+    if (nonlinear.epsilon != floors.reconstruction_epsilon
+        || scaling.epsilon != floors.reconstruction_epsilon
+        || scaling.scale_floor != floors.reconstruction_scale) {
+        throw std::invalid_argument(
+            "reconstruction epsilon and scale floor must come from NumericalFloors");
+    }
     switch (kind) {
     case ReconstructionKind::Linear5:
     case ReconstructionKind::WcnsJs: break;
@@ -260,7 +266,9 @@ EulerFaceStates reconstruct_thermodynamic_face(
             const auto states = nonlinear
                 ? wcns5_reconstruct_scaled(
                     stencil,
-                    config.scaling.component[static_cast<std::size_t>(component)],
+                    std::max(
+                        config.scaling.component[static_cast<std::size_t>(component)],
+                        config.scaling.scale_floor),
                     config.nonlinear)
                 : linear5_reconstruct(stencil);
             left[static_cast<std::size_t>(component)] = states.left;

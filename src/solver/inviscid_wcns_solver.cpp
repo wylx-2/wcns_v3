@@ -11,6 +11,22 @@
 
 namespace wcns {
 
+namespace {
+
+bool same_floors(const NumericalFloors& lhs, const NumericalFloors& rhs)
+{
+    return lhs.density == rhs.density && lhs.pressure == rhs.pressure
+        && lhs.temperature == rhs.temperature
+        && lhs.jacobian_absolute == rhs.jacobian_absolute
+        && lhs.jacobian_relative == rhs.jacobian_relative
+        && lhs.face_area_absolute == rhs.face_area_absolute
+        && lhs.face_area_relative == rhs.face_area_relative
+        && lhs.reconstruction_scale == rhs.reconstruction_scale
+        && lhs.reconstruction_epsilon == rhs.reconstruction_epsilon;
+}
+
+} // namespace
+
 void InviscidWcnsConfig::validate() const
 {
     reconstruction.validate();
@@ -58,6 +74,10 @@ InviscidWcnsSolver::InviscidWcnsSolver(
 {
     config_.validate();
     floors_.validate();
+    if (!same_floors(config_.reconstruction.floors, floors_)) {
+        throw std::invalid_argument(
+            "WCNS reconstruction and solver must share one NumericalFloors instance");
+    }
     ProfileFactory::validate_bundle(profile_.components());
     if (local_blocks_.rank() != mpi_.rank()) {
         throw std::invalid_argument("WCNS local block rank differs from MPI rank");
@@ -137,6 +157,10 @@ void InviscidWcnsSolver::advance(Real time_step, Real initial_time)
     for (auto& block : local_blocks_.blocks()) blocks.push_back(&block);
     advance_ssprk3(blocks, time_step, initial_time,
         [this](Real stage_time) { compute_residuals(stage_time); });
+    for (auto& block : local_blocks_.blocks()) {
+        update_temperature_primitive_interior(
+            block, gas_, reference_, floors_);
+    }
 }
 
 Real InviscidWcnsSolver::global_residual_l2() const

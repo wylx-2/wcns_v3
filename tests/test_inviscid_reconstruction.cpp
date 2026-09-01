@@ -48,6 +48,9 @@ void test_stage_j_scalar_reconstruction()
     WCNS_REQUIRE_THROWS(
         std::invalid_argument,
         wcns5_reconstruct_scaled(smooth, 0.0));
+    ReconstructionConfig inconsistent;
+    inconsistent.nonlinear.epsilon = 1.0e-5;
+    WCNS_REQUIRE_THROWS(std::invalid_argument, inconsistent.validate());
 }
 
 // 验收重构出现非物理状态时确定性回退到相邻单元一阶状态并记录计数。
