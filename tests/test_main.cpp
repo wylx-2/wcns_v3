@@ -32,6 +32,9 @@ void test_line_conservation_weights();
 void test_global_conservation_weights();
 void test_physical_ghost_state();
 void test_inviscid_boundary_face_state();
+void test_stage_j_scalar_reconstruction();
+void test_reconstruction_positivity_fallback();
+void test_rusanov_riemann_solver();
 
 // 顺序运行不依赖独立输入文件的全部单元验收入口。
 int main()
@@ -74,6 +77,9 @@ int main()
         test_global_conservation_weights();
         test_physical_ghost_state();
         test_inviscid_boundary_face_state();
+        test_stage_j_scalar_reconstruction();
+        test_reconstruction_positivity_fallback();
+        test_rusanov_riemann_solver();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;

@@ -19,6 +19,7 @@ add_executable(wcns_unit_tests
     test_spatial_operator.cpp
     test_source_terms.cpp
     test_physical_boundary.cpp
+    test_inviscid_reconstruction.cpp
 )
 
 target_link_libraries(
