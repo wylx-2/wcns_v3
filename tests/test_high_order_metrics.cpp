@@ -227,6 +227,18 @@ void test_scmm6_high_order_metrics()
     WCNS_REQUIRE_NEAR(result.metric.i_faces().y(4, 3, 0), -0.5, 3.0e-11);
     WCNS_REQUIRE_NEAR(result.metric.j_faces().x(4, 3, 0), -0.25, 3.0e-11);
     WCNS_REQUIRE_NEAR(result.metric.j_faces().y(4, 3, 0), 2.0, 3.0e-11);
+    const auto i_faces = result.metric.i_faces().x.interior_extent();
+    for (int j = 0; j < i_faces.nj; ++j) {
+        for (int i = 0; i < i_faces.ni; ++i) {
+            WCNS_REQUIRE(result.metric.i_faces().z(i, j, 0) == 0.0);
+        }
+    }
+    const auto j_faces = result.metric.j_faces().x.interior_extent();
+    for (int j = 0; j < j_faces.nj; ++j) {
+        for (int i = 0; i < j_faces.ni; ++i) {
+            WCNS_REQUIRE(result.metric.j_faces().z(i, j, 0) == 0.0);
+        }
+    }
 
     MetricBuildOptions invalid_fallback;
     invalid_fallback.fallback = MetricFallback::PhengleiFiniteVolume;

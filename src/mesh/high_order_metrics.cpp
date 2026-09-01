@@ -489,6 +489,9 @@ void compute_scmm_symmetric_metrics(
 {
     const auto extent = coordinates.x.interior_extent();
     if (dimension == 2) {
+        // 二维退化公式的面积矢量严格位于 x-y 平面，不依赖容器的默认初始化。
+        s_i.z.fill(0.0);
+        s_j.z.fill(0.0);
         s_i.x = scmm_center_derivative(coordinates.y, 1, profile);
         const auto dx_eta = scmm_center_derivative(coordinates.x, 1, profile);
         const auto dy_xi = scmm_center_derivative(coordinates.y, 0, profile);
