@@ -20,6 +20,7 @@ add_executable(wcns_unit_tests
     test_source_terms.cpp
     test_physical_boundary.cpp
     test_inviscid_reconstruction.cpp
+    test_inviscid_flux.cpp
 )
 
 target_link_libraries(
@@ -91,7 +92,7 @@ if(WCNS_ENABLE_CGNS)
     add_executable(wcns_geometry_plan_tests test_geometry_plan_mpi.cpp)
     target_link_libraries(
         wcns_geometry_plan_tests
-        PRIVATE wcns::io wcns::parallel wcns::mesh
+        PRIVATE wcns::io wcns::parallel wcns::mesh wcns::solver
     )
     add_test(
         NAME wcns.geometry_plan.serial

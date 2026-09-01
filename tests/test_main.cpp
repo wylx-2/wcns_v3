@@ -35,6 +35,9 @@ void test_inviscid_boundary_face_state();
 void test_stage_j_scalar_reconstruction();
 void test_reconstruction_positivity_fallback();
 void test_rusanov_riemann_solver();
+void test_wcns_inviscid_freestream();
+void test_wcns_strong_wall_flux();
+void test_face_flux_halo_plan();
 
 // 顺序运行不依赖独立输入文件的全部单元验收入口。
 int main()
@@ -80,6 +83,9 @@ int main()
         test_stage_j_scalar_reconstruction();
         test_reconstruction_positivity_fallback();
         test_rusanov_riemann_solver();
+        test_wcns_inviscid_freestream();
+        test_wcns_strong_wall_flux();
+        test_face_flux_halo_plan();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;
