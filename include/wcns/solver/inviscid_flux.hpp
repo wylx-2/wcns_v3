@@ -64,6 +64,10 @@ struct FaceFluxExchangeDescriptor {
     [[nodiscard]] int message_tag(int tag_base = 12288) const;
 };
 
+[[nodiscard]] ConservativeState transform_inviscid_face_flux_for_receiver(
+    const ConservativeState& donor,
+    const FaceFluxExchangeDescriptor& descriptor);
+
 class FaceFluxHaloPlan {
 public:
     [[nodiscard]] static FaceFluxHaloPlan build(

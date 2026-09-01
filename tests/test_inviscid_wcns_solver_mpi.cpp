@@ -152,6 +152,30 @@ void run_profile(
         }
         boundary_data.emplace(block.id(), std::move(block_data));
     }
+    SourceTermConfig balance_config;
+    balance_config.enable_source_terms = true;
+    balance_config.models = {SourceModelKind::UniformConservative};
+    balance_config.uniform_conservative = {{0.1, -0.2, 0.3, 0.0, 0.4}};
+    const auto balance_registry
+        = SourceTermRegistry::create_stage_j(balance_config);
+    ConservativeState local_balance {};
+    for (const auto& block : local.blocks()) {
+        const auto value = volume_weighted_source(
+            block, metrics.at(block.id()), balance_registry, 0.25);
+        for (int component = 0; component < euler_components; ++component) {
+            local_balance[static_cast<std::size_t>(component)]
+                += value[static_cast<std::size_t>(component)];
+        }
+    }
+    const Real total_volume = 128.0;
+    for (int component = 0; component < euler_components; ++component) {
+        WCNS_REQUIRE_NEAR(
+            mpi.sum(local_balance[static_cast<std::size_t>(component)]),
+            total_volume
+                * balance_config.uniform_conservative[
+                    static_cast<std::size_t>(component)],
+            2.0e-11);
+    }
     InviscidWcnsConfig config;
     config.reconstruction.kind = ReconstructionKind::Linear5;
     InviscidWcnsSolver solver(

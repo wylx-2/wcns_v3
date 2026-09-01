@@ -129,7 +129,7 @@ FaceFluxExchangeDescriptor make_descriptor(
     return descriptor;
 }
 
-ConservativeState transform_flux(
+ConservativeState transform_flux_impl(
     const ConservativeState& donor,
     const FaceFluxExchangeDescriptor& descriptor)
 {
@@ -265,6 +265,13 @@ int mpi_count(std::size_t count)
 
 } // namespace
 
+ConservativeState transform_inviscid_face_flux_for_receiver(
+    const ConservativeState& donor,
+    const FaceFluxExchangeDescriptor& descriptor)
+{
+    return transform_flux_impl(donor, descriptor);
+}
+
 InviscidFaceFluxField::InviscidFaceFluxField(
     Extent3 cells,
     int dimension,
@@ -399,7 +406,7 @@ void FaceFluxHaloExchanger::exchange(const FaceFluxFieldRegistry& fields) const
             validate_field(donor, descriptor);
             for (const auto& pair : descriptor.pairs) {
                 store_flux(receiver, descriptor.receiver_axis, pair.receiver,
-                    transform_flux(
+                    transform_inviscid_face_flux_for_receiver(
                         load_flux(donor, descriptor.donor_axis, pair.donor), descriptor));
             }
         } else if (descriptor.receiver_rank == rank) {
@@ -456,7 +463,8 @@ void FaceFluxHaloExchanger::exchange(const FaceFluxFieldRegistry& fields) const
             ConservativeState donor {};
             for (auto& component : donor) component = pending.values[offset++];
             store_flux(receiver, pending.descriptor->receiver_axis, pair.receiver,
-                transform_flux(donor, *pending.descriptor));
+                transform_inviscid_face_flux_for_receiver(
+                    donor, *pending.descriptor));
         }
     }
 }

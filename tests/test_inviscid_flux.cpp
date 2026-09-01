@@ -250,6 +250,18 @@ void test_face_flux_halo_plan()
         TopologyError,
         FaceFluxHaloPlan::build(
             mesh, ProfileFactory::create(AlgorithmProfileKind::Scmm6Wcns), 0));
+
+    FaceFluxExchangeDescriptor periodic;
+    periodic.orientation = -1.0;
+    periodic.periodic.rotation = std::array<std::array<Real, 3>, 3> {{
+        {{0.0, -1.0, 0.0}},
+        {{1.0, 0.0, 0.0}},
+        {{0.0, 0.0, 1.0}},
+    }};
+    const auto transformed = transform_inviscid_face_flux_for_receiver(
+        ConservativeState {{1.0, 2.0, 3.0, 4.0, 5.0}}, periodic);
+    const ConservativeState expected {{-1.0, -3.0, 2.0, -4.0, -5.0}};
+    WCNS_REQUIRE(transformed == expected);
 }
 
 // 验收 PH 与 SCMM6 面通量散度对非平凡光滑函数随网格加密按声明趋势收敛。
