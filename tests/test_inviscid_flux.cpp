@@ -117,6 +117,49 @@ wcns::StructuredMesh make_flux_mesh()
     return StructuredMesh(std::move(blocks));
 }
 
+wcns::Real divergence_error(wcns::AlgorithmProfileKind kind, int count)
+{
+    using namespace wcns;
+    constexpr int transverse_cells = 8;
+    const Real pi = std::acos(-1.0);
+    const Real spacing = 2.0 * pi / static_cast<Real>(count);
+    StructuredBlock block(
+        0, "smooth-divergence", 0, 2, 2,
+        {count + 1, transverse_cells + 1, 1}, 3);
+    const auto vertices = block.vertex_extent();
+    for (int j = 0; j < vertices.nj; ++j) {
+        for (int i = 0; i < vertices.ni; ++i) {
+            block.coordinates.x(i, j, 0) = spacing * i;
+            block.coordinates.y(i, j, 0)
+                = static_cast<Real>(j) / transverse_cells;
+            block.coordinates.z(i, j, 0) = 0.0;
+        }
+    }
+    const auto profile = ProfileFactory::create(kind);
+    const auto metric = initialize_metric_field(block, profile).metric;
+    InviscidFaceFluxField flux(block.cell_extent(), 2, kind, 1);
+    flux.field(Axis::I).fill(0.0);
+    flux.field(Axis::J).fill(0.0);
+    const auto i_extent = flux.field(Axis::I).interior_extent();
+    for (int j = 0; j < i_extent.nj; ++j) {
+        for (int i = 0; i < i_extent.ni; ++i) {
+            flux.field(Axis::I)(i, j, 0, density)
+                = metric.i_faces().x(i, j, 0) * std::sin(spacing * i);
+        }
+    }
+    compute_wcns_inviscid_residual(block, metric, flux, profile);
+    Real sum = 0.0;
+    const auto cells = block.cell_extent();
+    for (int j = 0; j < cells.nj; ++j) {
+        for (int i = 0; i < cells.ni; ++i) {
+            const Real exact = -std::cos(spacing * (i + 0.5));
+            const Real error = block.flow.residual(i, j, 0, density) - exact;
+            sum += error * error;
+        }
+    }
+    return std::sqrt(sum / static_cast<Real>(cells.size()));
+}
+
 } // namespace
 
 // 验收两套 profile 的真实面 Rusanov 通量和高阶散度在笛卡尔自由流上保持常量。
@@ -207,4 +250,20 @@ void test_face_flux_halo_plan()
         TopologyError,
         FaceFluxHaloPlan::build(
             mesh, ProfileFactory::create(AlgorithmProfileKind::Scmm6Wcns), 0));
+}
+
+// 验收 PH 与 SCMM6 面通量散度对非平凡光滑函数随网格加密按声明趋势收敛。
+void test_wcns_flux_divergence_convergence()
+{
+    using namespace wcns;
+    const Real ph_coarse = divergence_error(
+        AlgorithmProfileKind::PhengleiWcns, 16);
+    const Real ph_fine = divergence_error(
+        AlgorithmProfileKind::PhengleiWcns, 32);
+    WCNS_REQUIRE(ph_coarse / ph_fine > 3.0);
+    const Real scmm_coarse = divergence_error(
+        AlgorithmProfileKind::Scmm6Wcns, 16);
+    const Real scmm_fine = divergence_error(
+        AlgorithmProfileKind::Scmm6Wcns, 32);
+    WCNS_REQUIRE(scmm_coarse / scmm_fine > 10.0);
 }
