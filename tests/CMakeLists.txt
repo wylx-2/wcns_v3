@@ -22,6 +22,7 @@ add_executable(wcns_unit_tests
     test_inviscid_reconstruction.cpp
     test_inviscid_flux.cpp
     test_stage_j_sources.cpp
+    test_viscous_flux.cpp
 )
 
 target_link_libraries(

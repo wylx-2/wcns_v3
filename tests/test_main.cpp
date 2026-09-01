@@ -42,6 +42,8 @@ void test_wcns_flux_divergence_convergence();
 void test_stage_j_source_models();
 void test_source_operator_balance();
 void test_timed_ssprk3_sources();
+void test_transport_model();
+void test_viscous_cartesian_flux();
 
 // 顺序运行不依赖独立输入文件的全部单元验收入口。
 int main()
@@ -94,6 +96,8 @@ int main()
         test_stage_j_source_models();
         test_source_operator_balance();
         test_timed_ssprk3_sources();
+        test_transport_model();
+        test_viscous_cartesian_flux();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;
