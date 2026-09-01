@@ -9,6 +9,17 @@
 namespace wcns {
 namespace {
 
+std::array<Real, 3> coordinate(
+    const StructuredBlock& block,
+    Index3 index)
+{
+    return {
+        block.coordinates.x(index.i, index.j, index.k),
+        block.coordinates.y(index.i, index.j, index.k),
+        block.coordinates.z(index.i, index.j, index.k),
+    };
+}
+
 template<class LeftRange, class RightRange>
 bool same_undirected_range(const LeftRange& lhs, const RightRange& rhs)
 {
@@ -35,7 +46,8 @@ bool is_reciprocal(
         && same_undirected_range(
             candidate.donor_adjacent_cell_range,
             connection.receiver_adjacent_cell_range)
-        && candidate.transform == connection.transform.inverse(dimension);
+        && candidate.transform == connection.transform.inverse(dimension)
+        && candidate.periodic == connection.periodic.inverse();
 }
 
 bool coordinates_match(Real receiver, Real donor)
@@ -61,18 +73,12 @@ void validate_interface_coordinates(
                     connection.receiver_vertex_range.begin,
                     connection.donor_vertex_range.begin,
                     receiver.cell_dimension());
-                if (!coordinates_match(
-                        receiver.coordinates.x(
-                            receiver_index.i, receiver_index.j, receiver_index.k),
-                        donor.coordinates.x(donor_index.i, donor_index.j, donor_index.k))
-                    || !coordinates_match(
-                        receiver.coordinates.y(
-                            receiver_index.i, receiver_index.j, receiver_index.k),
-                        donor.coordinates.y(donor_index.i, donor_index.j, donor_index.k))
-                    || !coordinates_match(
-                        receiver.coordinates.z(
-                            receiver_index.i, receiver_index.j, receiver_index.k),
-                        donor.coordinates.z(donor_index.i, donor_index.j, donor_index.k))) {
+                const auto expected_donor
+                    = connection.periodic.apply_point(coordinate(receiver, receiver_index));
+                const auto actual_donor = coordinate(donor, donor_index);
+                if (!coordinates_match(expected_donor[0], actual_donor[0])
+                    || !coordinates_match(expected_donor[1], actual_donor[1])
+                    || !coordinates_match(expected_donor[2], actual_donor[2])) {
                     throw TopologyError(
                         "connectivity " + connection.name
                         + " maps vertices with different physical coordinates");
@@ -154,6 +160,11 @@ void StructuredMesh::validate_connectivities() const
             if (!connection.transform.valid(dimension)) {
                 throw TopologyError(
                     "connectivity " + connection.name + " has an invalid index transform");
+            }
+            if (!connection.periodic.valid(dimension)) {
+                throw TopologyError(
+                    "connectivity " + connection.name
+                    + " has a non-orthogonal or improper periodic transform");
             }
             if (connection.transform.map(
                     connection.receiver_vertex_range.end,

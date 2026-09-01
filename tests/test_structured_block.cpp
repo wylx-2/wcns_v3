@@ -4,6 +4,7 @@
 
 #include <stdexcept>
 
+// 验收结构网格块的尺寸派生、字段配置和输入校验。
 void test_structured_block()
 {
     using namespace wcns;

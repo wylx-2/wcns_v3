@@ -23,7 +23,8 @@ bool reciprocal(
         && rhs.receiver_face == lhs.donor_face && rhs.donor_face == lhs.receiver_face
         && same_undirected_range(rhs.receiver_vertex_range, lhs.donor_vertex_range)
         && same_undirected_range(rhs.donor_vertex_range, lhs.receiver_vertex_range)
-        && rhs.transform == lhs.transform.inverse(dimension);
+        && rhs.transform == lhs.transform.inverse(dimension)
+        && rhs.periodic == lhs.periodic.inverse();
 }
 
 auto connection_key(const ConnectivityPatch& connection)

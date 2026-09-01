@@ -31,12 +31,18 @@ add_library(wcns::physics ALIAS wcns_physics)
 target_link_libraries(wcns_physics PUBLIC wcns::core)
 
 add_library(wcns_mesh STATIC
+    src/mesh/algorithm_profile.cpp
+    src/mesh/conservation_weights.cpp
+    src/mesh/geometry_halo.cpp
     src/mesh/halo_exchange.cpp
+    src/mesh/high_order_metrics.cpp
+    src/mesh/linear_operators.cpp
     src/mesh/metrics.cpp
     src/mesh/structured_mesh.cpp
+    src/mesh/topology.cpp
 )
 add_library(wcns::mesh ALIAS wcns_mesh)
-target_link_libraries(wcns_mesh PUBLIC wcns::core)
+target_link_libraries(wcns_mesh PUBLIC wcns::core wcns::physics)
 
 set(WCNS_MPI_TARGET "")
 if(WCNS_ENABLE_MPI)

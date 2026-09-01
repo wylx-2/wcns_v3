@@ -18,7 +18,20 @@ void test_thermodynamics();
 void test_wcns();
 void test_spatial_operator();
 void test_source_terms();
+void test_algorithm_profile();
+void test_geometry_line_operators();
+void test_phenglei_high_order_metrics();
+void test_phenglei_high_order_metrics_3d();
+void test_scmm6_high_order_metrics();
+void test_scmm6_high_order_metrics_3d();
+void test_warped_metric_convergence();
+void test_geometry_halo_plan();
+void test_shared_metric_synchronization();
+void test_periodic_shared_metric_synchronization();
+void test_line_conservation_weights();
+void test_global_conservation_weights();
 
+// 顺序运行不依赖独立输入文件的全部单元验收入口。
 int main()
 {
     try {
@@ -45,6 +58,18 @@ int main()
         test_wcns();
         test_spatial_operator();
         test_source_terms();
+        test_algorithm_profile();
+        test_geometry_line_operators();
+        test_phenglei_high_order_metrics();
+        test_phenglei_high_order_metrics_3d();
+        test_scmm6_high_order_metrics();
+        test_scmm6_high_order_metrics_3d();
+        test_warped_metric_convergence();
+        test_geometry_halo_plan();
+        test_shared_metric_synchronization();
+        test_periodic_shared_metric_synchronization();
+        test_line_conservation_weights();
+        test_global_conservation_weights();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;

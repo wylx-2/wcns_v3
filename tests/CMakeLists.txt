@@ -3,9 +3,13 @@ add_executable(wcns_unit_tests
     test_index.cpp
     test_array3d.cpp
     test_field.cpp
+    test_geometry_operators.cpp
+    test_geometry_halo.cpp
+    test_high_order_metrics.cpp
     test_topology_field.cpp
     test_structured_block.cpp
     test_cgns_link.cpp
+    test_conservation_weights.cpp
     test_metrics.cpp
     test_topology.cpp
     test_distribution.cpp
@@ -82,6 +86,18 @@ if(WCNS_ENABLE_CGNS)
     )
     set_tests_properties(wcns.euler_solver.serial PROPERTIES FIXTURES_REQUIRED cgns_files)
 
+    add_executable(wcns_geometry_plan_tests test_geometry_plan_mpi.cpp)
+    target_link_libraries(
+        wcns_geometry_plan_tests
+        PRIVATE wcns::io wcns::parallel wcns::mesh
+    )
+    add_test(
+        NAME wcns.geometry_plan.serial
+        COMMAND wcns_geometry_plan_tests
+            ${CMAKE_CURRENT_BINARY_DIR}/generated_multi_2d.cgns
+    )
+    set_tests_properties(wcns.geometry_plan.serial PROPERTIES FIXTURES_REQUIRED cgns_files)
+
     if(WCNS_ENABLE_MPI)
         add_test(
             NAME wcns.halo_exchange.2
@@ -98,6 +114,14 @@ if(WCNS_ENABLE_CGNS)
                 ${CMAKE_CURRENT_BINARY_DIR}/generated_multi_2d.cgns
         )
         set_tests_properties(wcns.euler_solver.2 PROPERTIES FIXTURES_REQUIRED cgns_files)
+
+        add_test(
+            NAME wcns.geometry_plan.2
+            COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
+                $<TARGET_FILE:wcns_geometry_plan_tests>
+                ${CMAKE_CURRENT_BINARY_DIR}/generated_multi_2d.cgns
+        )
+        set_tests_properties(wcns.geometry_plan.2 PROPERTIES FIXTURES_REQUIRED cgns_files)
     endif()
 endif()
 

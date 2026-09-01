@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <limits>
 
+// 验收三维索引、范围方向、计数和越界检查。
 void test_index()
 {
     using namespace wcns;

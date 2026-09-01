@@ -39,6 +39,7 @@ void initialize_field(wcns::StructuredBlock& block)
 
 } // namespace
 
+// 验收串行和 MPI 路径使用同一 halo 计划并得到一致 ghost 数据。
 int main(int argc, char** argv)
 {
     if (argc != 2) {
@@ -108,4 +109,3 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 }
-

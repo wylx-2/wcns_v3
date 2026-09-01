@@ -5,6 +5,7 @@
 #include <limits>
 #include <stdexcept>
 
+// 验收三维数组的真实区、ghost 存储和索引保护。
 void test_array3d()
 {
     using wcns::Array3D;
@@ -48,4 +49,3 @@ void test_array3d()
         std::overflow_error,
         (Array3D<double>({1, 1, 1}, std::numeric_limits<int>::max())));
 }
-

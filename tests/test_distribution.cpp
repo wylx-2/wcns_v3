@@ -52,6 +52,7 @@ wcns::StructuredMesh make_two_block_mesh()
 
 } // namespace
 
+// 验收块负载分配、分布式连接编号及本地/远端交换分类。
 void test_distribution()
 {
     using namespace wcns;

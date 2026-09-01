@@ -49,6 +49,7 @@ wcns::ConnectivityPatch donor_connection()
 
 } // namespace
 
+// 验收多块连接变换、互反记录、坐标一致性和 halo 映射。
 void test_topology()
 {
     using namespace wcns;
@@ -63,6 +64,19 @@ void test_topology()
     WCNS_REQUIRE_THROWS(
         std::invalid_argument,
         (IndexTransform {{{2, 2, 3}}}.map({0, 0, 0}, {0, 0, 0}, {0, 0, 0}, 2)));
+
+    PeriodicTransform periodic {
+        {{{{0.0, -1.0, 0.0}}, {{1.0, 0.0, 0.0}}, {{0.0, 0.0, 1.0}}}},
+        {{3.0, -2.0, 0.0}},
+    };
+    WCNS_REQUIRE(periodic.valid(2));
+    const auto mapped_point = periodic.apply_point({{2.0, 1.0, 0.0}});
+    WCNS_REQUIRE(mapped_point == (std::array<Real, 3> {{2.0, 0.0, 0.0}}));
+    const auto recovered_point = periodic.inverse().apply_point(mapped_point);
+    WCNS_REQUIRE(recovered_point == (std::array<Real, 3> {{2.0, 1.0, 0.0}}));
+    auto invalid_periodic = periodic;
+    invalid_periodic.rotation[0][0] = 0.5;
+    WCNS_REQUIRE(!invalid_periodic.valid(2));
 
     StructuredBlock left(0, "left", 0, 2, 2, {5, 4, 1}, 3);
     StructuredBlock right(1, "right", 1, 2, 2, {4, 5, 1}, 3);

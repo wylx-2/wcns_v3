@@ -5,6 +5,7 @@
 #include <wcns/core/types.hpp>
 
 #include <array>
+#include <cmath>
 #include <cstdlib>
 #include <stdexcept>
 #include <string>
@@ -129,6 +130,27 @@ struct IndexTransform {
     }
 };
 
+struct PeriodicTransform {
+    std::array<std::array<Real, 3>, 3> rotation {{
+        {{1.0, 0.0, 0.0}},
+        {{0.0, 1.0, 0.0}},
+        {{0.0, 0.0, 1.0}},
+    }};
+    std::array<Real, 3> translation {{0.0, 0.0, 0.0}};
+
+    [[nodiscard]] bool valid(int dimension) const;
+    [[nodiscard]] std::array<Real, 3> apply_point(
+        const std::array<Real, 3>& point) const;
+    [[nodiscard]] std::array<Real, 3> apply_vector(
+        const std::array<Real, 3>& vector) const;
+    [[nodiscard]] PeriodicTransform inverse() const;
+
+    friend bool operator==(const PeriodicTransform& lhs, const PeriodicTransform& rhs)
+    {
+        return lhs.rotation == rhs.rotation && lhs.translation == rhs.translation;
+    }
+};
+
 struct ConnectivityPatch {
     std::string name;
     BlockId receiver_block = invalid_block_id;
@@ -144,6 +166,7 @@ struct ConnectivityPatch {
     IndexTransform transform;
     int ghost_width = 0;
     ConnectionId id = invalid_connection_id;
+    PeriodicTransform periodic {};
 };
 
 } // namespace wcns

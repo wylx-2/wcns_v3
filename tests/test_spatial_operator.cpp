@@ -60,6 +60,7 @@ void initialize(wcns::StructuredBlock& block, const wcns::PrimitiveState& state)
 
 } // namespace
 
+// 验收空间离散、稳定时间步、SSPRK3 及新旧配置逐位兼容性。
 void test_spatial_operator()
 {
     using namespace wcns;

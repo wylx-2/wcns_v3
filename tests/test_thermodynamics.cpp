@@ -6,6 +6,7 @@
 #include <limits>
 #include <string>
 
+// 验收参考量派生、气体模型、数值阈值和温度型状态换算。
 void test_thermodynamics()
 {
     using namespace wcns;

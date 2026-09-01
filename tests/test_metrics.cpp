@@ -2,6 +2,7 @@
 
 #include <wcns/mesh/metrics.hpp>
 
+// 验收有限体积参考中心、面积、体积和退化网格拒绝路径。
 void test_metrics()
 {
     using wcns::StructuredBlock;
@@ -42,4 +43,3 @@ void test_metrics()
     inverted.coordinates.z.fill(0.0);
     WCNS_REQUIRE_THROWS(wcns::GeometryError, wcns::compute_metrics(inverted));
 }
-
