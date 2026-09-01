@@ -66,7 +66,7 @@ git status --short
 | G4 串行回归 | 通过 | CTest 8/8 |
 | G5 MPI 回归 | 通过 | CTest 13/13，双 rank 通量交换、求解及源项平衡通过 |
 | G6 数值验收 | 通过 | 自由流、多块等价、光滑通量收敛和一个时间步状态 |
-| G7 文档与可追溯性 | 待远程同步确认 | 本报告、阶段提交和候选标签已在本地形成 |
+| G7 文档与可追溯性 | 通过 | 本报告、阶段分支和候选标签已同步至 GitHub |
 | G8 人工放行 | 待项目负责人检测 | 未进入阶段 K |
 
 ## 6. 已知边界与后续事项
@@ -77,6 +77,10 @@ git status --short
 4. 黏性梯度、输运模型、应力和热流均未实现，属于阶段 K。
 5. 阶段 E 的有限体积 Euler 路径继续作为独立基线；阶段 J 的实际源项通过 `InviscidWcnsSolver` 路径执行。
 
-## 7. 人工验收记录
+## 7. GitHub 同步状态
+
+2026-09-02 已将 `main`、`stage/i-geometry-profiles`、`stage-i-candidate-v2`、`stage-i-accepted`、`stage/j-inviscid-wcns` 和 `stage-j-candidate-v1` 成功同步至 `https://github.com/wylx-2/wcns_v3.git`。阶段 J 未合并到 `main`。
+
+## 8. 人工验收记录
 
 候选 v1 等待项目负责人检测。只有人工批准后，才能将阶段分支合并到 `main`、创建阶段 J accepted 标签并进入阶段 K。
