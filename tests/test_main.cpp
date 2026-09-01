@@ -30,6 +30,18 @@ void test_shared_metric_synchronization();
 void test_periodic_shared_metric_synchronization();
 void test_line_conservation_weights();
 void test_global_conservation_weights();
+void test_physical_ghost_state();
+void test_inviscid_boundary_face_state();
+void test_stage_j_scalar_reconstruction();
+void test_reconstruction_positivity_fallback();
+void test_rusanov_riemann_solver();
+void test_wcns_inviscid_freestream();
+void test_wcns_strong_wall_flux();
+void test_face_flux_halo_plan();
+void test_wcns_flux_divergence_convergence();
+void test_stage_j_source_models();
+void test_source_operator_balance();
+void test_timed_ssprk3_sources();
 
 // 顺序运行不依赖独立输入文件的全部单元验收入口。
 int main()
@@ -70,6 +82,18 @@ int main()
         test_periodic_shared_metric_synchronization();
         test_line_conservation_weights();
         test_global_conservation_weights();
+        test_physical_ghost_state();
+        test_inviscid_boundary_face_state();
+        test_stage_j_scalar_reconstruction();
+        test_reconstruction_positivity_fallback();
+        test_rusanov_riemann_solver();
+        test_wcns_inviscid_freestream();
+        test_wcns_strong_wall_flux();
+        test_face_flux_halo_plan();
+        test_wcns_flux_divergence_convergence();
+        test_stage_j_source_models();
+        test_source_operator_balance();
+        test_timed_ssprk3_sources();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;

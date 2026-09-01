@@ -90,4 +90,42 @@ void advance_ssprk3(
     }
 }
 
+void advance_ssprk3(
+    const std::vector<StructuredBlock*>& blocks,
+    Real time_step,
+    Real initial_time,
+    const TimedResidualEvaluator& evaluate_residuals)
+{
+    if (blocks.empty() || !evaluate_residuals) {
+        throw std::invalid_argument("timed SSPRK3 requires blocks and a residual evaluator");
+    }
+    if (!std::isfinite(time_step) || time_step <= 0.0
+        || !std::isfinite(initial_time)) {
+        throw std::invalid_argument("timed SSPRK3 time inputs are invalid");
+    }
+    std::vector<StateBuffer> initial;
+    initial.reserve(blocks.size());
+    for (const auto* block : blocks) {
+        if (block == nullptr) {
+            throw std::invalid_argument("SSPRK3 block pointer must not be null");
+        }
+        initial.push_back(capture_interior(*block));
+    }
+
+    evaluate_residuals(initial_time);
+    for (std::size_t b = 0; b < blocks.size(); ++b) {
+        update_stage(*blocks[b], initial[b], 1.0, 0.0, time_step);
+    }
+    evaluate_residuals(initial_time + time_step);
+    for (std::size_t b = 0; b < blocks.size(); ++b) {
+        update_stage(*blocks[b], initial[b], 0.75, 0.25, 0.25 * time_step);
+    }
+    evaluate_residuals(initial_time + 0.5 * time_step);
+    for (std::size_t b = 0; b < blocks.size(); ++b) {
+        update_stage(
+            *blocks[b], initial[b], 1.0 / 3.0, 2.0 / 3.0,
+            2.0 * time_step / 3.0);
+    }
+}
+
 } // namespace wcns

@@ -318,7 +318,14 @@ def check_document_contracts() -> None:
         "自动验收失败时不创建候选标签",
         "G8 人工放行",
         "阶段 H：核心热力学、合法域与源项框架",
-        "阶段 M：多块/MPI 系统验收与发布准备",
+        "阶段 M：算例运行闭环、多块/MPI 系统验收与发布准备",
+        "CaseConfig",
+        "FlowInitializer",
+        "SimulationDriver",
+        "MonitorManager",
+        "五个方程的全局 $L_2/L_\\infty$ 残差",
+        "CGNS `FlowSolution` 采用 `CellCenter`",
+        "阶段 J 不追加“算例化补充”",
     )
     for fragment in roadmap_fragments:
         require(fragment in roadmap_text, f"development gate contract is missing: {fragment}")

@@ -18,6 +18,10 @@ add_executable(wcns_unit_tests
     test_wcns.cpp
     test_spatial_operator.cpp
     test_source_terms.cpp
+    test_physical_boundary.cpp
+    test_inviscid_reconstruction.cpp
+    test_inviscid_flux.cpp
+    test_stage_j_sources.cpp
 )
 
 target_link_libraries(
@@ -89,7 +93,7 @@ if(WCNS_ENABLE_CGNS)
     add_executable(wcns_geometry_plan_tests test_geometry_plan_mpi.cpp)
     target_link_libraries(
         wcns_geometry_plan_tests
-        PRIVATE wcns::io wcns::parallel wcns::mesh
+        PRIVATE wcns::io wcns::parallel wcns::mesh wcns::solver
     )
     add_test(
         NAME wcns.geometry_plan.serial
@@ -131,6 +135,13 @@ add_executable(wcns_mpi_runtime_tests test_mpi_runtime.cpp)
 target_link_libraries(wcns_mpi_runtime_tests PRIVATE wcns::parallel)
 add_test(NAME wcns.mpi_runtime.serial COMMAND wcns_mpi_runtime_tests)
 
+add_executable(wcns_stage_j_solver_tests test_inviscid_wcns_solver_mpi.cpp)
+target_link_libraries(
+    wcns_stage_j_solver_tests
+    PRIVATE wcns::parallel wcns::solver wcns::mesh
+)
+add_test(NAME wcns.stage_j_solver.serial COMMAND wcns_stage_j_solver_tests)
+
 if(WCNS_ENABLE_MPI)
     if(NOT WCNS_MPIEXEC_EXECUTABLE)
         message(FATAL_ERROR "MPI tests require WCNS_MPIEXEC_EXECUTABLE")
@@ -138,5 +149,10 @@ if(WCNS_ENABLE_MPI)
     add_test(
         NAME wcns.mpi_runtime.2
         COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2 $<TARGET_FILE:wcns_mpi_runtime_tests>
+    )
+    add_test(
+        NAME wcns.stage_j_solver.2
+        COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
+            $<TARGET_FILE:wcns_stage_j_solver_tests>
     )
 endif()

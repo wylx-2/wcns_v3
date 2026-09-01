@@ -1,6 +1,11 @@
 #include <wcns/physics/source_terms.hpp>
 
 #include <stdexcept>
+#include <algorithm>
+#include <cmath>
+#include <iomanip>
+#include <limits>
+#include <sstream>
 #include <unordered_set>
 
 namespace wcns {
@@ -15,6 +20,42 @@ void validate_kind(SourceModelKind kind)
         return;
     }
     throw std::invalid_argument("source-term configuration contains an unknown model");
+}
+
+template<std::size_t N>
+bool all_zero(const std::array<Real, N>& values)
+{
+    return std::all_of(values.begin(), values.end(), [](Real value) {
+        return value == 0.0;
+    });
+}
+
+template<std::size_t N>
+void validate_finite(const std::array<Real, N>& values, const char* label)
+{
+    if (!std::all_of(values.begin(), values.end(), [](Real value) {
+            return std::isfinite(value);
+        })) {
+        throw std::invalid_argument(std::string(label) + " must be finite");
+    }
+}
+
+bool contains_model(const SourceTermConfig& config, SourceModelKind kind)
+{
+    return std::find(config.models.begin(), config.models.end(), kind)
+        != config.models.end();
+}
+
+template<std::size_t N>
+std::string values_string(const std::array<Real, N>& values)
+{
+    std::ostringstream stream;
+    stream << std::setprecision(std::numeric_limits<Real>::max_digits10);
+    for (std::size_t index = 0; index < values.size(); ++index) {
+        if (index != 0) stream << ',';
+        stream << values[index];
+    }
+    return stream.str();
 }
 
 } // namespace
@@ -35,10 +76,14 @@ const char* source_model_name(SourceModelKind kind)
 
 void SourceTermConfig::validate() const
 {
+    validate_finite(uniform_conservative, "uniform conservative source");
+    validate_finite(body_acceleration, "body acceleration");
+    validate_finite(manufactured_amplitude, "manufactured amplitude");
     if (!enable_source_terms) {
-        if (!models.empty()) {
+        if (!models.empty() || !all_zero(uniform_conservative)
+            || !all_zero(body_acceleration) || !all_zero(manufactured_amplitude)) {
             throw std::invalid_argument(
-                "disabled source terms require an empty model list");
+                "disabled source terms require empty models and zero parameters");
         }
         return;
     }
@@ -55,6 +100,18 @@ void SourceTermConfig::validate() const
                 "source-term configuration contains a duplicate model");
         }
     }
+    if (!contains_model(*this, SourceModelKind::UniformConservative)
+        && !all_zero(uniform_conservative)) {
+        throw std::invalid_argument("uniform source parameters require the uniform model");
+    }
+    if (!contains_model(*this, SourceModelKind::BodyForce)
+        && !all_zero(body_acceleration)) {
+        throw std::invalid_argument("body acceleration requires the body-force model");
+    }
+    if (!contains_model(*this, SourceModelKind::ManufacturedSolution)
+        && !all_zero(manufactured_amplitude)) {
+        throw std::invalid_argument("manufactured parameters require the manufactured model");
+    }
 }
 
 std::string SourceTermConfig::summary() const
@@ -68,12 +125,17 @@ std::string SourceTermConfig::summary() const
         }
         result += source_model_name(models[index]);
     }
+    if (enable_source_terms) {
+        result += ";uniform=" + values_string(uniform_conservative);
+        result += ";body_acceleration=" + values_string(body_acceleration);
+        result += ";manufactured_amplitude=" + values_string(manufactured_amplitude);
+    }
     return result;
 }
 
 std::string SourceTermConfig::restart_signature() const
 {
-    return "source_terms_v1;" + summary();
+    return "source_terms_v2;" + summary();
 }
 
 SourceTermRegistry SourceTermRegistry::create_stage_h(
@@ -85,6 +147,65 @@ SourceTermRegistry SourceTermRegistry::create_stage_h(
             "source-term models cannot be instantiated before stage J");
     }
     return {};
+}
+
+SourceTermRegistry SourceTermRegistry::create_stage_j(
+    const SourceTermConfig& config)
+{
+    config.validate();
+    SourceTermRegistry result;
+    if (config.enable_source_terms) {
+        result.model_count_ = config.models.size();
+        result.config_ = config;
+    }
+    return result;
+}
+
+std::array<Real, 5> SourceTermRegistry::evaluate(
+    const std::array<Real, 5>& conservative,
+    const std::array<Real, 3>& coordinates,
+    Real time,
+    int dimension) const
+{
+    if (dimension != 2 && dimension != 3) {
+        throw std::invalid_argument("source evaluation dimension must be two or three");
+    }
+    validate_finite(conservative, "source conservative state");
+    validate_finite(coordinates, "source coordinates");
+    if (!std::isfinite(time) || conservative[0] <= 0.0) {
+        throw std::invalid_argument("source time and density must be valid");
+    }
+    std::array<Real, 5> result {};
+    for (const auto model : config_.models) {
+        switch (model) {
+        case SourceModelKind::UniformConservative:
+            for (std::size_t component = 0; component < result.size(); ++component) {
+                result[component] += config_.uniform_conservative[component];
+            }
+            break;
+        case SourceModelKind::BodyForce:
+            result[1] += conservative[0] * config_.body_acceleration[0];
+            result[2] += conservative[0] * config_.body_acceleration[1];
+            result[3] += conservative[0] * config_.body_acceleration[2];
+            result[4] += conservative[1] * config_.body_acceleration[0]
+                + conservative[2] * config_.body_acceleration[1]
+                + conservative[3] * config_.body_acceleration[2];
+            break;
+        case SourceModelKind::ManufacturedSolution: {
+            const Real shape = 1.0 + coordinates[0] + coordinates[1]
+                + (dimension == 3 ? coordinates[2] : 0.0) + time;
+            for (std::size_t component = 0; component < result.size(); ++component) {
+                result[component] += config_.manufactured_amplitude[component] * shape;
+            }
+            break;
+        }
+        }
+    }
+    if (dimension == 2 && result[3] != 0.0) {
+        throw std::invalid_argument("two-dimensional source must have zero z momentum");
+    }
+    validate_finite(result, "evaluated source");
+    return result;
 }
 
 } // namespace wcns
