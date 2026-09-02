@@ -343,15 +343,26 @@ PrimitiveGradients interpolate_gradient_face(
     const auto cells = block.cell_extent();
     const int count = cells[static_cast<std::size_t>(axis)];
     const int normal = face[static_cast<std::size_t>(axis)];
-    const bool exterior_face = normal == 0 || normal == count;
-    const bool connected = exterior_face && connection_covers(
-        block, axis, normal == 0 ? Side::Lower : Side::Upper, face);
+    const int lower_offset = profile.kind() == AlgorithmProfileKind::PhengleiWcns
+        ? -2 : -3;
+    const int upper_offset = profile.kind() == AlgorithmProfileKind::PhengleiWcns
+        ? 1 : 2;
+    auto boundary_face = face;
+    boundary_face[static_cast<std::size_t>(axis)] = 0;
+    const bool lower_connected = connection_covers(
+        block, axis, Side::Lower, boundary_face);
+    boundary_face[static_cast<std::size_t>(axis)] = count;
+    const bool upper_connected = connection_covers(
+        block, axis, Side::Upper, boundary_face);
+    const bool lower_available = normal + lower_offset >= 0 || lower_connected;
+    const bool upper_available = normal + upper_offset < count || upper_connected;
+    const bool centered_available = lower_available && upper_available;
     PrimitiveGradients result {};
     for (int variable = 0; variable < viscous_primitive_components; ++variable) {
         for (int direction = 0; direction < 3; ++direction) {
             const int component = variable * 3 + direction;
             Real value = 0.0;
-            if (!exterior_face || connected) {
+            if (centered_available) {
                 if (profile.kind() == AlgorithmProfileKind::PhengleiWcns) {
                     constexpr std::array<int, 4> offsets {{-2, -1, 0, 1}};
                     constexpr std::array<Real, 4> coefficients {{

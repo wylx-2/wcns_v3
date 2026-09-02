@@ -145,6 +145,13 @@ target_link_libraries(
 )
 add_test(NAME wcns.stage_j_solver.serial COMMAND wcns_stage_j_solver_tests)
 
+add_executable(wcns_stage_k_solver_tests test_viscous_wcns_solver_mpi.cpp)
+target_link_libraries(
+    wcns_stage_k_solver_tests
+    PRIVATE wcns::parallel wcns::solver wcns::mesh
+)
+add_test(NAME wcns.stage_k_solver.serial COMMAND wcns_stage_k_solver_tests)
+
 if(WCNS_ENABLE_MPI)
     if(NOT WCNS_MPIEXEC_EXECUTABLE)
         message(FATAL_ERROR "MPI tests require WCNS_MPIEXEC_EXECUTABLE")
@@ -157,5 +164,10 @@ if(WCNS_ENABLE_MPI)
         NAME wcns.stage_j_solver.2
         COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
             $<TARGET_FILE:wcns_stage_j_solver_tests>
+    )
+    add_test(
+        NAME wcns.stage_k_solver.2
+        COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
+            $<TARGET_FILE:wcns_stage_k_solver_tests>
     )
 endif()

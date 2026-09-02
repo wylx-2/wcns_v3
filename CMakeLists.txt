@@ -155,6 +155,7 @@ add_library(wcns_solver STATIC
     src/solver/viscous_halo.cpp
     src/solver/viscous_boundary.cpp
     src/solver/viscous_operator.cpp
+    src/solver/viscous_wcns_solver.cpp
     src/solver/wcns_reconstruction.cpp
 )
 add_library(wcns::solver ALIAS wcns_solver)
