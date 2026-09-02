@@ -284,7 +284,8 @@ ProductionFieldWriter::ProductionFieldWriter(
     const LocalBlockSet& local_blocks,
     const BlockMetricMap& metrics,
     QuantityContext quantity_context,
-    std::string mesh_path)
+    std::string mesh_path,
+    FieldQuantityRegistry registry)
     : mpi_(mpi)
     , config_(config)
     , partition_(partition)
@@ -292,7 +293,7 @@ ProductionFieldWriter::ProductionFieldWriter(
     , metrics_(metrics)
     , quantity_context_(std::move(quantity_context))
     , mesh_path_(std::move(mesh_path))
-    , registry_(FieldQuantityRegistry::create_builtin())
+    , registry_(std::move(registry))
 {
     registry_.validate_selection(config_.output.field.quantities);
 }

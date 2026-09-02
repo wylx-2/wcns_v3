@@ -196,13 +196,14 @@ RuntimeOutputManager::RuntimeOutputManager(
     const StructuredPartitionPlan& partition,
     std::string mesh_signature,
     const StatisticContext* statistic_context,
-    EventWriter event_writer)
+    EventWriter event_writer,
+    StatisticRegistry statistic_registry)
     : mpi_(mpi)
     , config_(config)
     , partition_(partition)
     , mesh_signature_(std::move(mesh_signature))
     , statistic_context_(statistic_context)
-    , statistic_registry_(StatisticRegistry::create_builtin())
+    , statistic_registry_(std::move(statistic_registry))
     , event_writer_(std::move(event_writer))
     , field_schedule_(config.output.field.schedule)
     , history_schedule_(config.output.history.schedule)

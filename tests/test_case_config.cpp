@@ -111,6 +111,10 @@ void test_case_config()
         WCNS_REQUIRE_THROWS(
             wcns::CaseConfigurationError,
             wcns::CaseConfig::from_text(valid_config() + "Re = 1000\n"));
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(
+                valid_config() + "output.history.quantities = rho\n"));
     }
     {
         auto two_gas_inputs = valid_config()

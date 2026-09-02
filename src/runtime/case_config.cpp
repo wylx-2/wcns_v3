@@ -594,6 +594,11 @@ std::string FieldOutputConfig::summary() const
 void SeriesOutputConfig::validate(const char* label) const
 {
     schedule.validate();
+    if (std::string(label) == "history" && !quantities.empty()) {
+        throw CaseConfigurationError(
+            "residual history uses a fixed schema; "
+            "output.history.quantities must be omitted");
+    }
     if (enabled && quantities.empty() && std::string(label) == "statistics") {
         throw CaseConfigurationError(
             "enabled statistics output requires at least one quantity");

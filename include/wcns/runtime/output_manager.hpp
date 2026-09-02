@@ -50,7 +50,8 @@ public:
         const StructuredPartitionPlan& partition,
         std::string mesh_signature = {},
         const StatisticContext* statistic_context = nullptr,
-        EventWriter event_writer = {});
+        EventWriter event_writer = {},
+        StatisticRegistry statistic_registry = StatisticRegistry::create_builtin());
     ~RuntimeOutputManager() override;
 
     [[nodiscard]] Real next_time_event(

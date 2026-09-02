@@ -43,7 +43,8 @@ public:
         const LocalBlockSet& local_blocks,
         const BlockMetricMap& metrics,
         QuantityContext quantity_context,
-        std::string mesh_path);
+        std::string mesh_path,
+        FieldQuantityRegistry registry = FieldQuantityRegistry::create_builtin());
 
     [[nodiscard]] std::vector<std::string> write(
         const SimulationState& state) const;
