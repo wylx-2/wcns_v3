@@ -90,3 +90,6 @@ git diff --check
 向 `https://github.com/wylx-2/wcns_v3.git` 推送 `stage/release` 及标签时连接被重置，故当前
 状态为“远程未同步”。按流程这不阻塞本地进入阶段 N；阶段 O 集中人工验收前必须补齐远程
 同步。
+
+后续状态更新：2026-09-02 网络恢复后，`stage/release`、`stage-m-candidate-v1` 以及后续
+阶段 N 候选均已成功推送到上述 GitHub 仓库，远程同步缺口已经关闭。
