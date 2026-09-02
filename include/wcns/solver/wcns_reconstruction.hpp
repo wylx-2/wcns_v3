@@ -169,6 +169,24 @@ struct EulerFaceStates {
     Real scale,
     const WcnsParameters& parameters = {});
 
+[[nodiscard]] ScalarFaceStates weno_z_reconstruct_scaled(
+    const std::array<Real, 6>& stencil,
+    Real scale,
+    const WcnsParameters& parameters = {});
+
+[[nodiscard]] ScalarFaceStates mdcd_linear_reconstruct(
+    const std::array<Real, 6>& stencil,
+    const WcnsParameters& parameters = {});
+
+[[nodiscard]] ScalarFaceStates mdcd_hybrid_reconstruct_scaled(
+    const std::array<Real, 6>& stencil,
+    Real scale,
+    const WcnsParameters& parameters = {});
+
+[[nodiscard]] Real mdcd_six_point_smoothness(
+    const std::array<Real, 6>& stencil,
+    Real scale);
+
 [[nodiscard]] EulerFaceStates reconstruct_euler_face(
     const Field<Real>& primitive,
     Axis axis,

@@ -3,6 +3,7 @@
 #include <wcns/solver/riemann_solver.hpp>
 #include <wcns/solver/wcns_reconstruction.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <memory>
@@ -85,7 +86,8 @@ void test_stage_l_algorithm_registries()
     using namespace wcns;
     auto reconstruction_registry = ReconstructionRegistry::with_builtins();
     WCNS_REQUIRE(reconstruction_registry.names()
-        == std::vector<std::string>({"linear5", "weno_js"}));
+        == std::vector<std::string>({
+            "linear5", "mdcd_hybrid", "mdcd_linear", "weno_js", "weno_z"}));
     reconstruction_registry.register_scheme(
         "custom_average",
         [] { return std::make_unique<CustomAverageReconstruction>(); });
@@ -133,6 +135,82 @@ void test_stage_l_algorithm_registries()
     WCNS_REQUIRE(result.requested_solver == "custom_central");
     WCNS_REQUIRE(result.used_solver == "custom_central");
     WCNS_REQUIRE(custom_riemann.summary() == "riemann_solver=custom_central");
+}
+
+// 验收 WENO-JS/WENO-Z/MDCD-LINEAR/MDCD-HYBRID 的常数保持、尺度及镜像约定。
+void test_stage_l_scalar_reconstruction_schemes()
+{
+    using namespace wcns;
+    const auto registry = ReconstructionRegistry::with_builtins();
+    const std::array<Real, 6> constant {{2.5, 2.5, 2.5, 2.5, 2.5, 2.5}};
+    for (const auto* name : {"weno_js", "weno_z", "mdcd_linear", "mdcd_hybrid"}) {
+        const auto scheme = registry.create(name);
+        WCNS_REQUIRE_NEAR(
+            scheme->reconstruct_scalar(constant, TraceSide::Left, {}), 2.5, 1.0e-14);
+        WCNS_REQUIRE_NEAR(
+            scheme->reconstruct_scalar(constant, TraceSide::Right, {}), 2.5, 1.0e-14);
+    }
+    WCNS_REQUIRE_NEAR(mdcd_six_point_smoothness(constant, 2.5), 0.0, 0.0);
+
+    const std::array<Real, 6> smooth {{0.7, 0.9, 1.2, 1.6, 2.1, 2.7}};
+    auto reversed = smooth;
+    std::reverse(reversed.begin(), reversed.end());
+    for (const auto* name : {"weno_js", "weno_z", "mdcd_hybrid"}) {
+        const auto scheme = registry.create(name);
+        ReconstructionContext base;
+        base.scale = 1.0;
+        std::array<Real, 6> scaled {};
+        for (std::size_t index = 0; index < smooth.size(); ++index) {
+            scaled[index] = 1.0e6 * smooth[index];
+        }
+        ReconstructionContext large = base;
+        large.scale = 1.0e6;
+        const Real left = scheme->reconstruct_scalar(smooth, TraceSide::Left, base);
+        const Real right = scheme->reconstruct_scalar(smooth, TraceSide::Right, base);
+        WCNS_REQUIRE_NEAR(
+            scheme->reconstruct_scalar(scaled, TraceSide::Left, large) / 1.0e6,
+            left, 3.0e-15);
+        WCNS_REQUIRE_NEAR(
+            scheme->reconstruct_scalar(reversed, TraceSide::Left, base),
+            right, 3.0e-15);
+    }
+
+    WcnsParameters parameters;
+    const auto mdcd = mdcd_linear_reconstruct(smooth, parameters);
+    const Real dispersion = parameters.mdcd_dispersion;
+    const Real dissipation = parameters.mdcd_dissipation;
+    const std::array<Real, 6> coefficients {{
+        3.0 * (dispersion + dissipation) / 8.0,
+        (-18.0 * dispersion - 30.0 * dissipation - 1.0) / 16.0,
+        (12.0 * dispersion + 60.0 * dissipation + 9.0) / 16.0,
+        (12.0 * dispersion - 60.0 * dissipation + 9.0) / 16.0,
+        (-18.0 * dispersion + 30.0 * dissipation - 1.0) / 16.0,
+        3.0 * (dispersion - dissipation) / 8.0,
+    }};
+    Real expected = 0.0;
+    for (std::size_t index = 0; index < smooth.size(); ++index) {
+        expected += coefficients[index] * smooth[index];
+    }
+    WCNS_REQUIRE_NEAR(mdcd.left, expected, 1.0e-15);
+
+    const std::array<Real, 6> linear_data {{0.0, 1.0, 2.0, 3.0, 4.0, 5.0}};
+    const auto hybrid_smooth = mdcd_hybrid_reconstruct_scaled(linear_data, 1.0, parameters);
+    const auto linear_smooth = mdcd_linear_reconstruct(linear_data, parameters);
+    WCNS_REQUIRE_NEAR(hybrid_smooth.left, linear_smooth.left, 0.0);
+    WCNS_REQUIRE_NEAR(hybrid_smooth.right, linear_smooth.right, 0.0);
+
+    const std::array<Real, 6> discontinuity {{1.0, 1.0, 1.0, 2.0, 2.0, 2.0}};
+    WCNS_REQUIRE_NEAR(
+        mdcd_six_point_smoothness(discontinuity, 1.0),
+        279739.0 / 5040.0, 1.0e-13);
+    const auto hybrid_jump = mdcd_hybrid_reconstruct_scaled(
+        discontinuity, 1.0, parameters);
+    WCNS_REQUIRE_NEAR(hybrid_jump.left, 1.0, 1.0e-14);
+    WCNS_REQUIRE_NEAR(hybrid_jump.right, 2.0, 1.0e-14);
+
+    auto invalid = parameters;
+    invalid.mdcd_dissipation = invalid.mdcd_dispersion;
+    WCNS_REQUIRE_THROWS(std::invalid_argument, invalid.validate());
 }
 
 // 验收五阶线性重构的四次多项式精确性及 WCNS-JS 的尺度不变性。

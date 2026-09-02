@@ -34,6 +34,7 @@ void test_physical_ghost_state();
 void test_inviscid_boundary_face_state();
 void test_stage_j_scalar_reconstruction();
 void test_stage_l_algorithm_registries();
+void test_stage_l_scalar_reconstruction_schemes();
 void test_reconstruction_positivity_fallback();
 void test_rusanov_riemann_solver();
 void test_wcns_inviscid_freestream();
@@ -97,6 +98,7 @@ int main()
         test_inviscid_boundary_face_state();
         test_stage_j_scalar_reconstruction();
         test_stage_l_algorithm_registries();
+        test_stage_l_scalar_reconstruction_schemes();
         test_reconstruction_positivity_fallback();
         test_rusanov_riemann_solver();
         test_wcns_inviscid_freestream();
