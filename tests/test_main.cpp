@@ -60,6 +60,7 @@ void test_wall_dirichlet_derivative();
 void test_viscous_boundary_trace();
 void test_case_config();
 void test_structured_partition();
+void test_flow_initializer();
 
 // 顺序运行不依赖独立输入文件的全部单元验收入口。
 int main()
@@ -130,6 +131,7 @@ int main()
         test_viscous_boundary_trace();
         test_case_config();
         test_structured_partition();
+        test_flow_initializer();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;
