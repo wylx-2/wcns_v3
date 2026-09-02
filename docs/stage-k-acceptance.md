@@ -2,7 +2,7 @@
 
 ## 1. 验收结论
 
-阶段 K 候选 v1 的正式自动验收通过，等待项目负责人人工检查。候选实现了两套算法 profile 对应的层流 Navier--Stokes 粘性 WCNS 路径，包括公共物理状态 ghost、守恒型 primitive 梯度、两级梯度通信、常黏度/Sutherland 输运、Stokes 应力、Fourier 热流、粘性壁面强约束、粘性面通量通信、`1/Re` 单次缩放、显式粘性时间步和 SSPRK3 子步集成。阶段 L 未开始。
+阶段 K 候选 v1 的正式自动验收通过。项目负责人随后明确暂缓 K 的人工检查并允许准备阶段 L 文档；这不追认 K 人工验收，不允许把候选合并到 `main`，阶段 L 的生产 C++ 仍须等待其设计文档通过。候选实现了两套算法 profile 对应的层流 Navier--Stokes 粘性 WCNS 路径，包括公共物理状态 ghost、守恒型 primitive 梯度、两级梯度通信、常黏度/Sutherland 输运、Stokes 应力、Fourier 热流、粘性壁面强约束、粘性面通量通信、`1/Re` 单次缩放、显式粘性时间步和 SSPRK3 子步集成。
 
 - 被测实现提交：`159aa3b7a43e034fd1b14cae5c428db3aaf17f28`
 - 阶段分支：`stage/k-viscous-wcns`
@@ -70,7 +70,7 @@ Couette 夹具验证质量/动量平衡及解析粘性耗散 `(du/dy)^2/Re`；�
 | G5 MPI 回归 | 通过 | CTest 15/15，双 rank 阶段 K 求解测试通过 |
 | G6 数值验收 | 通过 | 自由流、Couette、线性导热及粘性制造解加密测试 |
 | G7 文档与可追溯性 | 通过 | 设计、冻结门槛、本报告、阶段分支和候选标签同步 GitHub |
-| G8 人工放行 | 待项目负责人 | 未合并 `main`，未进入阶段 L |
+| K8 人工放行 | 已暂缓，未通过 | 未合并 `main`；只允许阶段 L 设计文档审查 |
 
 ## 6. 已知边界与后续事项
 
@@ -82,4 +82,4 @@ Couette 夹具验证质量/动量平衡及解析粘性耗散 `(du/dy)^2/Re`；�
 
 ## 7. GitHub 同步与人工验收请求
 
-阶段分支和 `stage-k-candidate-v1` 标签同步至 `https://github.com/wylx-2/wcns_v3.git` 后，本候选提交人工验收。自动验收通过不授权合并到 `main`，也不授权开始阶段 L；必须等待项目负责人明确同意。
+阶段分支和 `stage-k-candidate-v1` 标签已同步至 `https://github.com/wylx-2/wcns_v3.git`。自动验收不授权合并到 `main`。项目负责人已明确暂缓本次人工检查，并仅放行阶段 L 设计准备；该流程例外不等于 K 人工验收通过，也不自动授权阶段 L 的 C++ 实现。

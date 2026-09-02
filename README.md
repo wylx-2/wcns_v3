@@ -4,7 +4,7 @@
 
 项目的数学与算法约定见 [`算法补充.md`](算法补充.md)，阶段 H--M 的开发流程、Git 规则和人工检查卡口见 [`docs/development-roadmap.md`](docs/development-roadmap.md)。
 
-阶段 A--J 已按各自卡口完成，其中 H--J 已通过项目负责人人工验收。阶段 K 候选 v1 的粘性 WCNS 实现和正式自动验收已完成，正在等待项目负责人人工检查；阶段 L 尚未获准开始。
+阶段 A--J 已按各自卡口完成，其中 H--J 已通过项目负责人人工验收。阶段 K 候选 v1 的粘性 WCNS 实现和正式自动验收已完成，其人工检查由项目负责人明确暂缓，不视为验收通过且暂不合并 `main`。阶段 L 正在进行实施前文档审查；四种重构、三种 Riemann 求解器、扩展接口及可选低 Mach 预处理的冻结规格见 [`docs/stage-l-design.md`](docs/stage-l-design.md)，文档获批前不开始 C++ 实现。
 当前程序具备 CGNS 结构多块网格读取、两套高阶几何 profile、确定性块分配、同 rank/MPI 非阻塞 halo 交换、WCNS-Euler 空间离散、层流 Navier--Stokes 粘性通量、显式源项和 SSPRK3 时间推进闭环。生产算例配置、初始化、监测以及 CGNS 流场/重启输出仍属于阶段 M。
 
 ## 构建与测试
