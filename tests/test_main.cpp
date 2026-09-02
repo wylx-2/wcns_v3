@@ -59,6 +59,7 @@ void test_viscous_manufactured_convergence();
 void test_wall_dirichlet_derivative();
 void test_viscous_boundary_trace();
 void test_case_config();
+void test_simulation_driver();
 void test_stop_controller();
 void test_structured_partition();
 void test_flow_initializer();
@@ -131,6 +132,7 @@ int main()
         test_wall_dirichlet_derivative();
         test_viscous_boundary_trace();
         test_case_config();
+        test_simulation_driver();
         test_stop_controller();
         test_structured_partition();
         test_flow_initializer();

@@ -4,11 +4,13 @@
 #include <wcns/parallel/mpi_runtime.hpp>
 #include <wcns/runtime/case_config.hpp>
 #include <wcns/runtime/flow_initializer.hpp>
+#include <wcns/runtime/simulation_driver.hpp>
 #include <wcns/runtime/structured_partition.hpp>
 #include <wcns/solver/inviscid_wcns_solver.hpp>
 #include <wcns/solver/viscous_wcns_solver.hpp>
 
 #include <cctype>
+#include <csignal>
 #include <cstdlib>
 #include <fstream>
 #include <iomanip>
@@ -21,6 +23,13 @@
 #include <vector>
 
 namespace {
+
+volatile std::sig_atomic_t stop_requested = 0;
+
+void request_stop(int)
+{
+    stop_requested = 1;
+}
 
 struct CommandLine {
     std::string config_path;
@@ -197,6 +206,31 @@ wcns::BlockBoundaryDataMap make_boundary_data(
     return result;
 }
 
+class ConsoleObserver final : public wcns::ISimulationObserver {
+public:
+    explicit ConsoleObserver(const wcns::MpiRuntime& mpi)
+        : mpi_(mpi)
+    {
+    }
+
+    void on_step(
+        const wcns::SimulationState& state,
+        bool residual_checked) override
+    {
+        if (mpi_.rank() != 0) return;
+        std::cout << "step=" << state.step << " time="
+                  << std::setprecision(17) << state.time
+                  << " dt=" << state.time_step
+                  << " residual=" << state.residuals.total_l2()
+                  << " checked=" << (residual_checked ? "true" : "false")
+                  << " stop=" << wcns::stop_reason_name(state.stop_reason)
+                  << '\n';
+    }
+
+private:
+    const wcns::MpiRuntime& mpi_;
+};
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -282,7 +316,10 @@ int main(int argc, char** argv)
             return EXIT_SUCCESS;
         }
 
-        wcns::Real time = 0.0;
+        std::signal(SIGINT, request_stop);
+        std::signal(SIGTERM, request_stop);
+        ConsoleObserver observer(mpi);
+        wcns::SimulationState final_state;
         if (config.run.viscous) {
             wcns::ViscousWcnsConfig solver_config;
             solver_config.inviscid = config.make_inviscid_config();
@@ -299,20 +336,15 @@ int main(int argc, char** argv)
                 reference,
                 floors,
                 solver_config);
-            for (std::size_t step = 1; step <= config.run.max_steps; ++step) {
-                const auto time_step = solver.global_time_step(config.run.cfl);
-                solver.advance(time_step, time);
-                time += time_step;
-                if (mpi.rank() == 0) {
-                    std::cout << "step=" << step << " time="
-                              << std::setprecision(17) << time
-                              << " dt=" << time_step
-                              << " residual=" << solver.global_residual_l2()
-                              << '\n';
-                } else {
-                    static_cast<void>(solver.global_residual_l2());
-                }
-            }
+            wcns::ViscousSimulationSolver adapter(
+                solver, mpi, local_blocks, metrics, plan, profile);
+            wcns::SimulationDriver driver(
+                mpi,
+                adapter,
+                config.run,
+                observer,
+                [] { return stop_requested != 0; });
+            final_state = driver.run();
         } else {
             auto solver_config = config.make_inviscid_config();
             wcns::InviscidWcnsSolver solver(
@@ -328,26 +360,23 @@ int main(int argc, char** argv)
                 reference,
                 floors,
                 solver_config);
-            for (std::size_t step = 1; step <= config.run.max_steps; ++step) {
-                const auto time_step = solver.global_time_step(config.run.cfl);
-                solver.advance(time_step, time);
-                time += time_step;
-                if (mpi.rank() == 0) {
-                    std::cout << "step=" << step << " time="
-                              << std::setprecision(17) << time
-                              << " dt=" << time_step
-                              << " residual=" << solver.global_residual_l2()
-                              << '\n';
-                } else {
-                    static_cast<void>(solver.global_residual_l2());
-                }
-            }
+            wcns::InviscidSimulationSolver adapter(
+                solver, mpi, local_blocks, metrics, plan, profile);
+            wcns::SimulationDriver driver(
+                mpi,
+                adapter,
+                config.run,
+                observer,
+                [] { return stop_requested != 0; });
+            final_state = driver.run();
         }
         if (mpi.rank() == 0) {
-            std::cout << "WCNS run completed at time=" << std::setprecision(17)
-                      << time << '\n';
+            std::cout << "WCNS run stopped: reason="
+                      << wcns::stop_reason_name(final_state.stop_reason)
+                      << " step=" << final_state.step << " time="
+                      << std::setprecision(17) << final_state.time << '\n';
         }
-        return EXIT_SUCCESS;
+        return wcns::stop_reason_exit_code(final_state.stop_reason);
     } catch (const std::exception& error) {
         std::cerr << "wcns_run: " << error.what() << '\n';
         return EXIT_FAILURE;
