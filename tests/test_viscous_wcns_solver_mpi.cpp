@@ -152,7 +152,8 @@ void run_profile(
         boundary_data.emplace(block.id(), std::move(data));
     }
     ViscousWcnsConfig config;
-    config.inviscid.reconstruction.kind = ReconstructionKind::Linear5;
+    config.inviscid.reconstruction.scheme = std::string(
+        reconstruction_name(ReconstructionKind::Linear5));
     ViscousWcnsSolver solver(
         mpi, local, mesh, topology, distribution.rank_count(), metrics,
         boundary_data, profile, gas, reference, floors, config);
@@ -252,7 +253,8 @@ void run_wall_case(
         boundary_data.emplace(block.id(), std::move(data));
     }
     ViscousWcnsConfig config;
-    config.inviscid.reconstruction.kind = ReconstructionKind::Linear5;
+    config.inviscid.reconstruction.scheme = std::string(
+        reconstruction_name(ReconstructionKind::Linear5));
     ViscousWcnsSolver solver(
         mpi, local, mesh, topology, distribution.rank_count(), metrics,
         boundary_data, profile, gas, reference, floors, config);

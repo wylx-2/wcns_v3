@@ -182,7 +182,8 @@ void test_wcns_inviscid_freestream()
         const auto profile = ProfileFactory::create(kind);
         const auto metric = initialize_metric_field(block, profile).metric;
         ReconstructionConfig reconstruction;
-        reconstruction.kind = ReconstructionKind::Linear5;
+        reconstruction.scheme = std::string(
+            reconstruction_name(ReconstructionKind::Linear5));
         ReconstructionDiagnostics diagnostics;
         const RiemannSolver riemann;
         const auto flux = compute_inviscid_face_fluxes(
@@ -214,7 +215,8 @@ void test_wcns_strong_wall_flux()
     const auto profile = ProfileFactory::create(AlgorithmProfileKind::PhengleiWcns);
     const auto metric = initialize_metric_field(block, profile).metric;
     ReconstructionConfig reconstruction;
-    reconstruction.kind = ReconstructionKind::Linear5;
+    reconstruction.scheme = std::string(
+        reconstruction_name(ReconstructionKind::Linear5));
     ReconstructionDiagnostics diagnostics;
     const RiemannSolver riemann;
     const auto flux = compute_inviscid_face_fluxes(

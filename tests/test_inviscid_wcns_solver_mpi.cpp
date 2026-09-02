@@ -177,7 +177,8 @@ void run_profile(
             2.0e-11);
     }
     InviscidWcnsConfig config;
-    config.reconstruction.kind = ReconstructionKind::Linear5;
+    config.reconstruction.scheme = std::string(
+        reconstruction_name(ReconstructionKind::Linear5));
     InviscidWcnsSolver solver(
         mpi, local, mesh, topology, distribution.rank_count(), metrics,
         boundary_data, profile, gas, reference, floors, config);

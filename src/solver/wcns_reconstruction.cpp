@@ -2,11 +2,91 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iomanip>
+#include <limits>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 namespace wcns {
 namespace {
+
+bool valid_algorithm_name(std::string_view name)
+{
+    if (name.empty()) return false;
+    for (const char character : name) {
+        const bool lower = character >= 'a' && character <= 'z';
+        const bool digit = character >= '0' && character <= '9';
+        if (!lower && !digit && character != '_') return false;
+    }
+    return true;
+}
+
+std::array<Real, 6> checked_stencil(ScalarStencilView stencil)
+{
+    if (stencil.size() != 6) {
+        throw std::invalid_argument("Stage-L reconstruction requires exactly six stencil values");
+    }
+    std::array<Real, 6> result {};
+    std::copy(stencil.begin(), stencil.end(), result.begin());
+    for (const auto value : result) {
+        if (!std::isfinite(value)) {
+            throw PhysicsError("reconstruction stencil contains a non-finite value");
+        }
+    }
+    return result;
+}
+
+class Linear5Scheme final : public IReconstructionScheme {
+public:
+    [[nodiscard]] std::string_view name() const noexcept override
+    {
+        return "linear5";
+    }
+
+    [[nodiscard]] StencilRequirement stencil_requirement() const noexcept override
+    {
+        return {};
+    }
+
+    [[nodiscard]] Real reconstruct_scalar(
+        ScalarStencilView stencil,
+        TraceSide side,
+        const ReconstructionContext& context) const override
+    {
+        if (!std::isfinite(context.scale) || context.scale <= 0.0) {
+            throw std::invalid_argument("reconstruction scale must be positive and finite");
+        }
+        const auto values = checked_stencil(stencil);
+        const auto result = linear5_reconstruct(values);
+        return side == TraceSide::Left ? result.left : result.right;
+    }
+};
+
+class WenoJsScheme final : public IReconstructionScheme {
+public:
+    [[nodiscard]] std::string_view name() const noexcept override
+    {
+        return "weno_js";
+    }
+
+    [[nodiscard]] StencilRequirement stencil_requirement() const noexcept override
+    {
+        return {};
+    }
+
+    [[nodiscard]] Real reconstruct_scalar(
+        ScalarStencilView stencil,
+        TraceSide side,
+        const ReconstructionContext& context) const override
+    {
+        const auto values = checked_stencil(stencil);
+        const auto result = wcns5_reconstruct_scaled(
+            values, context.scale, context.parameters);
+        return side == TraceSide::Left ? result.left : result.right;
+    }
+};
 
 Real square(Real value)
 {
@@ -121,8 +201,100 @@ bool try_convert(
 
 void WcnsParameters::validate() const
 {
-    if (!std::isfinite(epsilon) || epsilon <= 0.0 || nonlinear_power <= 0) {
+    if (!std::isfinite(epsilon) || epsilon <= 0.0 || nonlinear_power <= 0
+        || weno_z_power <= 0 || !std::isfinite(mdcd_dispersion)
+        || !std::isfinite(mdcd_dissipation)
+        || !std::isfinite(mdcd_sensor_epsilon)
+        || !std::isfinite(mdcd_sensor_threshold)
+        || !std::isfinite(mdcd_weight_bias)
+        || !std::isfinite(mdcd_weight_epsilon)) {
         throw std::invalid_argument("WCNS parameters require positive epsilon and power");
+    }
+    if (mdcd_dispersion <= 0.0 || mdcd_dissipation < 0.0
+        || mdcd_dissipation >= mdcd_dispersion
+        || 3.0 * mdcd_dispersion + 9.0 * mdcd_dissipation >= 1.0
+        || mdcd_sensor_epsilon <= 0.0 || mdcd_sensor_threshold <= 0.0
+        || mdcd_sensor_threshold >= 1.0 || mdcd_weight_bias <= 0.0
+        || mdcd_weight_epsilon <= 0.0) {
+        throw std::invalid_argument("MDCD parameters are outside the frozen Stage-L domain");
+    }
+}
+
+void ReconstructionRegistry::register_scheme(std::string name, Factory factory)
+{
+    if (!valid_algorithm_name(name) || !factory) {
+        throw std::invalid_argument("reconstruction registration has an invalid name or factory");
+    }
+    auto probe = factory();
+    if (!probe || probe->name() != name) {
+        throw std::invalid_argument("reconstruction factory name does not match its registry key");
+    }
+    const auto requirement = probe->stencil_requirement();
+    if (requirement.first_offset != -2 || requirement.point_count != 6
+        || requirement.halo_width != 3) {
+        throw std::invalid_argument("Stage-L reconstruction must declare the frozen six-point stencil");
+    }
+    if (!factories_.emplace(std::move(name), std::move(factory)).second) {
+        throw std::invalid_argument("duplicate reconstruction registration");
+    }
+}
+
+bool ReconstructionRegistry::contains(std::string_view name) const noexcept
+{
+    return factories_.find(std::string(name)) != factories_.end();
+}
+
+std::unique_ptr<IReconstructionScheme> ReconstructionRegistry::create(
+    std::string_view name) const
+{
+    const auto iterator = factories_.find(std::string(name));
+    if (iterator == factories_.end()) {
+        throw std::invalid_argument("unknown reconstruction scheme: " + std::string(name));
+    }
+    auto result = iterator->second();
+    if (!result || result->name() != iterator->first) {
+        throw std::logic_error("registered reconstruction factory returned an invalid strategy");
+    }
+    return result;
+}
+
+std::vector<std::string> ReconstructionRegistry::names() const
+{
+    std::vector<std::string> result;
+    result.reserve(factories_.size());
+    for (const auto& [name, factory] : factories_) {
+        static_cast<void>(factory);
+        result.push_back(name);
+    }
+    std::sort(result.begin(), result.end());
+    return result;
+}
+
+ReconstructionRegistry ReconstructionRegistry::with_builtins()
+{
+    ReconstructionRegistry result;
+    result.register_scheme("linear5", [] { return std::make_unique<Linear5Scheme>(); });
+    result.register_scheme("weno_js", [] { return std::make_unique<WenoJsScheme>(); });
+    return result;
+}
+
+std::string_view reconstruction_name(ReconstructionKind kind)
+{
+    switch (kind) {
+    case ReconstructionKind::Linear5: return "linear5";
+    case ReconstructionKind::WenoJs: return "weno_js";
+    case ReconstructionKind::WenoZ: return "weno_z";
+    case ReconstructionKind::MdcdLinear: return "mdcd_linear";
+    case ReconstructionKind::MdcdHybrid: return "mdcd_hybrid";
+    }
+    throw std::invalid_argument("unknown reconstruction kind");
+}
+
+void ReconstructionConfig::validate(const ReconstructionRegistry& registry) const
+{
+    validate();
+    if (!registry.contains(scheme)) {
+        throw std::invalid_argument("unknown reconstruction scheme: " + scheme);
     }
 }
 
@@ -137,14 +309,13 @@ void ReconstructionConfig::validate() const
         throw std::invalid_argument(
             "reconstruction epsilon and scale floor must come from NumericalFloors");
     }
-    switch (kind) {
-    case ReconstructionKind::Linear5:
-    case ReconstructionKind::WcnsJs: break;
-    default: throw std::invalid_argument("unknown reconstruction kind");
+    if (!valid_algorithm_name(scheme)) {
+        throw std::invalid_argument("invalid reconstruction scheme name: " + scheme);
     }
     switch (variables) {
     case ReconstructionVariables::Conservative:
-    case ReconstructionVariables::Primitive: break;
+    case ReconstructionVariables::Primitive:
+    case ReconstructionVariables::Characteristic: break;
     default: throw std::invalid_argument("unknown reconstruction variable set");
     }
 }
@@ -152,17 +323,31 @@ void ReconstructionConfig::validate() const
 std::string ReconstructionConfig::summary() const
 {
     validate();
-    const char* kind_name = kind == ReconstructionKind::Linear5
-        ? "linear5" : "wcns_js";
-    const char* variable_name = variables == ReconstructionVariables::Conservative
-        ? "conservative" : "primitive";
-    return std::string("reconstruction=") + kind_name
-        + ";variables=" + variable_name;
+    const char* variable_name = "characteristic";
+    if (variables == ReconstructionVariables::Conservative) {
+        variable_name = "conservative";
+    } else if (variables == ReconstructionVariables::Primitive) {
+        variable_name = "primitive";
+    }
+    std::ostringstream output;
+    output << std::setprecision(std::numeric_limits<Real>::max_digits10)
+           << "reconstruction=" << scheme
+           << ";variables=" << variable_name
+           << ";epsilon=" << nonlinear.epsilon
+           << ";js_power=" << nonlinear.nonlinear_power
+           << ";z_power=" << nonlinear.weno_z_power
+           << ";mdcd_dispersion=" << nonlinear.mdcd_dispersion
+           << ";mdcd_dissipation=" << nonlinear.mdcd_dissipation
+           << ";mdcd_sensor_epsilon=" << nonlinear.mdcd_sensor_epsilon
+           << ";mdcd_sensor_threshold=" << nonlinear.mdcd_sensor_threshold
+           << ";mdcd_weight_bias=" << nonlinear.mdcd_weight_bias
+           << ";mdcd_weight_epsilon=" << nonlinear.mdcd_weight_epsilon;
+    return output.str();
 }
 
 std::string ReconstructionConfig::restart_signature() const
 {
-    return "reconstruction_v1;" + summary();
+    return "reconstruction_v2;" + summary();
 }
 
 Real wcns5_left_interpolation(
@@ -252,7 +437,7 @@ EulerFaceStates reconstruct_thermodynamic_face(
     ReconstructionDiagnostics& diagnostics,
     int dimension)
 {
-    config.validate();
+    config.validate(ReconstructionRegistry::with_builtins());
     const auto& source = config.variables == ReconstructionVariables::Conservative
         ? conservative : pressure_primitive_field;
     if (source.components() != euler_components || source.ghost_width() < 3) {
@@ -277,7 +462,7 @@ EulerFaceStates reconstruct_thermodynamic_face(
     };
 
     EulerFaceStates result;
-    if (config.kind == ReconstructionKind::WcnsJs) {
+    if (config.scheme == "weno_js") {
         reconstruct(true);
         ++diagnostics.nonlinear_faces;
         if (try_convert(left, right, config, gas, reference, dimension, result)) {

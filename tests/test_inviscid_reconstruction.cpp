@@ -5,6 +5,9 @@
 
 #include <array>
 #include <cmath>
+#include <memory>
+#include <string_view>
+#include <vector>
 
 namespace {
 
@@ -21,7 +24,116 @@ wcns::ReferenceScales reconstruction_reference(const wcns::GasModel& gas)
         {340.0, 1.2, 288.0, 1.0, 1.8e-5, {}, {}}, gas);
 }
 
+class CustomAverageReconstruction final : public wcns::IReconstructionScheme {
+public:
+    [[nodiscard]] std::string_view name() const noexcept override
+    {
+        return "custom_average";
+    }
+
+    [[nodiscard]] wcns::StencilRequirement stencil_requirement() const noexcept override
+    {
+        return {};
+    }
+
+    [[nodiscard]] wcns::Real reconstruct_scalar(
+        wcns::ScalarStencilView stencil,
+        wcns::TraceSide side,
+        const wcns::ReconstructionContext&) const override
+    {
+        if (stencil.size() != 6) throw std::invalid_argument("custom stencil size");
+        return side == wcns::TraceSide::Left
+            ? 0.5 * (stencil[2] + stencil[3])
+            : 0.5 * (stencil[3] + stencil[2]);
+    }
+};
+
+class CustomCentralRiemann final : public wcns::IRiemannSolver {
+public:
+    [[nodiscard]] std::string_view name() const noexcept override
+    {
+        return "custom_central";
+    }
+
+    [[nodiscard]] wcns::RiemannResult solve(
+        const wcns::PressurePrimitiveState& left,
+        const wcns::PressurePrimitiveState& right,
+        wcns::Normal3 unit_normal,
+        const wcns::GasModel& gas,
+        const wcns::NumericalFloors& floors) const override
+    {
+        const wcns::IdealGas ideal {gas.gamma(), floors.density, floors.pressure};
+        const auto left_flux = wcns::euler_flux(left, unit_normal, ideal);
+        const auto right_flux = wcns::euler_flux(right, unit_normal, ideal);
+        wcns::RiemannResult result;
+        for (int component = 0; component < wcns::euler_components; ++component) {
+            result.flux_per_unit_area[static_cast<std::size_t>(component)]
+                = 0.5 * (left_flux[static_cast<std::size_t>(component)]
+                    + right_flux[static_cast<std::size_t>(component)]);
+        }
+        result.requested_solver = "custom_central";
+        result.used_solver = "custom_central";
+        return result;
+    }
+};
+
 } // namespace
+
+// 验收阶段 L 的重构/Riemann 注册表可增加自定义策略且拒绝未知或重复名称。
+void test_stage_l_algorithm_registries()
+{
+    using namespace wcns;
+    auto reconstruction_registry = ReconstructionRegistry::with_builtins();
+    WCNS_REQUIRE(reconstruction_registry.names()
+        == std::vector<std::string>({"linear5", "weno_js"}));
+    reconstruction_registry.register_scheme(
+        "custom_average",
+        [] { return std::make_unique<CustomAverageReconstruction>(); });
+    WCNS_REQUIRE_THROWS(
+        std::invalid_argument,
+        reconstruction_registry.register_scheme(
+            "custom_average",
+            [] { return std::make_unique<CustomAverageReconstruction>(); }));
+    WCNS_REQUIRE_THROWS(
+        std::invalid_argument,
+        reconstruction_registry.create("missing_reconstruction"));
+    auto custom = reconstruction_registry.create("custom_average");
+    const std::array<Real, 6> stencil {{0.0, 1.0, 2.0, 4.0, 8.0, 16.0}};
+    WCNS_REQUIRE_NEAR(
+        custom->reconstruct_scalar(stencil, TraceSide::Left, {}), 3.0, 0.0);
+    const std::array<Real, 5> wrong_stencil {{0.0, 1.0, 2.0, 3.0, 4.0}};
+    WCNS_REQUIRE_THROWS(
+        std::invalid_argument,
+        reconstruction_registry.create("linear5")->reconstruct_scalar(
+            wrong_stencil, TraceSide::Left, {}));
+    ReconstructionConfig custom_config;
+    custom_config.scheme = "custom_average";
+    custom_config.validate(reconstruction_registry);
+    WCNS_REQUIRE_THROWS(
+        std::invalid_argument,
+        custom_config.validate(ReconstructionRegistry::with_builtins()));
+
+    auto riemann_registry = RiemannSolverRegistry::with_builtins();
+    riemann_registry.register_solver(
+        "custom_central",
+        [] { return std::make_unique<CustomCentralRiemann>(); });
+    WCNS_REQUIRE_THROWS(
+        std::invalid_argument,
+        riemann_registry.register_solver(
+            "custom_central",
+            [] { return std::make_unique<CustomCentralRiemann>(); }));
+    WCNS_REQUIRE_THROWS(
+        std::invalid_argument,
+        riemann_registry.create("missing_riemann"));
+    const auto gas = reconstruction_gas();
+    const PressurePrimitiveState state {1.0, 0.2, 0.0, 0.0, 1.0};
+    const RiemannSolver custom_riemann("custom_central", riemann_registry);
+    const auto result = custom_riemann.solve(
+        state, state, {1.0, 0.0, 0.0}, gas, {});
+    WCNS_REQUIRE(result.requested_solver == "custom_central");
+    WCNS_REQUIRE(result.used_solver == "custom_central");
+    WCNS_REQUIRE(custom_riemann.summary() == "riemann_solver=custom_central");
+}
 
 // 验收五阶线性重构的四次多项式精确性及 WCNS-JS 的尺度不变性。
 void test_stage_j_scalar_reconstruction()
@@ -73,7 +185,7 @@ void test_reconstruction_positivity_fallback()
         store_state(primitive, {i, 0, 0}, remote);
     }
     ReconstructionConfig config;
-    config.kind = ReconstructionKind::Linear5;
+    config.scheme = std::string(reconstruction_name(ReconstructionKind::Linear5));
     ReconstructionDiagnostics diagnostics;
     const auto result = reconstruct_thermodynamic_face(
         conservative, primitive, Axis::I, {2, 0, 0}, config,
