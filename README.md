@@ -4,7 +4,7 @@
 
 项目的数学与算法约定见 [`算法补充.md`](算法补充.md)，阶段 H--O 的开发流程与 Git 规则见 [`docs/development-roadmap.md`](docs/development-roadmap.md)，阶段 M--O 的结构分区、停止/输出契约和发布算例矩阵见 [`docs/release-development-plan.md`](docs/release-development-plan.md)。
 
-阶段 A--J 已按各自卡口完成，其中 H--J 已通过项目负责人人工验收。阶段 K、L 候选版本的正式自动验收已通过，K/L 尚未进行的人工检查已按负责人批示并入最终发布算例验收，不视为追认通过，也不再阻塞 M--O 连续开发。阶段 M 已通过正式自动验收；阶段 N 已完成实现，正在形成正式候选。
+阶段 A--J 已按各自卡口完成，其中 H--J 已通过项目负责人人工验收。阶段 K、L 候选版本的正式自动验收已通过，K/L 尚未进行的人工检查已按负责人批示并入最终发布算例验收，不视为追认通过，也不再阻塞 M--O 连续开发。阶段 M、N 已通过正式自动验收；当前进入阶段 O 发布算例集中验收。
 
 当前程序具备 CGNS 结构多块网格读取、两套独立高阶几何 profile、单 zone 受约束二次剖分、同 rank/MPI 非阻塞 halo 交换、四种界面重构、Rusanov/HLLC/Roe、WCNS-Euler 空间离散、层流 Navier--Stokes 粘性通量、显式源项和 SSPRK3 推进。正式入口支持严格配置、定常/非定常停止、MPI 全局残差、精确时间事件、CGNS/Tecplot 流场、TXT/Tecplot 历史与统计、manifest，以及可改变 rank 数和叶块划分的 CGNS 检查点重启。具体用法见 [`docs/runtime-guide.md`](docs/runtime-guide.md)；阶段 O 将用发布算例矩阵集中验收数值精度、守恒和全部生产组合。
 
