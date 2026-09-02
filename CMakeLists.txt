@@ -165,6 +165,7 @@ add_library(wcns_runtime STATIC
     src/runtime/case_config.cpp
     src/runtime/flow_initializer.cpp
     src/runtime/output_manager.cpp
+    src/runtime/quantity_registry.cpp
     src/runtime/simulation_driver.cpp
     src/runtime/stop_controller.cpp
     src/runtime/structured_partition.cpp

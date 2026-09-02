@@ -1,5 +1,6 @@
 #pragma once
 
+#include <wcns/runtime/quantity_registry.hpp>
 #include <wcns/runtime/simulation_driver.hpp>
 
 #include <fstream>
@@ -47,6 +48,7 @@ public:
         const MpiRuntime& mpi,
         const CaseConfig& config,
         const StructuredPartitionPlan& partition,
+        const StatisticContext* statistic_context = nullptr,
         EventWriter event_writer = {});
     ~RuntimeOutputManager() override;
 
@@ -75,11 +77,15 @@ private:
         bool enabled);
     void write_history(const SimulationState& state, bool residual_checked);
     void finish_history();
+    void write_statistics(const SimulationState& state);
+    void finish_statistics();
     void write_manifest(const SimulationState& state);
 
     const MpiRuntime& mpi_;
     const CaseConfig& config_;
     const StructuredPartitionPlan& partition_;
+    const StatisticContext* statistic_context_ = nullptr;
+    StatisticRegistry statistic_registry_;
     EventWriter event_writer_;
     OutputSchedule field_schedule_;
     OutputSchedule history_schedule_;
@@ -91,6 +97,9 @@ private:
     std::string history_temporary_path_;
     std::string history_final_path_;
     std::ofstream history_stream_;
+    std::string statistics_temporary_path_;
+    std::string statistics_final_path_;
+    std::ofstream statistics_stream_;
     std::vector<std::string> files_;
 };
 

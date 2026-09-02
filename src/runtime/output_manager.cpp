@@ -182,10 +182,13 @@ RuntimeOutputManager::RuntimeOutputManager(
     const MpiRuntime& mpi,
     const CaseConfig& config,
     const StructuredPartitionPlan& partition,
+    const StatisticContext* statistic_context,
     EventWriter event_writer)
     : mpi_(mpi)
     , config_(config)
     , partition_(partition)
+    , statistic_context_(statistic_context)
+    , statistic_registry_(StatisticRegistry::create_builtin())
     , event_writer_(std::move(event_writer))
     , field_schedule_(config.output.field.schedule)
     , history_schedule_(config.output.history.schedule)
@@ -198,6 +201,7 @@ RuntimeOutputManager::RuntimeOutputManager(
 RuntimeOutputManager::~RuntimeOutputManager()
 {
     if (history_stream_.is_open()) history_stream_.close();
+    if (statistics_stream_.is_open()) statistics_stream_.close();
 }
 
 void RuntimeOutputManager::prepare_directory()
@@ -265,6 +269,46 @@ void RuntimeOutputManager::prepare_directory()
                    "rho_linf rhou_linf rhov_linf rhow_linf rhoE_linf "
                    "consecutive reconstruction_fallbacks riemann_fallbacks "
                    "residual_checked stop_reason\n";
+        }
+    }
+    if (config_.output.statistics.enabled) {
+        if (statistic_context_ == nullptr) {
+            throw std::runtime_error(
+                "statistics output is enabled without a statistic context");
+        }
+        statistic_registry_.validate_selection(
+            config_.output.statistics.quantities);
+        if (mpi_.rank() == 0) {
+            const auto base = safe_name(config_.case_name) + ".statistics.r"
+                + std::to_string(mpi_.size());
+            const char* extension
+                = config_.output.statistics.format == SeriesOutputFormat::Text
+                ? ".txt" : ".dat";
+            statistics_final_path_ = join_path(
+                output_directory_, base + extension);
+            statistics_temporary_path_ = statistics_final_path_ + ".tmp";
+            statistics_stream_.open(
+                statistics_temporary_path_, std::ios::out | std::ios::trunc);
+            if (!statistics_stream_) {
+                throw std::runtime_error(
+                    "cannot open statistics temporary file: "
+                    + statistics_temporary_path_);
+            }
+            if (config_.output.statistics.format
+                == SeriesOutputFormat::Tecplot) {
+                statistics_stream_ << "TITLE=\"WCNS statistics\"\n"
+                                   << "VARIABLES=\"step\",\"time\"";
+                for (const auto& name : config_.output.statistics.quantities) {
+                    statistics_stream_ << ",\"" << name << "\"";
+                }
+                statistics_stream_ << "\nZONE T=\"statistics\"\n";
+            } else {
+                statistics_stream_ << "# step time";
+                for (const auto& name : config_.output.statistics.quantities) {
+                    statistics_stream_ << ' ' << name;
+                }
+                statistics_stream_ << '\n';
+            }
         }
     }
 }
@@ -337,8 +381,10 @@ void RuntimeOutputManager::on_initial(const SimulationState& state)
     }
     dispatch(OutputCategory::Field, field_schedule_, state, true, false,
         config_.output.field.enabled);
-    dispatch(OutputCategory::Statistics, statistics_schedule_, state, true, false,
-        config_.output.statistics.enabled);
+    if (config_.output.statistics.enabled
+        && statistics_schedule_.consume(state, true, false)) {
+        write_statistics(state);
+    }
     dispatch(OutputCategory::Checkpoint, checkpoint_schedule_, state, true, false,
         config_.output.checkpoint.enabled);
 }
@@ -353,8 +399,10 @@ void RuntimeOutputManager::on_step(
     }
     dispatch(OutputCategory::Field, field_schedule_, state, false, false,
         config_.output.field.enabled);
-    dispatch(OutputCategory::Statistics, statistics_schedule_, state, false, false,
-        config_.output.statistics.enabled);
+    if (config_.output.statistics.enabled
+        && statistics_schedule_.consume(state, false, false)) {
+        write_statistics(state);
+    }
     dispatch(OutputCategory::Checkpoint, checkpoint_schedule_, state, false, false,
         config_.output.checkpoint.enabled);
 }
@@ -375,6 +423,43 @@ void RuntimeOutputManager::finish_history()
         history_final_path_,
         config_.output.allow_existing);
     record_file(history_final_path_);
+}
+
+void RuntimeOutputManager::write_statistics(const SimulationState& state)
+{
+    if (statistic_context_ == nullptr) {
+        throw std::runtime_error("statistics context is not configured");
+    }
+    std::vector<Real> values;
+    values.reserve(config_.output.statistics.quantities.size());
+    for (const auto& name : config_.output.statistics.quantities) {
+        values.push_back(statistic_registry_.evaluate(name, *statistic_context_));
+    }
+    if (mpi_.rank() != 0) return;
+    if (!statistics_stream_) {
+        throw std::runtime_error("statistics stream is not writable");
+    }
+    statistics_stream_ << state.step << ' ' << std::setprecision(17)
+                       << state.time;
+    for (const Real value : values) statistics_stream_ << ' ' << value;
+    statistics_stream_ << '\n';
+    if (!statistics_stream_) throw std::runtime_error("failed to write statistics");
+}
+
+void RuntimeOutputManager::finish_statistics()
+{
+    if (!config_.output.statistics.enabled || mpi_.rank() != 0
+        || !statistics_stream_.is_open()) {
+        return;
+    }
+    statistics_stream_.flush();
+    if (!statistics_stream_) throw std::runtime_error("failed to flush statistics");
+    statistics_stream_.close();
+    atomic_replace(
+        statistics_temporary_path_,
+        statistics_final_path_,
+        config_.output.allow_existing);
+    record_file(statistics_final_path_);
 }
 
 void RuntimeOutputManager::write_manifest(const SimulationState& state)
@@ -417,11 +502,14 @@ void RuntimeOutputManager::on_final(const SimulationState& state)
     }
     dispatch(OutputCategory::Field, field_schedule_, state, false, true,
         config_.output.field.enabled);
-    dispatch(OutputCategory::Statistics, statistics_schedule_, state, false, true,
-        config_.output.statistics.enabled);
+    if (config_.output.statistics.enabled
+        && statistics_schedule_.consume(state, false, true)) {
+        write_statistics(state);
+    }
     dispatch(OutputCategory::Checkpoint, checkpoint_schedule_, state, false, true,
         config_.output.checkpoint.enabled);
     finish_history();
+    finish_statistics();
     write_manifest(state);
     finalized_ = true;
 }

@@ -320,7 +320,23 @@ int main(int argc, char** argv)
         std::signal(SIGINT, request_stop);
         std::signal(SIGTERM, request_stop);
         ConsoleObserver console(mpi);
-        wcns::RuntimeOutputManager output(mpi, config, plan);
+        wcns::QuantityContext quantity_context {
+            gas,
+            reference,
+            floors,
+            wcns::TransportModel(wcns::TransportConfig {}),
+            config.output.dimensional,
+        };
+        wcns::StatisticContext statistic_context {
+            mpi,
+            local_blocks,
+            metrics,
+            plan,
+            profile,
+            quantity_context,
+        };
+        wcns::RuntimeOutputManager output(
+            mpi, config, plan, &statistic_context);
         wcns::CompositeSimulationObserver observer;
         observer.add(console);
         observer.add(output);

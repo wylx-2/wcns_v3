@@ -31,6 +31,7 @@ add_executable(wcns_unit_tests
     test_structured_partition.cpp
     test_flow_initializer.cpp
     test_output_manager.cpp
+    test_quantity_registry.cpp
 )
 
 target_link_libraries(
