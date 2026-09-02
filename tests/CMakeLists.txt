@@ -26,6 +26,7 @@ add_executable(wcns_unit_tests
     test_viscous_gradient.cpp
     test_viscous_boundary.cpp
     test_case_config.cpp
+    test_structured_partition.cpp
 )
 
 target_link_libraries(
