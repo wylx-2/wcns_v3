@@ -138,6 +138,18 @@ if(WCNS_ENABLE_CGNS)
             wcns.run.freestream.2
             PROPERTIES FIXTURES_REQUIRED cgns_files
         )
+        foreach(rank_count IN ITEMS 4 8)
+            add_test(
+                NAME wcns.run.freestream.${rank_count}
+                COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n ${rank_count}
+                    $<TARGET_FILE:wcns_run>
+                    --config ${CMAKE_CURRENT_BINARY_DIR}/freestream_case.wcns
+            )
+            set_tests_properties(
+                wcns.run.freestream.${rank_count}
+                PROPERTIES FIXTURES_REQUIRED cgns_files
+            )
+        endforeach()
         add_test(
             NAME wcns.halo_exchange.2
             COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
