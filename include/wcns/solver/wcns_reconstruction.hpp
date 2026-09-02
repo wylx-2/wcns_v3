@@ -139,6 +139,9 @@ struct ReconstructionConfig {
 struct ReconstructionDiagnostics {
     std::size_t nonlinear_faces = 0;
     std::size_t linear_faces = 0;
+    std::size_t characteristic_faces = 0;
+    std::size_t characteristic_fallbacks = 0;
+    std::size_t primitive_fallbacks = 0;
     std::size_t linear_fallbacks = 0;
     std::size_t first_order_fallbacks = 0;
 };
@@ -152,6 +155,33 @@ struct EulerFaceStates {
     PrimitiveState left {};
     PrimitiveState right {};
 };
+
+using CharacteristicMatrix = std::array<
+    std::array<Real, euler_components>, euler_components>;
+
+struct EulerCharacteristicBasis {
+    Normal3 normal {};
+    Normal3 tangent_1 {};
+    Normal3 tangent_2 {};
+    CharacteristicMatrix left {};
+    CharacteristicMatrix right {};
+};
+
+[[nodiscard]] EulerCharacteristicBasis make_roe_characteristic_basis(
+    const PressurePrimitiveState& left,
+    const PressurePrimitiveState& right,
+    Normal3 unit_normal,
+    const GasModel& gas,
+    const NumericalFloors& floors,
+    int dimension);
+
+[[nodiscard]] ConservativeState project_characteristic(
+    const ConservativeState& conservative,
+    const EulerCharacteristicBasis& basis);
+
+[[nodiscard]] ConservativeState restore_characteristic(
+    const ConservativeState& characteristic,
+    const EulerCharacteristicBasis& basis);
 
 [[nodiscard]] Real wcns5_left_interpolation(
     const std::array<Real, 5>& stencil,
@@ -202,6 +232,7 @@ struct EulerFaceStates {
     const GasModel& gas,
     const ReferenceScales& reference,
     ReconstructionDiagnostics& diagnostics,
-    int dimension);
+    int dimension,
+    Normal3 unit_normal = {1.0, 0.0, 0.0});
 
 } // namespace wcns

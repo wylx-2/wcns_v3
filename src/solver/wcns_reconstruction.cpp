@@ -394,6 +394,9 @@ PressurePrimitiveState convert_reconstructed(
             state, gas, reference, floors, dimension));
         return state;
     }
+    if (variables == ReconstructionVariables::Characteristic) {
+        throw std::invalid_argument("characteristic values must be restored before conversion");
+    }
     return pressure_primitive(
         temperature_primitive_from_conservative(
             state, gas, reference, floors, dimension),
@@ -403,6 +406,7 @@ PressurePrimitiveState convert_reconstructed(
 bool try_convert(
     const std::array<Real, euler_components>& left,
     const std::array<Real, euler_components>& right,
+    ReconstructionVariables variables,
     const ReconstructionConfig& config,
     const GasModel& gas,
     const ReferenceScales& reference,
@@ -411,9 +415,9 @@ bool try_convert(
 {
     try {
         output.left = convert_reconstructed(
-            left, config.variables, gas, reference, config.floors, dimension);
+            left, variables, gas, reference, config.floors, dimension);
         output.right = convert_reconstructed(
-            right, config.variables, gas, reference, config.floors, dimension);
+            right, variables, gas, reference, config.floors, dimension);
         return true;
     } catch (const PhysicsConfigurationError&) {
         return false;
@@ -441,6 +445,125 @@ void WcnsParameters::validate() const
         || mdcd_weight_epsilon <= 0.0) {
         throw std::invalid_argument("MDCD parameters are outside the frozen Stage-L domain");
     }
+}
+
+Real dot(Normal3 left, Normal3 right)
+{
+    return left.x * right.x + left.y * right.y + left.z * right.z;
+}
+
+Normal3 cross(Normal3 left, Normal3 right)
+{
+    return {
+        left.y * right.z - left.z * right.y,
+        left.z * right.x - left.x * right.z,
+        left.x * right.y - left.y * right.x,
+    };
+}
+
+Normal3 normalized(Normal3 vector, const char* label)
+{
+    const Real magnitude = std::sqrt(dot(vector, vector));
+    if (!std::isfinite(magnitude) || magnitude <= 1.0e-14) {
+        throw PhysicsError(std::string(label) + " is degenerate");
+    }
+    return {vector.x / magnitude, vector.y / magnitude, vector.z / magnitude};
+}
+
+CharacteristicMatrix invert_matrix(const CharacteristicMatrix& matrix)
+{
+    std::array<std::array<Real, 2 * euler_components>, euler_components> work {};
+    for (int row = 0; row < euler_components; ++row) {
+        for (int column = 0; column < euler_components; ++column) {
+            work[static_cast<std::size_t>(row)][static_cast<std::size_t>(column)]
+                = matrix[static_cast<std::size_t>(row)][static_cast<std::size_t>(column)];
+        }
+        work[static_cast<std::size_t>(row)][static_cast<std::size_t>(euler_components + row)]
+            = 1.0;
+    }
+    for (int column = 0; column < euler_components; ++column) {
+        int pivot = column;
+        Real pivot_magnitude = std::abs(
+            work[static_cast<std::size_t>(pivot)][static_cast<std::size_t>(column)]);
+        for (int row = column + 1; row < euler_components; ++row) {
+            const Real candidate = std::abs(
+                work[static_cast<std::size_t>(row)][static_cast<std::size_t>(column)]);
+            if (candidate > pivot_magnitude) {
+                pivot = row;
+                pivot_magnitude = candidate;
+            }
+        }
+        if (!std::isfinite(pivot_magnitude) || pivot_magnitude <= 1.0e-14) {
+            throw PhysicsError("Euler characteristic matrix is singular");
+        }
+        if (pivot != column) {
+            std::swap(work[static_cast<std::size_t>(pivot)],
+                work[static_cast<std::size_t>(column)]);
+        }
+        const Real divisor
+            = work[static_cast<std::size_t>(column)][static_cast<std::size_t>(column)];
+        for (auto& value : work[static_cast<std::size_t>(column)]) value /= divisor;
+        for (int row = 0; row < euler_components; ++row) {
+            if (row == column) continue;
+            const Real factor
+                = work[static_cast<std::size_t>(row)][static_cast<std::size_t>(column)];
+            for (int entry = 0; entry < 2 * euler_components; ++entry) {
+                work[static_cast<std::size_t>(row)][static_cast<std::size_t>(entry)]
+                    -= factor
+                    * work[static_cast<std::size_t>(column)][static_cast<std::size_t>(entry)];
+            }
+        }
+    }
+    CharacteristicMatrix inverse {};
+    for (int row = 0; row < euler_components; ++row) {
+        for (int column = 0; column < euler_components; ++column) {
+            inverse[static_cast<std::size_t>(row)][static_cast<std::size_t>(column)]
+                = work[static_cast<std::size_t>(row)]
+                    [static_cast<std::size_t>(euler_components + column)];
+        }
+    }
+    return inverse;
+}
+
+ConservativeState matrix_vector(
+    const CharacteristicMatrix& matrix,
+    const ConservativeState& vector)
+{
+    ConservativeState result {};
+    for (int row = 0; row < euler_components; ++row) {
+        for (int column = 0; column < euler_components; ++column) {
+            result[static_cast<std::size_t>(row)]
+                += matrix[static_cast<std::size_t>(row)][static_cast<std::size_t>(column)]
+                * vector[static_cast<std::size_t>(column)];
+        }
+    }
+    return result;
+}
+
+ConservativeState to_local_conservative(
+    const ConservativeState& state,
+    const EulerCharacteristicBasis& basis)
+{
+    const Normal3 momentum {state[1], state[2], state[3]};
+    return {
+        state[0], dot(momentum, basis.normal), dot(momentum, basis.tangent_1),
+        dot(momentum, basis.tangent_2), state[4],
+    };
+}
+
+ConservativeState from_local_conservative(
+    const ConservativeState& state,
+    const EulerCharacteristicBasis& basis)
+{
+    const Normal3 momentum {
+        state[1] * basis.normal.x + state[2] * basis.tangent_1.x
+            + state[3] * basis.tangent_2.x,
+        state[1] * basis.normal.y + state[2] * basis.tangent_1.y
+            + state[3] * basis.tangent_2.y,
+        state[1] * basis.normal.z + state[2] * basis.tangent_1.z
+            + state[3] * basis.tangent_2.z,
+    };
+    return {state[0], momentum.x, momentum.y, momentum.z, state[4]};
 }
 
 void ReconstructionRegistry::register_scheme(std::string name, Factory factory)
@@ -514,6 +637,122 @@ std::string_view reconstruction_name(ReconstructionKind kind)
     case ReconstructionKind::MdcdHybrid: return "mdcd_hybrid";
     }
     throw std::invalid_argument("unknown reconstruction kind");
+}
+
+EulerCharacteristicBasis make_roe_characteristic_basis(
+    const PressurePrimitiveState& left,
+    const PressurePrimitiveState& right,
+    Normal3 unit_normal,
+    const GasModel& gas,
+    const NumericalFloors& floors,
+    int dimension)
+{
+    if (dimension != 2 && dimension != 3) {
+        throw std::invalid_argument("Euler characteristic basis requires dimension 2 or 3");
+    }
+    floors.validate();
+    EulerCharacteristicBasis result;
+    result.normal = normalized(unit_normal, "characteristic normal");
+    if (std::abs(dot(result.normal, unit_normal) - 1.0) > 1.0e-12) {
+        throw PhysicsError("characteristic reconstruction requires a unit normal");
+    }
+    if (dimension == 2) {
+        if (std::abs(result.normal.z) > 1.0e-12) {
+            throw PhysicsError("2D characteristic normal must lie in the x-y plane");
+        }
+        result.tangent_1 = normalized(
+            {-result.normal.y, result.normal.x, 0.0},
+            "2D characteristic tangent");
+        result.tangent_2 = {0.0, 0.0, 1.0};
+    } else {
+        Normal3 reference {1.0, 0.0, 0.0};
+        const Real ax = std::abs(result.normal.x);
+        const Real ay = std::abs(result.normal.y);
+        const Real az = std::abs(result.normal.z);
+        if (ay <= ax && ay <= az) reference = {0.0, 1.0, 0.0};
+        if (az <= ax && az <= ay) reference = {0.0, 0.0, 1.0};
+        result.tangent_1 = normalized(
+            cross(reference, result.normal), "3D characteristic tangent 1");
+        result.tangent_2 = normalized(
+            cross(result.normal, result.tangent_1), "3D characteristic tangent 2");
+    }
+
+    const IdealGas ideal {gas.gamma(), floors.density, floors.pressure};
+    const auto left_conservative = to_conservative(left, ideal);
+    const auto right_conservative = to_conservative(right, ideal);
+    const Real root_left = std::sqrt(left[0]);
+    const Real root_right = std::sqrt(right[0]);
+    const Real denominator = root_left + root_right;
+    if (!std::isfinite(denominator) || denominator <= 0.0) {
+        throw PhysicsError("Roe characteristic density average is invalid");
+    }
+    const auto average = [&](Real left_value, Real right_value) {
+        return (root_left * left_value + root_right * right_value) / denominator;
+    };
+    const Real u = average(left[1], right[1]);
+    const Real v = average(left[2], right[2]);
+    const Real w = average(left[3], right[3]);
+    const Real left_enthalpy = (left_conservative[4] + left[4]) / left[0];
+    const Real right_enthalpy = (right_conservative[4] + right[4]) / right[0];
+    const Real enthalpy = average(left_enthalpy, right_enthalpy);
+    const Normal3 velocity {u, v, w};
+    const Real un = dot(velocity, result.normal);
+    const Real ut1 = dot(velocity, result.tangent_1);
+    const Real ut2 = dot(velocity, result.tangent_2);
+    const Real speed_squared = u * u + v * v + w * w;
+    const Real sound_squared
+        = (gas.gamma() - 1.0) * (enthalpy - 0.5 * speed_squared);
+    if (!std::isfinite(sound_squared) || sound_squared <= 0.0) {
+        throw PhysicsError("Roe characteristic sound speed is invalid");
+    }
+    const Real sound = std::sqrt(sound_squared);
+    const Real kinetic = 0.5 * speed_squared;
+
+    const std::array<ConservativeState, euler_components> columns {{
+        ConservativeState {{1.0, un - sound, ut1, ut2, enthalpy - un * sound}},
+        ConservativeState {{1.0, un, ut1, ut2, kinetic}},
+        ConservativeState {{0.0, 0.0, 1.0, 0.0, ut1}},
+        ConservativeState {{0.0, 0.0, 0.0, 1.0, ut2}},
+        ConservativeState {{1.0, un + sound, ut1, ut2, enthalpy + un * sound}},
+    }};
+    for (int column = 0; column < euler_components; ++column) {
+        for (int row = 0; row < euler_components; ++row) {
+            result.right[static_cast<std::size_t>(row)][static_cast<std::size_t>(column)]
+                = columns[static_cast<std::size_t>(column)][static_cast<std::size_t>(row)];
+        }
+    }
+    result.left = invert_matrix(result.right);
+    for (int row = 0; row < euler_components; ++row) {
+        for (int column = 0; column < euler_components; ++column) {
+            Real product = 0.0;
+            for (int inner = 0; inner < euler_components; ++inner) {
+                product += result.left[static_cast<std::size_t>(row)]
+                    [static_cast<std::size_t>(inner)]
+                    * result.right[static_cast<std::size_t>(inner)]
+                        [static_cast<std::size_t>(column)];
+            }
+            const Real expected = row == column ? 1.0 : 0.0;
+            if (!std::isfinite(product) || std::abs(product - expected) > 1.0e-10) {
+                throw PhysicsError("Euler characteristic matrices failed L*R=I");
+            }
+        }
+    }
+    return result;
+}
+
+ConservativeState project_characteristic(
+    const ConservativeState& conservative,
+    const EulerCharacteristicBasis& basis)
+{
+    return matrix_vector(basis.left, to_local_conservative(conservative, basis));
+}
+
+ConservativeState restore_characteristic(
+    const ConservativeState& characteristic,
+    const EulerCharacteristicBasis& basis)
+{
+    return from_local_conservative(
+        matrix_vector(basis.right, characteristic), basis);
 }
 
 void ReconstructionConfig::validate(const ReconstructionRegistry& registry) const
@@ -731,21 +970,21 @@ EulerFaceStates reconstruct_thermodynamic_face(
     const GasModel& gas,
     const ReferenceScales& reference,
     ReconstructionDiagnostics& diagnostics,
-    int dimension)
+    int dimension,
+    Normal3 unit_normal)
 {
     const auto registry = ReconstructionRegistry::with_builtins();
     config.validate(registry);
-    if (config.variables == ReconstructionVariables::Characteristic) {
-        throw std::invalid_argument("characteristic reconstruction requires the Stage-L L3 path");
-    }
-    const auto& source = config.variables == ReconstructionVariables::Conservative
-        ? conservative : pressure_primitive_field;
-    if (source.components() != euler_components || source.ghost_width() < 3) {
+    if (conservative.components() != euler_components
+        || pressure_primitive_field.components() != euler_components
+        || conservative.ghost_width() < 3
+        || pressure_primitive_field.ghost_width() < 3) {
         throw std::invalid_argument("thermodynamic reconstruction requires five components and three ghost layers");
     }
     std::array<Real, euler_components> left {};
     std::array<Real, euler_components> right {};
-    const auto reconstruct = [&](const IReconstructionScheme& scheme) {
+    const auto reconstruct_components = [&]
+        (const Field<Real>& source, const IReconstructionScheme& scheme) {
         for (int component = 0; component < euler_components; ++component) {
             const auto stencil = component_stencil(source, axis, face, component);
             ReconstructionContext context;
@@ -761,29 +1000,122 @@ EulerFaceStates reconstruct_thermodynamic_face(
     };
 
     EulerFaceStates result;
-    if (config.scheme != "linear5") {
-        const auto selected = registry.create(config.scheme);
-        reconstruct(*selected);
+    const auto attempt_standard = [&]
+        (const Field<Real>& source,
+         ReconstructionVariables variables,
+         const IReconstructionScheme& scheme) {
+        try {
+            reconstruct_components(source, scheme);
+            return try_convert(
+                left, right, variables, config, gas, reference, dimension, result);
+        } catch (const PhysicsConfigurationError&) {
+            return false;
+        } catch (const PhysicsError&) {
+            return false;
+        }
+    };
+    const auto attempt_characteristic = [&](const IReconstructionScheme& scheme) {
+        try {
+            const auto left_index = shifted(face, axis, -1);
+            const auto right_index = face;
+            const auto basis = make_roe_characteristic_basis(
+                load_primitive(pressure_primitive_field, left_index),
+                load_primitive(pressure_primitive_field, right_index),
+                unit_normal, gas, config.floors, dimension);
+            std::array<std::array<Real, 6>, euler_components> stencils {};
+            for (int point = 0; point < 6; ++point) {
+                const auto index = shifted(left_index, axis, point - 2);
+                const auto characteristic = project_characteristic(
+                    load_conservative(conservative, index), basis);
+                for (int component = 0; component < euler_components; ++component) {
+                    stencils[static_cast<std::size_t>(component)]
+                        [static_cast<std::size_t>(point)]
+                        = characteristic[static_cast<std::size_t>(component)];
+                }
+            }
+            ConservativeState left_characteristic {};
+            ConservativeState right_characteristic {};
+            for (int component = 0; component < euler_components; ++component) {
+                ReconstructionContext context;
+                context.scale = std::max(
+                    config.scaling.component[static_cast<std::size_t>(component)],
+                    config.scaling.scale_floor);
+                context.parameters = config.nonlinear;
+                left_characteristic[static_cast<std::size_t>(component)]
+                    = scheme.reconstruct_scalar(
+                        stencils[static_cast<std::size_t>(component)],
+                        TraceSide::Left, context);
+                right_characteristic[static_cast<std::size_t>(component)]
+                    = scheme.reconstruct_scalar(
+                        stencils[static_cast<std::size_t>(component)],
+                        TraceSide::Right, context);
+            }
+            left = restore_characteristic(left_characteristic, basis);
+            right = restore_characteristic(right_characteristic, basis);
+            return try_convert(
+                left, right, ReconstructionVariables::Conservative,
+                config, gas, reference, dimension, result);
+        } catch (const PhysicsConfigurationError&) {
+            return false;
+        } catch (const PhysicsError&) {
+            return false;
+        }
+    };
+
+    const auto selected = registry.create(config.scheme);
+    if (config.scheme == "linear5") {
+        ++diagnostics.linear_faces;
+    } else {
         ++diagnostics.nonlinear_faces;
-        if (try_convert(left, right, config, gas, reference, dimension, result)) {
+    }
+    if (config.variables == ReconstructionVariables::Characteristic) {
+        ++diagnostics.characteristic_faces;
+        if (attempt_characteristic(*selected)) {
             return result;
         }
-        ++diagnostics.linear_fallbacks;
+        ++diagnostics.characteristic_fallbacks;
+        if (attempt_standard(
+                pressure_primitive_field,
+                ReconstructionVariables::Primitive,
+                *selected)) {
+            return result;
+        }
+        ++diagnostics.primitive_fallbacks;
+    } else {
+        const auto& source = config.variables == ReconstructionVariables::Conservative
+            ? conservative : pressure_primitive_field;
+        if (attempt_standard(source, config.variables, *selected)) return result;
     }
-    const auto linear = registry.create("linear5");
-    reconstruct(*linear);
-    ++diagnostics.linear_faces;
-    if (try_convert(left, right, config, gas, reference, dimension, result)) {
-        return result;
+
+    if (config.scheme != "linear5") {
+        ++diagnostics.linear_fallbacks;
+        ++diagnostics.linear_faces;
+        const auto linear = registry.create("linear5");
+        const auto fallback_variables
+            = config.variables == ReconstructionVariables::Conservative
+            ? ReconstructionVariables::Conservative
+            : ReconstructionVariables::Primitive;
+        const auto& fallback_source
+            = fallback_variables == ReconstructionVariables::Conservative
+            ? conservative : pressure_primitive_field;
+        if (attempt_standard(fallback_source, fallback_variables, *linear)) {
+            return result;
+        }
     }
 
     const auto left_index = shifted(face, axis, -1);
     const auto right_index = face;
     const auto load_first_order = [&](Index3 index) {
-        const auto state = config.variables == ReconstructionVariables::Conservative
-            ? load_conservative(source, index) : load_primitive(source, index);
+        const bool use_conservative
+            = config.variables == ReconstructionVariables::Conservative;
+        const auto state = use_conservative
+            ? load_conservative(conservative, index)
+            : load_primitive(pressure_primitive_field, index);
         return convert_reconstructed(
-            state, config.variables, gas, reference, config.floors, dimension);
+            state,
+            use_conservative ? ReconstructionVariables::Conservative
+                             : ReconstructionVariables::Primitive,
+            gas, reference, config.floors, dimension);
     };
     result.left = load_first_order(left_index);
     result.right = load_first_order(right_index);

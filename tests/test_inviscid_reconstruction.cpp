@@ -213,6 +213,87 @@ void test_stage_l_scalar_reconstruction_schemes()
     WCNS_REQUIRE_THROWS(std::invalid_argument, invalid.validate());
 }
 
+// 验收同一面 Roe 特征基的 L*R=I、守恒量往返变换和特征重构回退次序。
+void test_stage_l_characteristic_reconstruction()
+{
+    using namespace wcns;
+    const auto gas = reconstruction_gas();
+    const auto reference = reconstruction_reference(gas);
+    const NumericalFloors floors;
+    const PressurePrimitiveState left_state {1.0, 0.6, -0.2, 0.0, 1.0};
+    const PressurePrimitiveState right_state {0.8, -0.1, 0.3, 0.0, 0.7};
+    const Normal3 normal {0.6, 0.8, 0.0};
+    const auto basis = make_roe_characteristic_basis(
+        left_state, right_state, normal, gas, floors, 2);
+    for (int row = 0; row < euler_components; ++row) {
+        for (int column = 0; column < euler_components; ++column) {
+            Real product = 0.0;
+            for (int inner = 0; inner < euler_components; ++inner) {
+                product += basis.left[static_cast<std::size_t>(row)]
+                    [static_cast<std::size_t>(inner)]
+                    * basis.right[static_cast<std::size_t>(inner)]
+                        [static_cast<std::size_t>(column)];
+            }
+            WCNS_REQUIRE_NEAR(product, row == column ? 1.0 : 0.0, 2.0e-14);
+        }
+    }
+    const auto conservative = to_conservative(left_state);
+    const auto restored = restore_characteristic(
+        project_characteristic(conservative, basis), basis);
+    for (int component = 0; component < euler_components; ++component) {
+        WCNS_REQUIRE_NEAR(
+            restored[static_cast<std::size_t>(component)],
+            conservative[static_cast<std::size_t>(component)], 3.0e-14);
+    }
+
+    Field<Real> conservative_field({4, 1, 1}, euler_components, 3);
+    Field<Real> primitive_field({4, 1, 1}, euler_components, 3);
+    for (int i = -3; i < 7; ++i) {
+        store_state(primitive_field, {i, 0, 0}, left_state);
+        store_state(conservative_field, {i, 0, 0}, conservative);
+    }
+    ReconstructionConfig config;
+    config.scheme = "weno_z";
+    config.variables = ReconstructionVariables::Characteristic;
+    ReconstructionDiagnostics diagnostics;
+    const auto uniform = reconstruct_thermodynamic_face(
+        conservative_field, primitive_field, Axis::I, {2, 0, 0}, config,
+        gas, reference, diagnostics, 2, normal);
+    for (int component = 0; component < euler_components; ++component) {
+        WCNS_REQUIRE_NEAR(
+            uniform.left[static_cast<std::size_t>(component)],
+            left_state[static_cast<std::size_t>(component)], 3.0e-14);
+        WCNS_REQUIRE_NEAR(
+            uniform.right[static_cast<std::size_t>(component)],
+            left_state[static_cast<std::size_t>(component)], 3.0e-14);
+    }
+    WCNS_REQUIRE(diagnostics.characteristic_faces == 1);
+    WCNS_REQUIRE(diagnostics.characteristic_fallbacks == 0);
+
+    const PressurePrimitiveState valid {1.0, 0.2, 0.0, 0.0, 1.0};
+    for (int i = -3; i < 7; ++i) {
+        store_state(primitive_field, {i, 0, 0}, valid);
+        store_state(conservative_field, {i, 0, 0}, to_conservative(valid));
+    }
+    for (const int i : {0, 3}) {
+        auto remote = valid;
+        remote[0] = 100.0;
+        remote[4] = 100.0;
+        store_state(primitive_field, {i, 0, 0}, remote);
+        store_state(conservative_field, {i, 0, 0}, to_conservative(remote));
+    }
+    config.scheme = "linear5";
+    diagnostics = {};
+    const auto fallback = reconstruct_thermodynamic_face(
+        conservative_field, primitive_field, Axis::I, {2, 0, 0}, config,
+        gas, reference, diagnostics, 2, {1.0, 0.0, 0.0});
+    WCNS_REQUIRE(fallback.left == valid);
+    WCNS_REQUIRE(fallback.right == valid);
+    WCNS_REQUIRE(diagnostics.characteristic_fallbacks == 1);
+    WCNS_REQUIRE(diagnostics.primitive_fallbacks == 1);
+    WCNS_REQUIRE(diagnostics.first_order_fallbacks == 1);
+}
+
 // 验收五阶线性重构的四次多项式精确性及 WCNS-JS 的尺度不变性。
 void test_stage_j_scalar_reconstruction()
 {

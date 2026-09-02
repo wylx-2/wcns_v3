@@ -498,12 +498,12 @@ InviscidFaceFluxField compute_inviscid_face_fluxes(
             for (int j = 0; j < extent.nj; ++j) {
                 for (int i = 0; i < extent.ni; ++i) {
                     const Index3 face {i, j, k};
+                    Real area = 0.0;
+                    const auto normal = unit_normal(faces, face, area);
                     auto states = reconstruct_thermodynamic_face(
                         block.flow.conservative, block.flow.primitive,
                         axis, face, reconstruction, gas, reference,
-                        diagnostics, block.cell_dimension());
-                    Real area = 0.0;
-                    const auto normal = unit_normal(faces, face, area);
+                        diagnostics, block.cell_dimension(), normal);
                     if (const auto* patch = physical_patch(block, axis, face)) {
                         const auto data_iterator = boundary_data.find(patch->name);
                         if (data_iterator == boundary_data.end()) {

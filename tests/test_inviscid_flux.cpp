@@ -198,6 +198,49 @@ void test_wcns_inviscid_freestream()
     }
 }
 
+// 验收阶段 L 四种重构在 conservative/primitive/characteristic 空间均保持两套 profile 自由流。
+void test_stage_l_reconstruction_freestream()
+{
+    using namespace wcns;
+    const auto gas = flux_gas();
+    const auto reference = flux_reference(gas);
+    const NumericalFloors floors;
+    const TemperaturePrimitiveState state {1.1, 0.7, -0.2, 0.0, 1.0};
+    for (const auto kind : {
+             AlgorithmProfileKind::PhengleiWcns,
+             AlgorithmProfileKind::Scmm6Wcns}) {
+        for (const auto* scheme : {
+                 "weno_js", "weno_z", "mdcd_linear", "mdcd_hybrid"}) {
+            for (const auto variables : {
+                     ReconstructionVariables::Conservative,
+                     ReconstructionVariables::Primitive,
+                     ReconstructionVariables::Characteristic}) {
+                auto block = make_flux_block(false);
+                initialize_flux_state(block, state, gas, reference, floors);
+                const auto data = flux_boundaries(block, state);
+                static_cast<void>(PhysicalGhostStateOperator::fill(
+                    block, data, gas, reference, floors, 11));
+                const auto profile = ProfileFactory::create(kind);
+                const auto metric = initialize_metric_field(block, profile).metric;
+                ReconstructionConfig reconstruction;
+                reconstruction.scheme = scheme;
+                reconstruction.variables = variables;
+                ReconstructionDiagnostics diagnostics;
+                const RiemannSolver riemann;
+                const auto flux = compute_inviscid_face_fluxes(
+                    block, metric, profile, reconstruction, riemann,
+                    gas, reference, floors, data, {}, 11, diagnostics);
+                compute_wcns_inviscid_residual(block, metric, flux, profile);
+                WCNS_REQUIRE(residual_l2(block) < 3.0e-11);
+                if (variables == ReconstructionVariables::Characteristic) {
+                    WCNS_REQUIRE(diagnostics.characteristic_faces > 0);
+                    WCNS_REQUIRE(diagnostics.characteristic_fallbacks == 0);
+                }
+            }
+        }
+    }
+}
+
 // 验收强固壁面状态经 Rusanov 后具有严格零质量和零切向动量通量。
 void test_wcns_strong_wall_flux()
 {
