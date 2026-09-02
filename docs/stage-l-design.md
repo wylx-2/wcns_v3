@@ -1,5 +1,8 @@
 # 阶段 L：界面重构、Riemann 求解器与健壮性设计
 
+状态：设计已由项目负责人批准；必做 L1--L5、L7 候选 v1 已完成自动验收，等待人工检查。
+可选 L6 未获单独批准，未实施。详见 [`stage-l-acceptance.md`](stage-l-acceptance.md)。
+
 本文是阶段 L 的实施前冻结规格。阶段 L 只扩展无粘界面算法和健壮性机制，不改变
 `phenglei_wcns`、`scmm6_wcns` 各自绑定的度量、线性插值、通量差分、边界闭合和
 `FaceFluxHalo` 语义。[`interpolation.cpp`](interpolation.cpp) 仅作为 MDCD 公式来源，不参与构建；其中
@@ -391,9 +394,9 @@ HLLC 与 `weiss_smith_roe` 组合，必须在启动时拒绝；不得把预处�
 诊断至少按算法、回退前后方案、原因、方向、块和 rank 计数，并可归约为全局日志；计数本身
 不改变浮点计算顺序。物理边界的重构后强约束仍由 `strong_boundary_face_state` 唯一控制。
 
-阶段 L 实施必须按 [`development-roadmap.md`](development-roadmap.md) 的小任务和卡口进行。本文通过人工审查前只
-允许修订文档；不得据此开始 C++ 实现。阶段 K 的人工检查被暂缓，不等同于验收通过，也不
-改变其候选状态。
+阶段 L 实施按 [`development-roadmap.md`](development-roadmap.md) 的小任务和卡口进行。
+项目负责人已批准本设计并启动实现；候选 v1 自动验收完成后仍须等待人工放行。阶段 K 的
+人工检查被暂缓，不等同于验收通过，也不改变其候选状态。
 
 ## 9. 主要算法依据
 
