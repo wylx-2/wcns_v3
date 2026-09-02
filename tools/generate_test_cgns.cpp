@@ -1,6 +1,7 @@
 #include <cgnslib.h>
 
 #include <array>
+#include <cmath>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
@@ -74,7 +75,7 @@ void write_boundary(
         "cg_boco_gridlocation_write");
 }
 
-void write_one_to_one(
+int write_one_to_one(
     int file,
     int base,
     int zone,
@@ -97,6 +98,23 @@ void write_one_to_one(
             transform.data(),
             &connection),
         "cg_1to1_write");
+    return connection;
+}
+
+void write_periodic(
+    int file,
+    int base,
+    int zone,
+    int connection,
+    const std::array<float, 3>& center,
+    const std::array<float, 3>& angle,
+    const std::array<float, 3>& translation)
+{
+    check_cgns(
+        cg_1to1_periodic_write(
+            file, base, zone, connection,
+            center.data(), angle.data(), translation.data()),
+        "cg_1to1_periodic_write");
 }
 
 void write_2d(const std::string& path, bool add_invalid_boundary = false)
@@ -181,6 +199,187 @@ void write_partition_2d(const std::string& path)
     write_boundary(file.id(), base, zone, "imax", BCFarfield, {ni, 1, ni, nj});
     write_boundary(file.id(), base, zone, "jmin", BCFarfield, {1, 1, ni, 1});
     write_boundary(file.id(), base, zone, "jmax", BCFarfield, {1, nj, ni, nj});
+    file.close();
+}
+
+void write_periodic_translation_2d(const std::string& path)
+{
+    constexpr int ni = 9;
+    constexpr int nj = 9;
+    CgnsFile file(path, CG_MODE_WRITE);
+    int base = 0;
+    int left = 0;
+    int right = 0;
+    int coordinate = 0;
+    check_cgns(
+        cg_base_write(file.id(), "BasePeriodic2D", 2, 2, &base),
+        "cg_base_write periodic 2d");
+    cgsize_t size[6] = {ni, nj, ni - 1, nj - 1, 0, 0};
+    check_cgns(
+        cg_zone_write(
+            file.id(), base, "PeriodicLeft2D", size, Structured, &left),
+        "cg_zone_write periodic left 2d");
+    check_cgns(
+        cg_zone_write(
+            file.id(), base, "PeriodicRight2D", size, Structured, &right),
+        "cg_zone_write periodic right 2d");
+    std::vector<double> x(static_cast<std::size_t>(ni * nj));
+    std::vector<double> y(x.size());
+    const auto write_coordinates = [&](int zone, double x_begin, double x_end) {
+        for (int j = 0; j < nj; ++j) {
+            for (int i = 0; i < ni; ++i) {
+                const auto index = static_cast<std::size_t>(j * ni + i);
+                const double fraction
+                    = static_cast<double>(i) / static_cast<double>(ni - 1);
+                x[index] = x_begin + (x_end - x_begin) * fraction;
+                y[index] = static_cast<double>(j) / static_cast<double>(nj - 1);
+            }
+        }
+        check_cgns(
+            cg_coord_write(
+                file.id(), base, zone, RealDouble,
+                "CoordinateX", x.data(), &coordinate),
+            "cg_coord_write periodic 2d X");
+        check_cgns(
+            cg_coord_write(
+                file.id(), base, zone, RealDouble,
+                "CoordinateY", y.data(), &coordinate),
+            "cg_coord_write periodic 2d Y");
+    };
+    write_coordinates(left, 0.0, 0.5);
+    write_coordinates(right, 0.5, 1.0);
+
+    write_boundary(file.id(), base, left, "left-jmin", BCWall, {1, 1, ni, 1});
+    write_boundary(file.id(), base, left, "left-jmax", BCWall, {1, nj, ni, nj});
+    write_boundary(file.id(), base, right, "right-jmin", BCWall, {1, 1, ni, 1});
+    write_boundary(file.id(), base, right, "right-jmax", BCWall, {1, nj, ni, nj});
+
+    write_one_to_one(
+        file.id(), base, left, "left-to-right", "PeriodicRight2D",
+        {ni, 1, ni, nj}, {1, 1, 1, nj}, {1, 2});
+    write_one_to_one(
+        file.id(), base, right, "right-to-left", "PeriodicLeft2D",
+        {1, 1, 1, nj}, {ni, 1, ni, nj}, {1, 2});
+    const auto forward = write_one_to_one(
+        file.id(), base, left, "periodic-left-to-right", "PeriodicRight2D",
+        {1, 1, 1, nj}, {ni, 1, ni, nj}, {1, 2});
+    const auto reverse = write_one_to_one(
+        file.id(), base, right, "periodic-right-to-left", "PeriodicLeft2D",
+        {ni, 1, ni, nj}, {1, 1, 1, nj}, {1, 2});
+    write_periodic(
+        file.id(), base, left, forward,
+        {{0.0F, 0.0F, 0.0F}}, {{0.0F, 0.0F, 0.0F}},
+        {{1.0F, 0.0F, 0.0F}});
+    write_periodic(
+        file.id(), base, right, reverse,
+        {{0.0F, 0.0F, 0.0F}}, {{0.0F, 0.0F, 0.0F}},
+        {{-1.0F, 0.0F, 0.0F}});
+    file.close();
+}
+
+void write_periodic_rotation_3d(const std::string& path)
+{
+    constexpr int ni = 5;
+    constexpr int nj = 5;
+    constexpr int nk = 5;
+    constexpr float half_pi = 1.57079632679489661923F;
+    const double cosine = std::cos(static_cast<double>(half_pi));
+    const double sine = std::sin(static_cast<double>(half_pi));
+    CgnsFile file(path, CG_MODE_WRITE);
+    int base = 0;
+    int first = 0;
+    int second = 0;
+    int coordinate = 0;
+    check_cgns(
+        cg_base_write(file.id(), "BasePeriodic3D", 3, 3, &base),
+        "cg_base_write periodic 3d");
+    cgsize_t size[9] = {ni, nj, nk, ni - 1, nj - 1, nk - 1, 0, 0, 0};
+    check_cgns(
+        cg_zone_write(file.id(), base, "Current3D", size, Structured, &first),
+        "cg_zone_write periodic current");
+    check_cgns(
+        cg_zone_write(file.id(), base, "Donor3D", size, Structured, &second),
+        "cg_zone_write periodic donor");
+    const auto count = static_cast<std::size_t>(ni * nj * nk);
+    std::vector<double> x(count);
+    std::vector<double> y(count);
+    std::vector<double> z(count);
+    for (int k = 0; k < nk; ++k) {
+        for (int j = 0; j < nj; ++j) {
+            for (int i = 0; i < ni; ++i) {
+                const auto index = static_cast<std::size_t>((k * nj + j) * ni + i);
+                x[index] = static_cast<double>(i) / static_cast<double>(ni - 1);
+                y[index] = static_cast<double>(j) / static_cast<double>(nj - 1);
+                z[index] = static_cast<double>(k) / static_cast<double>(nk - 1);
+            }
+        }
+    }
+    check_cgns(cg_coord_write(
+        file.id(), base, first, RealDouble, "CoordinateX", x.data(), &coordinate),
+        "cg_coord_write periodic current X");
+    check_cgns(cg_coord_write(
+        file.id(), base, first, RealDouble, "CoordinateY", y.data(), &coordinate),
+        "cg_coord_write periodic current Y");
+    check_cgns(cg_coord_write(
+        file.id(), base, first, RealDouble, "CoordinateZ", z.data(), &coordinate),
+        "cg_coord_write periodic current Z");
+    for (int k = 0; k < nk; ++k) {
+        for (int j = 0; j < nj; ++j) {
+            for (int i = 0; i < ni; ++i) {
+                const auto index = static_cast<std::size_t>((k * nj + j) * ni + i);
+                const double local_x
+                    = 1.0 + static_cast<double>(j) / static_cast<double>(nj - 1);
+                const double local_y
+                    = 1.0 - static_cast<double>(i) / static_cast<double>(ni - 1);
+                x[index] = cosine * local_x - sine * local_y;
+                y[index] = sine * local_x + cosine * local_y;
+                z[index] = static_cast<double>(k) / static_cast<double>(nk - 1);
+            }
+        }
+    }
+    check_cgns(cg_coord_write(
+        file.id(), base, second, RealDouble, "CoordinateX", x.data(), &coordinate),
+        "cg_coord_write periodic donor X");
+    check_cgns(cg_coord_write(
+        file.id(), base, second, RealDouble, "CoordinateY", y.data(), &coordinate),
+        "cg_coord_write periodic donor Y");
+    check_cgns(cg_coord_write(
+        file.id(), base, second, RealDouble, "CoordinateZ", z.data(), &coordinate),
+        "cg_coord_write periodic donor Z");
+    write_boundary(file.id(), base, first, "current-imin", BCFarfield,
+        {1, 1, 1, 1, nj, nk});
+    write_boundary(file.id(), base, first, "current-jmin", BCFarfield,
+        {1, 1, 1, ni, 1, nk});
+    write_boundary(file.id(), base, first, "current-jmax", BCFarfield,
+        {1, nj, 1, ni, nj, nk});
+    write_boundary(file.id(), base, first, "current-kmin", BCFarfield,
+        {1, 1, 1, ni, nj, 1});
+    write_boundary(file.id(), base, first, "current-kmax", BCFarfield,
+        {1, 1, nk, ni, nj, nk});
+    write_boundary(file.id(), base, second, "donor-imin", BCFarfield,
+        {1, 1, 1, 1, nj, nk});
+    write_boundary(file.id(), base, second, "donor-imax", BCFarfield,
+        {ni, 1, 1, ni, nj, nk});
+    write_boundary(file.id(), base, second, "donor-jmax", BCFarfield,
+        {1, nj, 1, ni, nj, nk});
+    write_boundary(file.id(), base, second, "donor-kmin", BCFarfield,
+        {1, 1, 1, ni, nj, 1});
+    write_boundary(file.id(), base, second, "donor-kmax", BCFarfield,
+        {1, 1, nk, ni, nj, nk});
+    const auto forward = write_one_to_one(
+        file.id(), base, first, "current-to-donor", "Donor3D",
+        {ni, 1, 1, ni, nj, nk}, {ni, 1, 1, 1, 1, nk}, {2, -1, 3});
+    const auto reverse = write_one_to_one(
+        file.id(), base, second, "donor-to-current", "Current3D",
+        {ni, 1, 1, 1, 1, nk}, {ni, 1, 1, ni, nj, nk}, {-2, 1, 3});
+    write_periodic(
+        file.id(), base, first, forward,
+        {{0.0F, 0.0F, 0.0F}}, {{0.0F, 0.0F, half_pi}},
+        {{0.0F, 0.0F, 0.0F}});
+    write_periodic(
+        file.id(), base, second, reverse,
+        {{0.0F, 0.0F, 0.0F}}, {{0.0F, 0.0F, -half_pi}},
+        {{0.0F, 0.0F, 0.0F}});
     file.close();
 }
 
@@ -444,12 +643,13 @@ void verify(
 
 int main(int argc, char** argv)
 {
-    if (argc != 9) {
+    if (argc != 11) {
         std::cerr
             << "usage: wcns_generate_test_cgns <2d-output.cgns> <3d-output.cgns> "
                "<invalid-2d-output.cgns> <multi-2d-output.cgns> "
                "<multi-3d-output.cgns> <one-sided-2d-output.cgns> "
-               "<unknown-donor-2d-output.cgns> <partition-2d-output.cgns>\n";
+               "<unknown-donor-2d-output.cgns> <partition-2d-output.cgns> "
+               "<periodic-2d-output.cgns> <periodic-3d-output.cgns>\n";
         return EXIT_FAILURE;
     }
 
@@ -463,6 +663,8 @@ int main(int argc, char** argv)
         write_multiblock_2d(argv[6], false);
         write_multiblock_2d(argv[7], false, "Missing2D");
         write_partition_2d(argv[8]);
+        write_periodic_translation_2d(argv[9]);
+        write_periodic_rotation_3d(argv[10]);
         verify(argv[1], 2, 1, 4);
         verify(argv[2], 3, 1, 6);
         verify(argv[3], 2, 1, 5);
@@ -471,6 +673,8 @@ int main(int argc, char** argv)
         verify(argv[6], 2, 2, 0);
         verify(argv[7], 2, 2, 0);
         verify(argv[8], 2, 1, 4);
+        verify(argv[9], 2, 2, 2);
+        verify(argv[10], 3, 2, 5);
         std::cout << "generated and verified CGNS test grids\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {

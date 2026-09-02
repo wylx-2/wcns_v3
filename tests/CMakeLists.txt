@@ -57,12 +57,38 @@ if(WCNS_ENABLE_CGNS)
             ${CMAKE_CURRENT_BINARY_DIR}/generated_one_sided_2d.cgns
             ${CMAKE_CURRENT_BINARY_DIR}/generated_unknown_donor_2d.cgns
             ${CMAKE_CURRENT_BINARY_DIR}/generated_partition_2d.cgns
+            ${CMAKE_CURRENT_BINARY_DIR}/generated_periodic_2d.cgns
+            ${CMAKE_CURRENT_BINARY_DIR}/generated_periodic_3d.cgns
     )
     set_tests_properties(wcns.generate_test_cgns PROPERTIES FIXTURES_SETUP cgns_files)
 
     configure_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/data/freestream_case.wcns.in
         ${CMAKE_CURRENT_BINARY_DIR}/freestream_case.wcns
+        @ONLY
+    )
+    set(WCNS_PERIODIC_CASE periodic-translation-2d)
+    set(WCNS_PERIODIC_MESH generated_periodic_2d.cgns)
+    set(WCNS_PERIODIC_PARTITION auto_split)
+    set(WCNS_PERIODIC_U 0.2)
+    set(WCNS_PERIODIC_W 0.0)
+    set(WCNS_PERIODIC_BOUNDARY slip_wall)
+    set(WCNS_PERIODIC_OUTPUT periodic-translation-2d)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/periodic_freestream_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/periodic_translation_2d.wcns
+        @ONLY
+    )
+    set(WCNS_PERIODIC_CASE periodic-rotation-3d)
+    set(WCNS_PERIODIC_MESH generated_periodic_3d.cgns)
+    set(WCNS_PERIODIC_PARTITION zones_only)
+    set(WCNS_PERIODIC_U 0.0)
+    set(WCNS_PERIODIC_W 0.2)
+    set(WCNS_PERIODIC_BOUNDARY farfield)
+    set(WCNS_PERIODIC_OUTPUT periodic-rotation-3d)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/periodic_freestream_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/periodic_rotation_3d.wcns
         @ONLY
     )
     set(WCNS_OUTPUT_SUBDIR output-validation-serial)
@@ -166,6 +192,17 @@ if(WCNS_ENABLE_CGNS)
         wcns.run.freestream.serial
         PROPERTIES FIXTURES_REQUIRED cgns_files
     )
+    foreach(periodic_case IN ITEMS translation_2d rotation_3d)
+        add_test(
+            NAME wcns.run.periodic_${periodic_case}.serial
+            COMMAND wcns_run
+                --config ${CMAKE_CURRENT_BINARY_DIR}/periodic_${periodic_case}.wcns
+        )
+        set_tests_properties(
+            wcns.run.periodic_${periodic_case}.serial
+            PROPERTIES FIXTURES_REQUIRED cgns_files
+        )
+    endforeach()
     add_test(
         NAME wcns.run.output.serial
         COMMAND wcns_run
@@ -330,6 +367,8 @@ if(WCNS_ENABLE_CGNS)
             ${CMAKE_CURRENT_BINARY_DIR}/generated_multi_3d.cgns
             ${CMAKE_CURRENT_BINARY_DIR}/generated_one_sided_2d.cgns
             ${CMAKE_CURRENT_BINARY_DIR}/generated_unknown_donor_2d.cgns
+            ${CMAKE_CURRENT_BINARY_DIR}/generated_periodic_2d.cgns
+            ${CMAKE_CURRENT_BINARY_DIR}/generated_periodic_3d.cgns
     )
     set_tests_properties(wcns.cgns_reader PROPERTIES FIXTURES_REQUIRED cgns_files)
 
@@ -378,6 +417,28 @@ if(WCNS_ENABLE_CGNS)
         )
         set_tests_properties(
             wcns.run.freestream.2
+            PROPERTIES FIXTURES_REQUIRED cgns_files
+        )
+        foreach(periodic_case IN ITEMS translation_2d rotation_3d)
+            add_test(
+                NAME wcns.run.periodic_${periodic_case}.2
+                COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
+                    $<TARGET_FILE:wcns_run>
+                    --config ${CMAKE_CURRENT_BINARY_DIR}/periodic_${periodic_case}.wcns
+            )
+            set_tests_properties(
+                wcns.run.periodic_${periodic_case}.2
+                PROPERTIES FIXTURES_REQUIRED cgns_files
+            )
+        endforeach()
+        add_test(
+            NAME wcns.run.periodic_translation_2d.4
+            COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 4
+                $<TARGET_FILE:wcns_run>
+                --config ${CMAKE_CURRENT_BINARY_DIR}/periodic_translation_2d.wcns
+        )
+        set_tests_properties(
+            wcns.run.periodic_translation_2d.4
             PROPERTIES FIXTURES_REQUIRED cgns_files
         )
         add_test(

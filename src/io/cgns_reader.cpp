@@ -3,6 +3,7 @@
 #include <cgnslib.h>
 
 #include <array>
+#include <cmath>
 #include <cstdlib>
 #include <cstddef>
 #include <limits>
@@ -122,6 +123,102 @@ std::vector<double> read_coordinate(
             values.data()),
         "cg_coord_read");
     return values;
+}
+
+using RotationMatrix = std::array<std::array<Real, 3>, 3>;
+
+RotationMatrix multiply_rotation(
+    const RotationMatrix& lhs,
+    const RotationMatrix& rhs)
+{
+    RotationMatrix result {{}};
+    for (int row = 0; row < 3; ++row) {
+        for (int column = 0; column < 3; ++column) {
+            for (int inner = 0; inner < 3; ++inner) {
+                result[static_cast<std::size_t>(row)]
+                      [static_cast<std::size_t>(column)]
+                    += lhs[static_cast<std::size_t>(row)]
+                          [static_cast<std::size_t>(inner)]
+                     * rhs[static_cast<std::size_t>(inner)]
+                           [static_cast<std::size_t>(column)];
+            }
+        }
+    }
+    return result;
+}
+
+PeriodicTransform make_periodic_transform(
+    const std::array<float, 3>& center,
+    const std::array<float, 3>& angle,
+    const std::array<float, 3>& translation,
+    int physical_dimension)
+{
+    if (physical_dimension != 2 && physical_dimension != 3) {
+        throw CgnsError("periodic transform requires physical dimension 2 or 3");
+    }
+    if (physical_dimension == 2
+        && (angle[0] != 0.0F || angle[1] != 0.0F)) {
+        throw CgnsError(
+            "two-dimensional CGNS periodic rotation is ambiguous; "
+            "use translation or a three-dimensional embedding");
+    }
+    const Real cx = std::cos(static_cast<Real>(angle[0]));
+    const Real sx = std::sin(static_cast<Real>(angle[0]));
+    const Real cy = std::cos(static_cast<Real>(angle[1]));
+    const Real sy = std::sin(static_cast<Real>(angle[1]));
+    // A two-dimensional periodic rotation is represented by its z angle.
+    const Real cz = std::cos(static_cast<Real>(angle[2]));
+    const Real sz = std::sin(static_cast<Real>(angle[2]));
+    const RotationMatrix rx {{{{1.0, 0.0, 0.0}},
+                              {{0.0, cx, -sx}},
+                              {{0.0, sx, cx}}}};
+    const RotationMatrix ry {{{{cy, 0.0, sy}},
+                              {{0.0, 1.0, 0.0}},
+                              {{-sy, 0.0, cy}}}};
+    const RotationMatrix rz {{{{cz, -sz, 0.0}},
+                              {{sz, cz, 0.0}},
+                              {{0.0, 0.0, 1.0}}}};
+    PeriodicTransform result;
+    // CGNS applies rotations current->donor in x, then y, then z order.
+    result.rotation = multiply_rotation(rz, multiply_rotation(ry, rx));
+    const std::array<Real, 3> origin {{
+        static_cast<Real>(center[0]),
+        static_cast<Real>(center[1]),
+        physical_dimension == 3 ? static_cast<Real>(center[2]) : 0.0,
+    }};
+    const auto rotated_origin = result.apply_vector(origin);
+    for (int component = 0; component < 3; ++component) {
+        const auto index = static_cast<std::size_t>(component);
+        result.translation[index] = origin[index] - rotated_origin[index]
+            + (component < physical_dimension
+                ? static_cast<Real>(translation[index]) : 0.0);
+    }
+    if (!result.valid(physical_dimension)) {
+        throw CgnsError("CGNS periodic transform is not a proper rigid transform");
+    }
+    return result;
+}
+
+PeriodicTransform read_periodic_transform(
+    int file,
+    const CgnsZoneMetadata& zone,
+    int connection_index)
+{
+    std::array<float, 3> center {{}};
+    std::array<float, 3> angle {{}};
+    std::array<float, 3> translation {{}};
+    const int status = cg_1to1_periodic_read(
+        file,
+        zone.base_file_index,
+        zone.zone_file_index,
+        connection_index,
+        center.data(),
+        angle.data(),
+        translation.data());
+    if (status == CG_NODE_NOT_FOUND) return {};
+    check_cgns(status, "cg_1to1_periodic_read");
+    return make_periodic_transform(
+        center, angle, translation, zone.physical_dimension);
 }
 
 std::vector<double> read_coordinate(
@@ -557,6 +654,8 @@ std::vector<ConnectivityPatch> read_connectivities(
             throw CgnsError(std::string("connectivity ") + name
                 + " Transform does not map receiver range onto donor range");
         }
+        const auto periodic = read_periodic_transform(
+            file, zone, connection_index);
 
         connectivities.push_back({
             name,
@@ -587,6 +686,8 @@ std::vector<ConnectivityPatch> read_connectivities(
                 "connectivity shared-face range")),
             transform,
             ghost_width,
+            invalid_connection_id,
+            periodic,
         });
     }
     return connectivities;

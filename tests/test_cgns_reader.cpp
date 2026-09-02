@@ -331,16 +331,83 @@ void test_partitioned_multiblock(const char* path)
     WCNS_REQUIRE(topology.exchanges().size() == 8);
 }
 
+// 验收 CGNS Periodic_t 平移由当前面映射到 donor 面，并在结构二次切分后保持互逆。
+void test_periodic_translation_2d(const char* path)
+{
+    using namespace wcns;
+    CgnsReader reader;
+    const auto mesh = reader.read_mesh(path, 0, 3);
+    WCNS_REQUIRE(mesh.block_count() == 2);
+    WCNS_REQUIRE(mesh.block(0).connectivities.size() == 2);
+    WCNS_REQUIRE(mesh.block(1).connectivities.size() == 2);
+    const auto& forward = mesh.block(0).connectivities[1].periodic;
+    const auto& reverse = mesh.block(1).connectivities[1].periodic;
+    WCNS_REQUIRE_NEAR(forward.translation[0], 1.0, 1.0e-14);
+    WCNS_REQUIRE_NEAR(reverse.translation[0], -1.0, 1.0e-14);
+    WCNS_REQUIRE(reverse == forward.inverse());
+
+    const std::vector<CgnsPartitionLeaf> leaves {
+        {0, 0, {0, 0, 0}, {4, 8, 1}, 0},
+        {1, 0, {4, 0, 0}, {8, 8, 1}, 1},
+        {2, 1, {0, 0, 0}, {4, 8, 1}, 0},
+        {3, 1, {4, 0, 0}, {8, 8, 1}, 1},
+    };
+    auto partitioned = reader.read_partitioned_mesh(path, leaves, 0, 3);
+    partitioned.global_mesh.validate_connectivities(false);
+    WCNS_REQUIRE(partitioned.global_mesh.block_count() == 4);
+    int periodic_connections = 0;
+    for (const auto& block : partitioned.global_mesh.blocks()) {
+        WCNS_REQUIRE(block.connectivities.size() == 2);
+        for (const auto& connection : block.connectivities) {
+            if (std::abs(connection.periodic.translation[0]) > 0.5) {
+                ++periodic_connections;
+            }
+        }
+    }
+    WCNS_REQUIRE(periodic_connections == 2);
+}
+
+// 验收 CGNS x-y-z 欧拉角按 current->donor 方向构造旋转，并对反向记录取严格逆变换。
+void test_periodic_rotation_3d(const char* path)
+{
+    using namespace wcns;
+    CgnsReader reader;
+    const auto mesh = reader.read_mesh(path, 0, 2);
+    WCNS_REQUIRE(mesh.block_count() == 2);
+    const auto& forward = mesh.block(0).connectivities.front().periodic;
+    const auto& reverse = mesh.block(1).connectivities.front().periodic;
+    const auto rotated = forward.apply_vector({{1.0, 0.0, 0.0}});
+    WCNS_REQUIRE(std::abs(rotated[0]) < 1.0e-6);
+    WCNS_REQUIRE_NEAR(rotated[1], 1.0, 1.0e-12);
+    WCNS_REQUIRE_NEAR(rotated[2], 0.0, 1.0e-12);
+    const auto recovered = reverse.apply_vector(rotated);
+    WCNS_REQUIRE_NEAR(recovered[0], 1.0, 1.0e-12);
+    WCNS_REQUIRE_NEAR(recovered[1], 0.0, 1.0e-12);
+    WCNS_REQUIRE_NEAR(recovered[2], 0.0, 1.0e-12);
+    const auto inverse = forward.inverse();
+    for (int row = 0; row < 3; ++row) {
+        for (int column = 0; column < 3; ++column) {
+            WCNS_REQUIRE_NEAR(
+                reverse.rotation[static_cast<std::size_t>(row)]
+                                [static_cast<std::size_t>(column)],
+                inverse.rotation[static_cast<std::size_t>(row)]
+                                [static_cast<std::size_t>(column)],
+                1.0e-7);
+        }
+    }
+}
+
 } // namespace
 
 // 运行全部 CGNS 读取验收子项并汇总进程退出状态。
 int main(int argc, char** argv)
 {
-    if (argc != 8) {
+    if (argc != 10) {
         std::cerr
             << "usage: wcns_cgns_reader_tests <2d.cgns> <3d.cgns> "
                "<invalid-2d.cgns> <multi-2d.cgns> <multi-3d.cgns> "
-               "<one-sided-2d.cgns> <unknown-donor-2d.cgns>\n";
+               "<one-sided-2d.cgns> <unknown-donor-2d.cgns> "
+               "<periodic-2d.cgns> <periodic-3d.cgns>\n";
         return EXIT_FAILURE;
     }
     try {
@@ -354,6 +421,8 @@ int main(int argc, char** argv)
         test_out_of_extent_connectivity(argv[4]);
         test_partitioned_zone(argv[1]);
         test_partitioned_multiblock(argv[4]);
+        test_periodic_translation_2d(argv[8]);
+        test_periodic_rotation_3d(argv[9]);
         std::cout << "CGNS reader tests passed\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {
