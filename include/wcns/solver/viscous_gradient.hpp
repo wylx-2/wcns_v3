@@ -81,4 +81,18 @@ private:
     const GradientOperandFaceField& operands,
     const AlgorithmProfile& profile);
 
+[[nodiscard]] PrimitiveGradients interpolate_gradient_face(
+    const StructuredBlock& block,
+    const PrimitiveGradientField& gradients,
+    const AlgorithmProfile& profile,
+    Axis axis,
+    Index3 face);
+
+[[nodiscard]] ViscousFaceTrace interpolate_viscous_face_trace(
+    const StructuredBlock& block,
+    const PrimitiveGradientField& gradients,
+    const AlgorithmProfile& profile,
+    Axis axis,
+    Index3 face);
+
 } // namespace wcns

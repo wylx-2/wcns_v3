@@ -46,6 +46,8 @@ void test_transport_model();
 void test_viscous_cartesian_flux();
 void test_viscous_linear_gradients();
 void test_viscous_gradient_periodic_transform();
+void test_wall_dirichlet_derivative();
+void test_viscous_boundary_trace();
 
 // 顺序运行不依赖独立输入文件的全部单元验收入口。
 int main()
@@ -102,6 +104,8 @@ int main()
         test_viscous_cartesian_flux();
         test_viscous_linear_gradients();
         test_viscous_gradient_periodic_transform();
+        test_wall_dirichlet_derivative();
+        test_viscous_boundary_trace();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;
