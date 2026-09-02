@@ -93,3 +93,12 @@ RK 子步。非 owner 的块间连接面不再先计算后覆盖，而是直接�
 `https://github.com/wylx-2/wcns_v3.git` 推送时，GitHub 443 连接先被重置、随后连接超时；
 因此远程分支和 `stage-l-candidate-v1` 标签尚不能确认同步，网络恢复后必须重试。阶段 L
 未合并到 `main`。
+
+## 8. 后续流程变更（2026-09-02）
+
+项目负责人在本报告形成后明确取消 K/L 到发布候选之间的逐阶段人工等待，要求先连续完成
+可发布程序，再通过具体生产算例进行集中验收。因此第 5 节“未进入阶段 M”的表述保留为本次
+验收当时的历史状态，不再是当前前置卡口；它也不追认阶段 K 或 L 已人工通过。后续按
+[`development-roadmap.md`](development-roadmap.md) 和
+[`release-development-plan.md`](release-development-plan.md) 直接进入阶段 M，最终只在阶段 O
+发布候选执行一次集中人工放行。

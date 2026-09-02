@@ -313,23 +313,41 @@ def check_document_contracts() -> None:
     roadmap = document.parent / "docs" / "development-roadmap.md"
     roadmap_text = roadmap.read_text(encoding="utf-8")
     roadmap_fragments: Iterable[str] = (
-        "阶段严格按 H、I、J、K、L、M 顺序执行",
+        "按 M、N、O 连续开发",
         "正式验收无论成功或失败都必须进行一次 Git 管理",
         "自动验收成功时创建不可移动的",
         "自动验收失败时不创建候选标签",
-        "G8 人工放行",
+        "G8 发布人工放行",
         "阶段 H：核心热力学、合法域与源项框架",
         "阶段 M：算例运行闭环、多块/MPI 系统验收与发布准备",
         "CaseConfig",
         "FlowInitializer",
         "SimulationDriver",
-        "MonitorManager",
-        "五个方程的全局 $L_2/L_\\infty$ 残差",
-        "CGNS `FlowSolution` 采用 `CellCenter`",
-        "阶段 J 不追加“算例化补充”",
+        "StructuredPartitionPlan",
+        "阶段 N：运行控制、停止、输出和重启",
+        "阶段 O：生产算例系统验收与发布",
     )
     for fragment in roadmap_fragments:
         require(fragment in roadmap_text, f"development gate contract is missing: {fragment}")
+
+    release_plan = document.parent / "docs" / "release-development-plan.md"
+    release_text = release_plan.read_text(encoding="utf-8")
+    release_fragments: Iterable[str] = (
+        "partition.mode = zones_only | auto_split | force_split",
+        "run.mode = steady | unsteady",
+        "steady_converged",
+        "physical_time_reached",
+        "maximum_steps",
+        "OutputSchedule",
+        "CGNS/Tecplot",
+        "FieldQuantityRegistry",
+        "StatisticRegistry",
+        "单 zone 多 rank 自由流",
+        "二维等熵涡",
+        "异 rank 重启",
+    )
+    for fragment in release_fragments:
+        require(fragment in release_text, f"release plan contract is missing: {fragment}")
 
 
 def main() -> None:
