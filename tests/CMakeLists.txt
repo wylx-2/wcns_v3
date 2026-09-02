@@ -40,6 +40,7 @@ target_link_libraries(
 )
 if(WCNS_ENABLE_CGNS)
     target_link_libraries(wcns_unit_tests PRIVATE wcns::cgns)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
     add_executable(wcns_generate_test_cgns
         ${CMAKE_CURRENT_SOURCE_DIR}/../tools/generate_test_cgns.cpp
@@ -236,6 +237,48 @@ if(WCNS_ENABLE_CGNS)
             PROPERTIES FIXTURES_REQUIRED cgns_files
         )
     endforeach()
+    add_test(
+        NAME wcns.release_matrix.smoke.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_release_matrix.py
+            --run $<TARGET_FILE:wcns_run>
+            --generator $<TARGET_FILE:wcns_generate_release_cgns>
+            --validator $<TARGET_FILE:wcns_validate_release_case>
+            --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/freestream.wcns.in
+            --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-matrix-smoke-serial
+            --ranks 1
+    )
+    add_test(
+        NAME wcns.release_matrix.smoke.periodic
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_release_matrix.py
+            --run $<TARGET_FILE:wcns_run>
+            --generator $<TARGET_FILE:wcns_generate_release_cgns>
+            --validator $<TARGET_FILE:wcns_validate_release_case>
+            --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/freestream.wcns.in
+            --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-matrix-smoke-periodic
+            --ranks 1
+            --cells-i 16
+            --cells-j 8
+            --zones-i 2
+            --periodic-x
+    )
+    add_test(
+        NAME wcns.release_matrix.smoke.warped3d
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_release_matrix.py
+            --run $<TARGET_FILE:wcns_run>
+            --generator $<TARGET_FILE:wcns_generate_release_cgns>
+            --validator $<TARGET_FILE:wcns_validate_release_case>
+            --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/freestream.wcns.in
+            --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-matrix-smoke-warped3d
+            --ranks 1
+            --dimension 3
+            --cells-i 16
+            --cells-j 8
+            --cells-k 8
+            --warp 0.05
+    )
     add_test(
         NAME wcns.run.output.serial
         COMMAND wcns_run
@@ -486,6 +529,18 @@ if(WCNS_ENABLE_CGNS)
                 PROPERTIES FIXTURES_REQUIRED cgns_files
             )
         endforeach()
+        add_test(
+            NAME wcns.release_matrix.smoke.mpi
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_release_matrix.py
+                --run $<TARGET_FILE:wcns_run>
+                --generator $<TARGET_FILE:wcns_generate_release_cgns>
+                --validator $<TARGET_FILE:wcns_validate_release_case>
+                --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/freestream.wcns.in
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-matrix-smoke-mpi
+                --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
+                --ranks 1,2
+        )
         add_test(
             NAME wcns.run.output.2
             COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2

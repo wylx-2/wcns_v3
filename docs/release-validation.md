@@ -1,0 +1,56 @@
+# 发布算例基础设施
+
+阶段 O 的数值验收只调用正式 `wcns_run`，不建立简化求解器。共同入口如下：
+
+- `wcns_generate_release_cgns` 按总单元数、维数、x 向原生 zone 数、扭曲幅值和 x 周期
+  开关生成确定性结构 CGNS；x 周期至少使用两个 zone，避免生成当前拓扑契约不支持的
+  self-connectivity；
+- `cases/config/*.wcns.in` 保存严格 schema v1 模板；驱动器只替换 `@...@` 占位符；
+- `wcns_validate_release_case` 独立重读最终 CGNS，可检查有限性/正性、均匀解析值和两个
+  串并行结果的逐场最大差；
+- `tools/run_release_matrix.py` 建立隔离工作目录，生成网格和配置，调用正式程序及验证器，
+  最终写出 `matrix-summary.json` 和每条命令的独立日志。
+
+## 1. 网格生成器
+
+```text
+wcns_generate_release_cgns output.cgns dimension cells_i cells_j cells_k zones_i warp periodic_x
+```
+
+`dimension` 为 2 或 3；二维要求 `cells_k=1`；`cells_i` 必须能被 `zones_i` 整除；
+`abs(warp)<0.2`。非周期网格的 x 外边界名为 `left/right`，其余物理边界为
+`bottom/top[/front/back]`；原生多区连接及周期连接均成对写入。扭曲使用跨 zone 连续的
+解析坐标映射，因而同一参数总是产生逐位相同的网格。
+
+## 2. 独立验证器
+
+```text
+wcns_validate_release_case finite field.cgns
+wcns_validate_release_case uniform field.cgns rho u v w T tolerance
+wcns_validate_release_case compare lhs.cgns rhs.cgns tolerance
+```
+
+验证器只使用 CGNS API 重读输出，不链接求解器或其内存对象。`compare` 要求 zone 名、尺寸、
+字段集合完全一致；所有比较同时拒绝非有限值。后续 O2--O4 在这个可执行程序中增加光滑误差、
+守恒、截面和事件表等子命令，不改变已有命令语义。
+
+## 3. 矩阵驱动
+
+最小串行复现示例（路径按实际构建目录替换）：
+
+```text
+python tools/run_release_matrix.py \
+  --run build/wcns_run \
+  --generator build/wcns_generate_release_cgns \
+  --validator build/wcns_validate_release_case \
+  --template cases/config/freestream.wcns.in \
+  --work-dir build/release-smoke --ranks 1
+```
+
+MPI 使用 `--mpi-exec <mpiexec> --ranks 1,2,4`。原生多区/周期/三维扭曲分别通过
+`--zones-i`、`--periodic-x`、`--dimension 3 --cells-k ... --warp ...` 选择。驱动器只会
+清理含自身 `.wcns-release-matrix` 标记的既有目录；对未标记目录立即失败，防止误删用户数据。
+每个 rank 使用不同输出目录，随后以 rank 列表首项为参考逐场比较。
+
+CTest 中固定三条串行 smoke（二维、二维原生多区周期、三维扭曲），MPI 构建另执行
+1/2 rank 等价性 smoke。它们验证基础设施可用，不替代 O2--O6 冻结的中等网格发布矩阵。

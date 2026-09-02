@@ -198,6 +198,18 @@ if(WCNS_ENABLE_CGNS)
     target_link_libraries(wcns_runtime PRIVATE wcns::io wcns::cgns)
     add_executable(wcns_run src/app/wcns_run.cpp)
     target_link_libraries(wcns_run PRIVATE wcns::runtime wcns::io)
+
+    add_executable(
+        wcns_generate_release_cgns
+        tools/generate_release_cgns.cpp
+    )
+    target_link_libraries(wcns_generate_release_cgns PRIVATE wcns::core wcns::cgns)
+
+    add_executable(
+        wcns_validate_release_case
+        tools/validate_release_case.cpp
+    )
+    target_link_libraries(wcns_validate_release_case PRIVATE wcns::core wcns::cgns)
 endif()
 
 if(WCNS_BUILD_TESTS)
