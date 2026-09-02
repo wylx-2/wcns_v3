@@ -55,22 +55,57 @@ Real area_squared(const std::array<Real, 3>& area)
 
 } // namespace
 
+void ViscousStabilityCoefficients::validate() const
+{
+    if (!positive_finite(phenglei_2d_ssprk3)
+        || !positive_finite(phenglei_3d_ssprk3)
+        || !positive_finite(scmm6_2d_ssprk3)
+        || !positive_finite(scmm6_3d_ssprk3)) {
+        throw std::invalid_argument(
+            "all profile/dimension SSPRK3 viscous stability coefficients "
+            "must be positive and finite");
+    }
+}
+
+Real ViscousStabilityCoefficients::for_ssprk3(
+    AlgorithmProfileKind profile,
+    int dimension) const
+{
+    validate();
+    if (dimension != 2 && dimension != 3) {
+        throw std::invalid_argument(
+            "viscous SSPRK3 stability coefficient requires dimension 2 or 3");
+    }
+    if (profile == AlgorithmProfileKind::PhengleiWcns) {
+        return dimension == 2 ? phenglei_2d_ssprk3 : phenglei_3d_ssprk3;
+    }
+    if (profile == AlgorithmProfileKind::Scmm6Wcns) {
+        return dimension == 2 ? scmm6_2d_ssprk3 : scmm6_3d_ssprk3;
+    }
+    throw std::invalid_argument("unknown viscous SSPRK3 algorithm profile");
+}
+
+std::string ViscousStabilityCoefficients::summary() const
+{
+    validate();
+    return "Cv_phenglei_2d_ssprk3=" + std::to_string(phenglei_2d_ssprk3)
+        + " Cv_phenglei_3d_ssprk3=" + std::to_string(phenglei_3d_ssprk3)
+        + " Cv_scmm6_2d_ssprk3=" + std::to_string(scmm6_2d_ssprk3)
+        + " Cv_scmm6_3d_ssprk3=" + std::to_string(scmm6_3d_ssprk3);
+}
+
 void ViscousWcnsConfig::validate() const
 {
     inviscid.validate();
     transport.validate();
-    if (!positive_finite(viscous_stability_coefficient)) {
-        throw std::invalid_argument(
-            "viscous stability coefficient must be positive and finite");
-    }
+    stability.validate();
 }
 
 std::string ViscousWcnsConfig::summary() const
 {
     validate();
     return inviscid.summary() + ';' + transport.summary()
-        + "; viscous_stability_coefficient="
-        + std::to_string(viscous_stability_coefficient);
+        + "; " + stability.summary();
 }
 
 std::string ViscousWcnsConfig::restart_signature() const
@@ -257,6 +292,8 @@ Real ViscousWcnsSolver::global_time_step(Real cfl)
         update_temperature_primitive_interior(block, gas_, reference_, floors_);
         const auto& metric = metrics_.at(block.id());
         const auto cells = block.cell_extent();
+        const Real viscous_stability = config_.stability.for_ssprk3(
+            profile_.kind(), block.cell_dimension());
         for (int k = 0; k < cells.nk; ++k) {
             for (int j = 0; j < cells.nj; ++j) {
                 for (int i = 0; i < cells.ni; ++i) {
@@ -295,7 +332,7 @@ Real ViscousWcnsSolver::global_time_step(Real cfl)
                     const Real nu_effective = std::max(
                         mu / rho, mu / (rho * config_.transport.prandtl));
                     const Real denominator = inviscid_sum / (2.0 * jacobian)
-                        + config_.viscous_stability_coefficient * nu_effective
+                        + viscous_stability * nu_effective
                             * area_square_sum
                             / (2.0 * reference_.reynolds() * jacobian * jacobian);
                     if (!positive_finite(denominator)) {

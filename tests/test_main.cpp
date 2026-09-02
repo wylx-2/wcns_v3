@@ -43,6 +43,7 @@ void test_stage_j_source_models();
 void test_source_operator_balance();
 void test_timed_ssprk3_sources();
 void test_transport_model();
+void test_viscous_stability_coefficients();
 void test_viscous_cartesian_flux();
 void test_viscous_residual_reynolds_scaling();
 void test_viscous_flux_periodic_transform();
@@ -104,6 +105,7 @@ int main()
         test_source_operator_balance();
         test_timed_ssprk3_sources();
         test_transport_model();
+        test_viscous_stability_coefficients();
         test_viscous_cartesian_flux();
         test_viscous_residual_reynolds_scaling();
         test_viscous_flux_periodic_transform();

@@ -3,6 +3,7 @@
 #include <wcns/solver/transport_model.hpp>
 #include <wcns/solver/viscous_flux.hpp>
 #include <wcns/solver/viscous_operator.hpp>
+#include <wcns/solver/viscous_wcns_solver.hpp>
 #include <wcns/mesh/high_order_metrics.hpp>
 
 #include <cmath>
@@ -65,6 +66,30 @@ void test_transport_model()
     invalid.prandtl = 0.72;
     invalid.viscosity = SutherlandViscosity {1.0, -0.1};
     WCNS_REQUIRE_THROWS(std::invalid_argument, invalid.validate());
+}
+
+// 验收粘性时间步系数按 profile、维数和当前 SSPRK3 积分器显式选取。
+void test_viscous_stability_coefficients()
+{
+    using namespace wcns;
+    ViscousStabilityCoefficients coefficients;
+    coefficients.phenglei_2d_ssprk3 = 1.0;
+    coefficients.phenglei_3d_ssprk3 = 2.0;
+    coefficients.scmm6_2d_ssprk3 = 3.0;
+    coefficients.scmm6_3d_ssprk3 = 4.0;
+    WCNS_REQUIRE_NEAR(coefficients.for_ssprk3(
+        AlgorithmProfileKind::PhengleiWcns, 2), 1.0, 0.0);
+    WCNS_REQUIRE_NEAR(coefficients.for_ssprk3(
+        AlgorithmProfileKind::PhengleiWcns, 3), 2.0, 0.0);
+    WCNS_REQUIRE_NEAR(coefficients.for_ssprk3(
+        AlgorithmProfileKind::Scmm6Wcns, 2), 3.0, 0.0);
+    WCNS_REQUIRE_NEAR(coefficients.for_ssprk3(
+        AlgorithmProfileKind::Scmm6Wcns, 3), 4.0, 0.0);
+    WCNS_REQUIRE_THROWS(
+        std::invalid_argument,
+        coefficients.for_ssprk3(AlgorithmProfileKind::PhengleiWcns, 1));
+    coefficients.scmm6_3d_ssprk3 = 0.0;
+    WCNS_REQUIRE_THROWS(std::invalid_argument, coefficients.validate());
 }
 
 // 验收 Stokes 应力、Fourier 能量项、二维 z 约束以及本构中不含 Reynolds 缩放。

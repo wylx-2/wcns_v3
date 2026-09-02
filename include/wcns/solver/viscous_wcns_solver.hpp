@@ -5,10 +5,22 @@
 
 namespace wcns {
 
+struct ViscousStabilityCoefficients {
+    Real phenglei_2d_ssprk3 = 4.0;
+    Real phenglei_3d_ssprk3 = 4.0;
+    Real scmm6_2d_ssprk3 = 4.0;
+    Real scmm6_3d_ssprk3 = 4.0;
+
+    void validate() const;
+    [[nodiscard]] Real for_ssprk3(
+        AlgorithmProfileKind profile, int dimension) const;
+    [[nodiscard]] std::string summary() const;
+};
+
 struct ViscousWcnsConfig {
     InviscidWcnsConfig inviscid {};
     TransportConfig transport {};
-    Real viscous_stability_coefficient = 4.0;
+    ViscousStabilityCoefficients stability {};
 
     void validate() const;
     [[nodiscard]] std::string summary() const;
