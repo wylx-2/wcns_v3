@@ -45,6 +45,10 @@ public:
     [[nodiscard]] std::vector<Real> gather_reals(
         const std::vector<Real>& local_values,
         RankId root = 0) const;
+    [[nodiscard]] std::vector<Real> scatter_reals(
+        const std::vector<Real>& root_values,
+        const std::vector<std::size_t>& counts,
+        RankId root = 0) const;
 
 #if WCNS_HAS_MPI
     [[nodiscard]] MPI_Comm communicator() const noexcept { return MPI_COMM_WORLD; }

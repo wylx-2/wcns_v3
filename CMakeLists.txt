@@ -174,7 +174,10 @@ add_library(wcns::runtime ALIAS wcns_runtime)
 target_link_libraries(wcns_runtime PUBLIC wcns::solver)
 
 if(WCNS_ENABLE_CGNS)
-    target_sources(wcns_runtime PRIVATE src/runtime/field_output.cpp)
+    target_sources(wcns_runtime PRIVATE
+        src/runtime/checkpoint.cpp
+        src/runtime/field_output.cpp
+    )
     target_link_libraries(wcns_runtime PRIVATE wcns::io wcns::cgns)
     add_executable(wcns_run src/app/wcns_run.cpp)
     target_link_libraries(wcns_run PRIVATE wcns::runtime wcns::io)

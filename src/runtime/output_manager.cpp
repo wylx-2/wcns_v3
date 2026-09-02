@@ -507,8 +507,11 @@ void RuntimeOutputManager::on_final(const SimulationState& state)
         && statistics_schedule_.consume(state, false, true)) {
         write_statistics(state);
     }
+    const bool safety_checkpoint
+        = state.stop_reason == StopReason::WallTimeCheckpoint
+        || state.stop_reason == StopReason::UserSignalCheckpoint;
     dispatch(OutputCategory::Checkpoint, checkpoint_schedule_, state, false, true,
-        config_.output.checkpoint.enabled);
+        config_.output.checkpoint.enabled || safety_checkpoint);
     finish_history();
     finish_statistics();
     write_manifest(state);

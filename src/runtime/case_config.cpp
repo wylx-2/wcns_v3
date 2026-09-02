@@ -903,6 +903,10 @@ void CaseConfig::validate() const
     initial.validate();
     run.validate();
     output.validate();
+    if (run.max_wall_time > 0.0 && !output.checkpoint.enabled) {
+        throw CaseConfigurationError(
+            "positive max_wall_time requires checkpoint output");
+    }
     if (default_boundary == BoundaryType::Undefined) {
         throw CaseConfigurationError("default boundary type must be defined");
     }

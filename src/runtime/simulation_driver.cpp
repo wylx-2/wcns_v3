@@ -246,6 +246,18 @@ SimulationState SimulationDriver::run(SimulationInitialState initial)
             notify([&] { observer_.on_final(state); });
             return state;
         }
+    } else if (state.steady.reference_initialized
+        && state.step >= config_.steady.min_steps
+        && state.steady.consecutive_passes
+            >= config_.steady.consecutive_checks) {
+        state.stop_reason = StopReason::SteadyConverged;
+        notify([&] { observer_.on_final(state); });
+        return state;
+    }
+    if (state.step >= config_.max_steps) {
+        state.stop_reason = StopReason::MaximumSteps;
+        notify([&] { observer_.on_final(state); });
+        return state;
     }
 
     while (state.stop_reason == StopReason::Running) {

@@ -3,6 +3,7 @@
 #include <wcns/parallel/distributed_topology.hpp>
 #include <wcns/parallel/mpi_runtime.hpp>
 #include <wcns/runtime/case_config.hpp>
+#include <wcns/runtime/checkpoint.hpp>
 #include <wcns/runtime/field_output.hpp>
 #include <wcns/runtime/flow_initializer.hpp>
 #include <wcns/runtime/output_manager.hpp>
@@ -290,13 +291,6 @@ int main(int argc, char** argv)
                 std::forward_as_tuple(
                     wcns::initialize_metric_field(block, profile).metric));
         }
-        wcns::FlowInitializer::initialize_local_blocks(
-            local_blocks,
-            metrics,
-            config.initial,
-            gas,
-            reference,
-            floors);
         const auto boundary_data = make_boundary_data(
             local_blocks,
             config,
@@ -304,9 +298,41 @@ int main(int argc, char** argv)
             reference,
             floors);
 
+        wcns::QuantityContext quantity_context {
+            gas,
+            reference,
+            floors,
+            wcns::TransportModel(wcns::TransportConfig {}),
+            config.output.dimensional,
+        };
+        wcns::CheckpointService checkpoint(
+            mpi,
+            config,
+            plan,
+            local_blocks,
+            metrics,
+            quantity_context,
+            mesh_name);
+        wcns::SimulationInitialState simulation_initial;
+        if (config.restart_path.empty()) {
+            wcns::FlowInitializer::initialize_local_blocks(
+                local_blocks,
+                metrics,
+                config.initial,
+                gas,
+                reference,
+                floors);
+        } else {
+            const auto restart_name = resolve_mesh_path(
+                command.config_path,
+                config.restart_path);
+            simulation_initial = checkpoint.restore(restart_name).initial;
+        }
+
         if (mpi.rank() == 0) {
             std::cout << config.summary() << '\n'
                       << plan.summary() << '\n'
+                      << "mesh_signature=" << checkpoint.mesh_signature() << '\n'
                       << "derived Re=" << std::setprecision(17)
                       << reference.reynolds()
                       << " Ma=" << reference.mach() << '\n';
@@ -321,13 +347,6 @@ int main(int argc, char** argv)
         std::signal(SIGINT, request_stop);
         std::signal(SIGTERM, request_stop);
         ConsoleObserver console(mpi);
-        wcns::QuantityContext quantity_context {
-            gas,
-            reference,
-            floors,
-            wcns::TransportModel(wcns::TransportConfig {}),
-            config.output.dimensional,
-        };
         wcns::StatisticContext statistic_context {
             mpi,
             local_blocks,
@@ -356,8 +375,10 @@ int main(int argc, char** argv)
                 if (category == wcns::OutputCategory::Field) {
                     return field_writer.write(state);
                 }
-                throw std::runtime_error(
-                    "checkpoint writer is not installed yet");
+                if (category == wcns::OutputCategory::Checkpoint) {
+                    return checkpoint.write(state);
+                }
+                return {};
             });
         wcns::CompositeSimulationObserver observer;
         observer.add(console);
@@ -387,7 +408,7 @@ int main(int argc, char** argv)
                 config.run,
                 observer,
                 [] { return stop_requested != 0; });
-            final_state = driver.run();
+            final_state = driver.run(simulation_initial);
         } else {
             auto solver_config = config.make_inviscid_config();
             wcns::InviscidWcnsSolver solver(
@@ -411,7 +432,7 @@ int main(int argc, char** argv)
                 config.run,
                 observer,
                 [] { return stop_requested != 0; });
-            final_state = driver.run();
+            final_state = driver.run(simulation_initial);
         }
         if (mpi.rank() == 0) {
             std::cout << "WCNS run stopped: reason="

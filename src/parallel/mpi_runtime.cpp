@@ -280,4 +280,81 @@ std::vector<Real> MpiRuntime::gather_reals(
 #endif
 }
 
+std::vector<Real> MpiRuntime::scatter_reals(
+    const std::vector<Real>& root_values,
+    const std::vector<std::size_t>& counts,
+    RankId root) const
+{
+    if (root < 0 || root >= size_) {
+        throw MpiError("scatter root is outside MPI rank range");
+    }
+    std::vector<int> integer_counts;
+    std::vector<int> displacements;
+    int valid = 1;
+    if (rank_ == root) {
+        if (counts.size() != static_cast<std::size_t>(size_)) valid = 0;
+        integer_counts.resize(static_cast<std::size_t>(size_));
+        displacements.resize(static_cast<std::size_t>(size_));
+        std::size_t total = 0;
+        if (valid != 0) {
+            for (int rank = 0; rank < size_; ++rank) {
+                const auto count = counts[static_cast<std::size_t>(rank)];
+                if (count > static_cast<std::size_t>(
+                        std::numeric_limits<int>::max())
+                    || total > static_cast<std::size_t>(
+                        std::numeric_limits<int>::max()) - count) {
+                    valid = 0;
+                    break;
+                }
+                integer_counts[static_cast<std::size_t>(rank)]
+                    = static_cast<int>(count);
+                displacements[static_cast<std::size_t>(rank)]
+                    = static_cast<int>(total);
+                total += count;
+            }
+        }
+        if (valid != 0 && total != root_values.size()) valid = 0;
+    }
+#if WCNS_HAS_MPI
+    check_mpi(
+        MPI_Bcast(
+            &valid,
+            1,
+            MPI_INT,
+            static_cast<int>(root),
+            MPI_COMM_WORLD),
+        "MPI_Bcast real scatter validity");
+    if (valid == 0) throw MpiError("real scatter counts are invalid");
+    int local_count = 0;
+    check_mpi(
+        MPI_Scatter(
+            rank_ == root ? integer_counts.data() : nullptr,
+            1,
+            MPI_INT,
+            &local_count,
+            1,
+            MPI_INT,
+            static_cast<int>(root),
+            MPI_COMM_WORLD),
+        "MPI_Scatter real counts");
+    std::vector<Real> result(static_cast<std::size_t>(local_count));
+    check_mpi(
+        MPI_Scatterv(
+            rank_ == root && !root_values.empty() ? root_values.data() : nullptr,
+            rank_ == root ? integer_counts.data() : nullptr,
+            rank_ == root ? displacements.data() : nullptr,
+            MPI_DOUBLE,
+            result.empty() ? nullptr : result.data(),
+            local_count,
+            MPI_DOUBLE,
+            static_cast<int>(root),
+            MPI_COMM_WORLD),
+        "MPI_Scatterv real values");
+    return result;
+#else
+    if (valid == 0) throw MpiError("real scatter counts are invalid");
+    return root_values;
+#endif
+}
+
 } // namespace wcns

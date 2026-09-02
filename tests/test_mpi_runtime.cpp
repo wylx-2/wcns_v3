@@ -43,6 +43,21 @@ int main(int argc, char** argv)
         } else {
             WCNS_REQUIRE(gathered.empty());
         }
+        std::vector<wcns::Real> scatter_values;
+        std::vector<std::size_t> scatter_counts;
+        if (mpi.rank() == 0) {
+            scatter_counts.assign(static_cast<std::size_t>(mpi.size()), 2);
+            for (int rank = 0; rank < mpi.size(); ++rank) {
+                scatter_values.push_back(static_cast<wcns::Real>(rank));
+                scatter_values.push_back(3.0);
+            }
+        }
+        const auto scattered = mpi.scatter_reals(
+            scatter_values, scatter_counts);
+        WCNS_REQUIRE(scattered.size() == 2);
+        WCNS_REQUIRE_NEAR(
+            scattered[0], static_cast<wcns::Real>(mpi.rank()), 1.0e-15);
+        WCNS_REQUIRE_NEAR(scattered[1], 3.0, 1.0e-15);
         mpi.barrier();
         if (mpi.rank() == 0) {
             std::cout << "MPI runtime test passed with " << mpi.size() << " ranks\n";

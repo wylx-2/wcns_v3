@@ -77,6 +77,31 @@ if(WCNS_ENABLE_CGNS)
         ${CMAKE_CURRENT_BINARY_DIR}/freestream_output_mpi.wcns
         @ONLY
     )
+    set(WCNS_CHECKPOINT_OUTPUT checkpoint-validation)
+    set(WCNS_CHECKPOINT_ENABLED true)
+    set(WCNS_RESTART_FIELD false)
+    set(WCNS_RESTART_LINE "# fresh start")
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/checkpoint_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/checkpoint_source.wcns
+        @ONLY
+    )
+    set(WCNS_CHECKPOINT_ENABLED false)
+    set(WCNS_RESTART_FIELD true)
+    set(WCNS_RESTART_LINE
+        "restart.path = ${CMAKE_CURRENT_BINARY_DIR}/checkpoint-validation/checkpoint-freestream.checkpoint.latest.cgns")
+    set(WCNS_CHECKPOINT_OUTPUT restart-validation-serial)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/checkpoint_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/restart_serial.wcns
+        @ONLY
+    )
+    set(WCNS_CHECKPOINT_OUTPUT restart-validation-mpi)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/checkpoint_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/restart_mpi.wcns
+        @ONLY
+    )
     add_test(
         NAME wcns.run.freestream.serial
         COMMAND wcns_run
@@ -110,6 +135,40 @@ if(WCNS_ENABLE_CGNS)
     set_tests_properties(
         wcns.output_files.serial
         PROPERTIES FIXTURES_REQUIRED output_serial_files
+    )
+    add_executable(wcns_checkpoint_file_tests test_checkpoint_file.cpp)
+    target_link_libraries(wcns_checkpoint_file_tests PRIVATE wcns::core wcns::cgns)
+    add_test(
+        NAME wcns.run.checkpoint_source
+        COMMAND wcns_run
+            --config ${CMAKE_CURRENT_BINARY_DIR}/checkpoint_source.wcns
+    )
+    set_tests_properties(
+        wcns.run.checkpoint_source
+        PROPERTIES
+            FIXTURES_REQUIRED cgns_files
+            FIXTURES_SETUP checkpoint_file
+            RESOURCE_LOCK wcns_checkpoint_validation
+    )
+    add_test(
+        NAME wcns.checkpoint_file
+        COMMAND wcns_checkpoint_file_tests
+            ${CMAKE_CURRENT_BINARY_DIR}/checkpoint-validation/checkpoint-freestream.checkpoint.latest.cgns
+    )
+    set_tests_properties(
+        wcns.checkpoint_file
+        PROPERTIES FIXTURES_REQUIRED checkpoint_file
+    )
+    add_test(
+        NAME wcns.run.restart.serial
+        COMMAND wcns_run
+            --config ${CMAKE_CURRENT_BINARY_DIR}/restart_serial.wcns
+    )
+    set_tests_properties(
+        wcns.run.restart.serial
+        PROPERTIES
+            FIXTURES_REQUIRED checkpoint_file
+            RESOURCE_LOCK wcns_checkpoint_validation
     )
 
     add_executable(wcns_cgns_reader_tests
@@ -201,6 +260,18 @@ if(WCNS_ENABLE_CGNS)
         set_tests_properties(
             wcns.output_files.2
             PROPERTIES FIXTURES_REQUIRED output_mpi_files
+        )
+        add_test(
+            NAME wcns.run.restart.2
+            COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
+                $<TARGET_FILE:wcns_run>
+                --config ${CMAKE_CURRENT_BINARY_DIR}/restart_mpi.wcns
+        )
+        set_tests_properties(
+            wcns.run.restart.2
+            PROPERTIES
+                FIXTURES_REQUIRED checkpoint_file
+                RESOURCE_LOCK wcns_checkpoint_validation
         )
         foreach(rank_count IN ITEMS 4 8)
             add_test(
