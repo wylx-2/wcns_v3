@@ -143,6 +143,12 @@ ViscousWcnsSolver::ViscousWcnsSolver(
     , transport_(config_.transport)
 {
     config_.validate();
+    const auto riemann_registry = RiemannSolverRegistry::with_builtins(
+        config_.inviscid.riemann.parameters);
+    config_.inviscid.riemann.validate(riemann_registry);
+    riemann_ = RiemannSolver(
+        config_.inviscid.riemann.scheme, riemann_registry,
+        config_.inviscid.riemann.parameters);
     floors_.validate();
     if (!same_floors(config_.inviscid.reconstruction.floors, floors_)) {
         throw std::invalid_argument(

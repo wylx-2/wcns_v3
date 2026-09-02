@@ -30,19 +30,20 @@ bool same_floors(const NumericalFloors& lhs, const NumericalFloors& rhs)
 void InviscidWcnsConfig::validate() const
 {
     reconstruction.validate();
+    riemann.validate();
     source_terms.validate();
 }
 
 std::string InviscidWcnsConfig::summary() const
 {
     validate();
-    return reconstruction.summary() + ';' + boundary.summary() + ';'
-        + source_terms.summary();
+    return reconstruction.summary() + ';' + riemann.summary() + ';'
+        + boundary.summary() + ';' + source_terms.summary();
 }
 
 std::string InviscidWcnsConfig::restart_signature() const
 {
-    return "inviscid_wcns_v1;" + summary();
+    return "inviscid_wcns_v2;" + summary();
 }
 
 InviscidWcnsSolver::InviscidWcnsSolver(
@@ -73,6 +74,11 @@ InviscidWcnsSolver::InviscidWcnsSolver(
     , source_registry_(SourceTermRegistry::create_stage_j(config_.source_terms))
 {
     config_.validate();
+    const auto riemann_registry
+        = RiemannSolverRegistry::with_builtins(config_.riemann.parameters);
+    config_.riemann.validate(riemann_registry);
+    riemann_ = RiemannSolver(
+        config_.riemann.scheme, riemann_registry, config_.riemann.parameters);
     floors_.validate();
     if (!same_floors(config_.reconstruction.floors, floors_)) {
         throw std::invalid_argument(

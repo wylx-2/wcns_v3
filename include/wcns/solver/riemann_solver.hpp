@@ -26,6 +26,23 @@ enum class RiemannFallbackReason {
     NonFiniteFlux,
 };
 
+struct RiemannSolverParameters {
+    Real entropy_fix_coefficient = 0.1;
+    Real denominator_tolerance = 1.0e-12;
+
+    void validate() const;
+};
+
+struct RiemannConfig {
+    std::string scheme = "rusanov";
+    RiemannSolverParameters parameters {};
+
+    void validate() const;
+    void validate(const class RiemannSolverRegistry& registry) const;
+    [[nodiscard]] std::string summary() const;
+    [[nodiscard]] std::string restart_signature() const;
+};
+
 struct RiemannResult {
     ConservativeState flux_per_unit_area {};
     Real spectral_radius = 0.0;
@@ -56,7 +73,8 @@ public:
         std::string_view name) const;
     [[nodiscard]] std::vector<std::string> names() const;
 
-    [[nodiscard]] static RiemannSolverRegistry with_builtins();
+    [[nodiscard]] static RiemannSolverRegistry with_builtins(
+        const RiemannSolverParameters& parameters = {});
 
 private:
     std::unordered_map<std::string, Factory> factories_;
@@ -66,10 +84,13 @@ private:
 
 class RiemannSolver {
 public:
-    explicit RiemannSolver(RiemannSolverKind kind = RiemannSolverKind::Rusanov);
+    explicit RiemannSolver(
+        RiemannSolverKind kind = RiemannSolverKind::Rusanov,
+        RiemannSolverParameters parameters = {});
     explicit RiemannSolver(
         std::string_view name,
-        const RiemannSolverRegistry& registry);
+        const RiemannSolverRegistry& registry,
+        RiemannSolverParameters parameters = {});
 
     [[nodiscard]] std::string_view name() const noexcept;
     [[nodiscard]] std::string summary() const;
@@ -91,6 +112,7 @@ public:
 
 private:
     std::unique_ptr<IRiemannSolver> implementation_;
+    RiemannSolverParameters parameters_ {};
 };
 
 } // namespace wcns

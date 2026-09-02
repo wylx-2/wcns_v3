@@ -116,6 +116,8 @@ void test_stage_l_algorithm_registries()
         custom_config.validate(ReconstructionRegistry::with_builtins()));
 
     auto riemann_registry = RiemannSolverRegistry::with_builtins();
+    WCNS_REQUIRE(riemann_registry.names()
+        == std::vector<std::string>({"hllc", "roe", "rusanov"}));
     riemann_registry.register_solver(
         "custom_central",
         [] { return std::make_unique<CustomCentralRiemann>(); });
@@ -134,7 +136,8 @@ void test_stage_l_algorithm_registries()
         state, state, {1.0, 0.0, 0.0}, gas, {});
     WCNS_REQUIRE(result.requested_solver == "custom_central");
     WCNS_REQUIRE(result.used_solver == "custom_central");
-    WCNS_REQUIRE(custom_riemann.summary() == "riemann_solver=custom_central");
+    WCNS_REQUIRE(custom_riemann.summary().find(
+        "riemann_solver=custom_central;") == 0);
 }
 
 // 验收 WENO-JS/WENO-Z/MDCD-LINEAR/MDCD-HYBRID 的常数保持、尺度及镜像约定。
@@ -355,7 +358,91 @@ void test_reconstruction_positivity_fallback()
     WCNS_REQUIRE(diagnostics.first_order_fallbacks == 1);
 }
 
-// 验收 Rusanov 只接收单位法向、返回单位面积通量且自由流退化为解析 Euler 通量。
+// 验收三种 Riemann 求解器的相容性、接触保持、迎风极限和法向反转对称性。
+void test_stage_l_riemann_solvers()
+{
+    using namespace wcns;
+    const auto gas = reconstruction_gas();
+    const NumericalFloors floors;
+    const IdealGas ideal {gas.gamma(), floors.density, floors.pressure};
+    const Normal3 normal {0.6, 0.8, 0.0};
+    const PressurePrimitiveState uniform {1.1, 0.7, -0.2, 0.0, 0.9};
+    const auto exact = euler_flux(uniform, normal, ideal);
+    for (const auto kind : {RiemannSolverKind::Rusanov,
+             RiemannSolverKind::Hllc, RiemannSolverKind::Roe}) {
+        const RiemannSolver solver(kind);
+        const auto result = solver.solve(uniform, uniform, normal, gas, floors);
+        WCNS_REQUIRE(result.requested_solver == solver.name());
+        WCNS_REQUIRE(result.used_solver == solver.name());
+        WCNS_REQUIRE(result.fallback_reason == RiemannFallbackReason::None);
+        WCNS_REQUIRE(result.spectral_radius > 0.0);
+        for (int component = 0; component < euler_components; ++component) {
+            WCNS_REQUIRE_NEAR(
+                result.flux_per_unit_area[static_cast<std::size_t>(component)],
+                exact[static_cast<std::size_t>(component)], 2.0e-13);
+        }
+    }
+
+    const PressurePrimitiveState contact_left {1.0, 0.0, 0.0, 0.0, 1.0};
+    const PressurePrimitiveState contact_right {2.0, 0.0, 0.0, 0.0, 1.0};
+    const ConservativeState contact_flux {{0.0, 1.0, 0.0, 0.0, 0.0}};
+    const auto hllc_contact = RiemannSolver(RiemannSolverKind::Hllc).flux(
+        contact_left, contact_right, {1.0, 0.0, 0.0}, gas, floors);
+    for (int component = 0; component < euler_components; ++component) {
+        WCNS_REQUIRE_NEAR(
+            hllc_contact[static_cast<std::size_t>(component)],
+            contact_flux[static_cast<std::size_t>(component)], 3.0e-13);
+    }
+    const auto rusanov_contact = RiemannSolver(RiemannSolverKind::Rusanov).flux(
+        contact_left, contact_right, {1.0, 0.0, 0.0}, gas, floors);
+    WCNS_REQUIRE(std::abs(hllc_contact[0]) < std::abs(rusanov_contact[0]));
+
+    RiemannSolverParameters strong_entropy_fix;
+    strong_entropy_fix.entropy_fix_coefficient = 0.2;
+    const auto roe_contact = RiemannSolver(
+        RiemannSolverKind::Roe, strong_entropy_fix).flux(
+        contact_left, contact_right, {1.0, 0.0, 0.0}, gas, floors);
+    WCNS_REQUIRE(roe_contact[0] < 0.0);
+
+    const PressurePrimitiveState supersonic_left {1.0, 4.0, 0.1, 0.0, 1.0};
+    const PressurePrimitiveState supersonic_right {0.8, 3.5, -0.2, 0.0, 0.7};
+    const auto supersonic_exact = euler_flux(
+        supersonic_left, {1.0, 0.0, 0.0}, ideal);
+    const auto supersonic_hllc = RiemannSolver(RiemannSolverKind::Hllc).flux(
+        supersonic_left, supersonic_right, {1.0, 0.0, 0.0}, gas, floors);
+    for (int component = 0; component < euler_components; ++component) {
+        WCNS_REQUIRE_NEAR(
+            supersonic_hllc[static_cast<std::size_t>(component)],
+            supersonic_exact[static_cast<std::size_t>(component)], 0.0);
+    }
+
+    const PressurePrimitiveState left {1.0, 0.9, -0.3, 0.1, 1.2};
+    const PressurePrimitiveState right {0.7, -0.2, 0.4, -0.1, 0.6};
+    const Normal3 reverse_normal {-normal.x, -normal.y, -normal.z};
+    for (const auto kind : {RiemannSolverKind::Rusanov,
+             RiemannSolverKind::Hllc, RiemannSolverKind::Roe}) {
+        const RiemannSolver solver(kind);
+        const auto forward = solver.flux(left, right, normal, gas, floors);
+        const auto reverse = solver.flux(
+            right, left, reverse_normal, gas, floors);
+        for (int component = 0; component < euler_components; ++component) {
+            WCNS_REQUIRE_NEAR(
+                forward[static_cast<std::size_t>(component)],
+                -reverse[static_cast<std::size_t>(component)], 5.0e-13);
+        }
+    }
+
+    RiemannConfig config;
+    config.scheme = "hllc";
+    config.validate(RiemannSolverRegistry::with_builtins(config.parameters));
+    WCNS_REQUIRE(config.restart_signature().find("riemann_config_v1;") == 0);
+    config.scheme = "missing";
+    WCNS_REQUIRE_THROWS(
+        std::invalid_argument,
+        config.validate(RiemannSolverRegistry::with_builtins(config.parameters)));
+}
+
+// 验收默认 Rusanov 只接收单位法向并保持阶段 J 的解析 Euler 通量基线。
 void test_rusanov_riemann_solver()
 {
     using namespace wcns;
@@ -372,7 +459,7 @@ void test_rusanov_riemann_solver()
             flux[static_cast<std::size_t>(component)],
             exact[static_cast<std::size_t>(component)], 1.0e-14);
     }
-    WCNS_REQUIRE(solver.summary() == "riemann_solver=rusanov");
+    WCNS_REQUIRE(solver.summary().find("riemann_solver=rusanov;") == 0);
     WCNS_REQUIRE_THROWS(
         PhysicsError,
         solver.flux(state, state, {2.0, 0.0, 0.0}, gas, floors));
