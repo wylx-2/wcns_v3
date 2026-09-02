@@ -44,6 +44,8 @@ void test_source_operator_balance();
 void test_timed_ssprk3_sources();
 void test_transport_model();
 void test_viscous_cartesian_flux();
+void test_viscous_residual_reynolds_scaling();
+void test_viscous_flux_periodic_transform();
 void test_viscous_linear_gradients();
 void test_viscous_gradient_periodic_transform();
 void test_wall_dirichlet_derivative();
@@ -102,6 +104,8 @@ int main()
         test_timed_ssprk3_sources();
         test_transport_model();
         test_viscous_cartesian_flux();
+        test_viscous_residual_reynolds_scaling();
+        test_viscous_flux_periodic_transform();
         test_viscous_linear_gradients();
         test_viscous_gradient_periodic_transform();
         test_wall_dirichlet_derivative();

@@ -2,6 +2,8 @@
 
 #include <wcns/solver/transport_model.hpp>
 #include <wcns/solver/viscous_flux.hpp>
+#include <wcns/solver/viscous_operator.hpp>
+#include <wcns/mesh/high_order_metrics.hpp>
 
 #include <cmath>
 #include <stdexcept>
@@ -107,4 +109,72 @@ void test_viscous_cartesian_flux()
         PhysicsError,
         compute_viscous_cartesian_flux(
             trace, transport, gas, reference, NumericalFloors {}, 2));
+}
+
+// 验收粘性通量散度只在残差装配时乘一次 1/Re，并保持零质量粘性残差。
+void test_viscous_residual_reynolds_scaling()
+{
+    using namespace wcns;
+    for (const auto kind : {AlgorithmProfileKind::PhengleiWcns,
+             AlgorithmProfileKind::Scmm6Wcns}) {
+        StructuredBlock block(0, "viscous-residual", 0, 2, 2, {9, 9, 1}, 3);
+        const auto vertices = block.vertex_extent();
+        for (int j = 0; j < vertices.nj; ++j) {
+            for (int i = 0; i < vertices.ni; ++i) {
+                block.coordinates.x(i, j, 0) = static_cast<Real>(i);
+                block.coordinates.y(i, j, 0) = static_cast<Real>(j);
+                block.coordinates.z(i, j, 0) = 0.0;
+            }
+        }
+        const auto profile = ProfileFactory::create(kind);
+        const auto metric = initialize_metric_field(block, profile).metric;
+        ViscousFaceFluxField flux(
+            block.cell_extent(), 2, kind, 1);
+        for (const auto axis : {Axis::I, Axis::J}) {
+            auto& values = flux.field(axis);
+            values.fill(0.0);
+        }
+        auto& j_flux = flux.field(Axis::J);
+        const auto faces = j_flux.interior_extent();
+        for (int j = 0; j < faces.nj; ++j) {
+            for (int i = 0; i < faces.ni; ++i) {
+                j_flux(i, j, 0, momentum_x) = static_cast<Real>(j);
+            }
+        }
+        block.flow.residual.fill(0.0);
+        add_wcns_viscous_residual(block, metric, flux, profile, 10.0);
+        const auto cells = block.cell_extent();
+        for (int j = 0; j < cells.nj; ++j) {
+            for (int i = 0; i < cells.ni; ++i) {
+                WCNS_REQUIRE_NEAR(
+                    block.flow.residual(i, j, 0, momentum_x), 0.1, 2.0e-14);
+                WCNS_REQUIRE(block.flow.residual(i, j, 0, density) == 0.0);
+            }
+        }
+        block.flow.residual.fill(0.0);
+        add_wcns_viscous_residual(block, metric, flux, profile, 20.0);
+        WCNS_REQUIRE_NEAR(
+            block.flow.residual(3, 3, 0, momentum_x), 0.05, 2.0e-14);
+    }
+}
+
+// 验收旋转周期粘性面通量的 Cartesian 动量旋转及统一面方向变号。
+void test_viscous_flux_periodic_transform()
+{
+    using namespace wcns;
+    FaceFluxExchangeDescriptor descriptor;
+    descriptor.connection = 0;
+    descriptor.receiver_block = 0;
+    descriptor.donor_block = 1;
+    descriptor.orientation = -1.0;
+    descriptor.periodic.rotation = {{{{0.0, -1.0, 0.0}},
+        {{1.0, 0.0, 0.0}}, {{0.0, 0.0, 1.0}}}};
+    const ConservativeState donor {{0.0, 2.0, 3.0, 4.0, 5.0}};
+    const auto receiver = transform_viscous_face_flux_for_receiver(
+        donor, descriptor);
+    WCNS_REQUIRE(receiver[density] == 0.0);
+    WCNS_REQUIRE(receiver[momentum_x] == -3.0);
+    WCNS_REQUIRE(receiver[momentum_y] == 2.0);
+    WCNS_REQUIRE(receiver[momentum_z] == -4.0);
+    WCNS_REQUIRE(receiver[total_energy] == -5.0);
 }
