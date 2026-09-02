@@ -58,6 +58,7 @@ void test_viscous_gradient_periodic_transform();
 void test_viscous_manufactured_convergence();
 void test_wall_dirichlet_derivative();
 void test_viscous_boundary_trace();
+void test_case_config();
 
 // 顺序运行不依赖独立输入文件的全部单元验收入口。
 int main()
@@ -126,6 +127,7 @@ int main()
         test_viscous_manufactured_convergence();
         test_wall_dirichlet_derivative();
         test_viscous_boundary_trace();
+        test_case_config();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;

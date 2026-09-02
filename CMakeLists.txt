@@ -161,6 +161,12 @@ add_library(wcns_solver STATIC
 add_library(wcns::solver ALIAS wcns_solver)
 target_link_libraries(wcns_solver PUBLIC wcns::parallel wcns::physics)
 
+add_library(wcns_runtime STATIC
+    src/runtime/case_config.cpp
+)
+add_library(wcns::runtime ALIAS wcns_runtime)
+target_link_libraries(wcns_runtime PUBLIC wcns::solver)
+
 if(WCNS_BUILD_TESTS)
     include(CTest)
     add_subdirectory(tests)

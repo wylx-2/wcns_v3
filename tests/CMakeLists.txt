@@ -25,11 +25,12 @@ add_executable(wcns_unit_tests
     test_viscous_flux.cpp
     test_viscous_gradient.cpp
     test_viscous_boundary.cpp
+    test_case_config.cpp
 )
 
 target_link_libraries(
     wcns_unit_tests
-    PRIVATE wcns::core wcns::mesh wcns::parallel wcns::solver
+    PRIVATE wcns::core wcns::mesh wcns::parallel wcns::solver wcns::runtime
 )
 if(WCNS_ENABLE_CGNS)
     target_link_libraries(wcns_unit_tests PRIVATE wcns::cgns)
