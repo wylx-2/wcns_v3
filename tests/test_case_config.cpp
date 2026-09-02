@@ -34,7 +34,13 @@ initial.v = 0
 initial.w = 0
 initial.temperature = 1
 boundary.default = farfield
-boundary.wall.type = slip_wall
+boundary.wall.type = no_slip_isothermal_wall
+boundary.wall.wall_velocity_x = 0.75
+boundary.wall.wall_temperature = 1.1
+boundary.inlet.type = inflow
+boundary.inlet.rho = 1.05
+boundary.inlet.u = 0.3
+boundary.inlet.temperature = 0.95
 source.enabled = false
 run.mode = steady
 run.viscous = false
@@ -67,7 +73,16 @@ void test_case_config()
         WCNS_REQUIRE(config.riemann.scheme == "hllc");
         WCNS_REQUIRE(config.partition.mode == wcns::PartitionMode::AutoSplit);
         WCNS_REQUIRE(
-            config.boundary_overrides.at("wall") == wcns::BoundaryType::SlipWall);
+            config.boundary_overrides.at("wall")
+            == wcns::BoundaryType::NoSlipIsothermalWall);
+        WCNS_REQUIRE_NEAR(
+            *config.boundary_data.at("wall").wall_velocity[0], 0.75, 1.0e-15);
+        WCNS_REQUIRE_NEAR(
+            *config.boundary_data.at("wall").wall_temperature, 1.1, 1.0e-15);
+        WCNS_REQUIRE_NEAR(
+            *config.boundary_data.at("inlet").rho, 1.05, 1.0e-15);
+        WCNS_REQUIRE(config.restart_signature().find("wall_velocity_x=0.75")
+            != std::string::npos);
         WCNS_REQUIRE(config.run.max_steps == 10);
         WCNS_REQUIRE(config.run.mode == wcns::RunMode::Steady);
         WCNS_REQUIRE(config.output.directory == "output");
@@ -115,6 +130,24 @@ void test_case_config()
             wcns::CaseConfigurationError,
             wcns::CaseConfig::from_text(
                 valid_config() + "output.history.quantities = rho\n"));
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(
+                valid_config() + "boundary.bad.rho = 1\n"));
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(
+                valid_config()
+                + "boundary.bad.type = inflow\n"
+                  "boundary.bad.rho = 1\n"
+                  "boundary.bad.temperature = 1\n"
+                  "boundary.bad.pressure = 1\n"));
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(
+                valid_config()
+                + "boundary.bad.type = farfield\n"
+                  "boundary.bad.wall_temperature = 1\n"));
     }
     {
         auto two_gas_inputs = valid_config()

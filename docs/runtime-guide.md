@@ -87,7 +87,11 @@ Riemann 求解器；发生非法中间状态时按冻结的确定性回退链处
 - `sod_x`：`x0` 和 `left_/right_` 前缀的 `rho,u,v,p`；
 - `quadrant_riemann`：`x0,y0` 和 `ne_/nw_/sw_/se_` 前缀的 `rho,u,v,p`；
 - `isentropic_vortex`：`x0,y0,beta,background_u,background_v`；
-- `couette`：`rho,temperature`；
+- `couette`：`y0,y1,lower_velocity,upper_velocity,lower_temperature,`
+  `upper_temperature,temperature_curvature,pressure`；速度按 y 线性变化，温度为线性项加
+  `temperature_curvature*eta*(1-eta)`，密度由常压状态方程得到；
+- `linear_conduction`：`y0,y1,lower_temperature,upper_temperature,pressure`；速度为零、
+  温度按 y 线性变化，密度由常压状态方程得到；
 - `manufactured_periodic`：`beta,background_u,background_v`。
 
 未显式给出的初场参数使用相应初始化器的内建默认值。生产初始化只写真实单元；随后由统一
@@ -96,9 +100,18 @@ halo/物理边界路径填充所需 ghost。物理边界 ghost 只保证边界�
 
 `boundary.default` 以及按 CGNS 边界名覆盖的 `boundary.<patch>.type` 支持 `farfield`、
 `inflow`、`outflow`、`slip_wall`、`no_slip_adiabatic_wall`、
-`no_slip_isothermal_wall`、`symmetry`、`periodic`。当前标准入口中 farfield/inflow 状态取自
-配置初场在原点的解析值；等温壁温度取 `initial.temperature`。需要分边界非均匀入口状态或
-移动壁时，应在发布算例前扩展边界数据配置，不能假定通用入口已提供这些参数。
+`no_slip_isothermal_wall`、`symmetry`、`periodic`。按同一 CGNS 边界名还可设置：
+
+- 移动壁速度 `boundary.<patch>.wall_velocity_x/y/z`；
+- 等温壁温度 `boundary.<patch>.wall_temperature`；
+- 入口、远场或可选出口目标态 `boundary.<patch>.rho/u/v/w`，以及
+  `boundary.<patch>.temperature` 或 `boundary.<patch>.pressure` 二选一。
+
+一旦提供目标态中的任一字段，必须提供正的 `rho` 和恰好一个正的 `temperature|pressure`；
+未给出的速度分量为零。目标态不能配置到壁面，壁温只能配置到等温无滑移壁，壁速度只能
+配置到壁面。未提供分边界数据时，farfield/inflow 状态仍取初场在原点的解析值，等温壁温度
+仍回退到 `initial.temperature`（再回退为 1）。运行时切分后的边界 patch 保留原 CGNS 名，
+因此自动继承相同的分边界数据。边界数据进入配置摘要和数值重启签名。
 
 源项由 `source.enabled` 控制。关闭时不得设置非零源项参数；开启时 `source.models` 可列出：
 

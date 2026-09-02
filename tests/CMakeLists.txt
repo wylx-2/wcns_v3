@@ -91,6 +91,28 @@ if(WCNS_ENABLE_CGNS)
         ${CMAKE_CURRENT_BINARY_DIR}/periodic_rotation_3d.wcns
         @ONLY
     )
+    set(WCNS_VISCOUS_CASE couette-analytic)
+    set(WCNS_VISCOUS_INITIAL couette)
+    set(WCNS_VISCOUS_LOWER_U 0.0)
+    set(WCNS_VISCOUS_UPPER_U 0.2)
+    set(WCNS_VISCOUS_LOWER_T 1.0)
+    set(WCNS_VISCOUS_UPPER_T 1.0)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/viscous_analytic_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/couette_analytic.wcns
+        @ONLY
+    )
+    set(WCNS_VISCOUS_CASE linear-conduction-analytic)
+    set(WCNS_VISCOUS_INITIAL linear_conduction)
+    set(WCNS_VISCOUS_LOWER_U 0.0)
+    set(WCNS_VISCOUS_UPPER_U 0.0)
+    set(WCNS_VISCOUS_LOWER_T 1.0)
+    set(WCNS_VISCOUS_UPPER_T 2.0)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/viscous_analytic_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/linear_conduction_analytic.wcns
+        @ONLY
+    )
     set(WCNS_OUTPUT_SUBDIR output-validation-serial)
     set(WCNS_HISTORY_FORMAT txt)
     configure_file(
@@ -200,6 +222,17 @@ if(WCNS_ENABLE_CGNS)
         )
         set_tests_properties(
             wcns.run.periodic_${periodic_case}.serial
+            PROPERTIES FIXTURES_REQUIRED cgns_files
+        )
+    endforeach()
+    foreach(viscous_case IN ITEMS couette_analytic linear_conduction_analytic)
+        add_test(
+            NAME wcns.run.${viscous_case}.serial
+            COMMAND wcns_run
+                --config ${CMAKE_CURRENT_BINARY_DIR}/${viscous_case}.wcns
+        )
+        set_tests_properties(
+            wcns.run.${viscous_case}.serial
             PROPERTIES FIXTURES_REQUIRED cgns_files
         )
     endforeach()
@@ -441,6 +474,18 @@ if(WCNS_ENABLE_CGNS)
             wcns.run.periodic_translation_2d.4
             PROPERTIES FIXTURES_REQUIRED cgns_files
         )
+        foreach(viscous_case IN ITEMS couette_analytic linear_conduction_analytic)
+            add_test(
+                NAME wcns.run.${viscous_case}.2
+                COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
+                    $<TARGET_FILE:wcns_run>
+                    --config ${CMAKE_CURRENT_BINARY_DIR}/${viscous_case}.wcns
+            )
+            set_tests_properties(
+                wcns.run.${viscous_case}.2
+                PROPERTIES FIXTURES_REQUIRED cgns_files
+            )
+        endforeach()
         add_test(
             NAME wcns.run.output.2
             COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2

@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <array>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -45,6 +46,22 @@ struct InitialConditionConfig {
     [[nodiscard]] Real parameter(
         const std::string& name,
         Real default_value) const;
+    [[nodiscard]] std::string summary() const;
+};
+
+struct BoundaryPhysicalDataConfig {
+    std::array<std::optional<Real>, 3> wall_velocity;
+    std::optional<Real> wall_temperature;
+    std::optional<Real> rho;
+    std::optional<Real> u;
+    std::optional<Real> v;
+    std::optional<Real> w;
+    std::optional<Real> temperature;
+    std::optional<Real> pressure;
+
+    [[nodiscard]] bool has_wall_velocity() const noexcept;
+    [[nodiscard]] bool has_target_state() const noexcept;
+    void validate() const;
     [[nodiscard]] std::string summary() const;
 };
 
@@ -159,6 +176,7 @@ struct CaseConfig {
     InitialConditionConfig initial;
     BoundaryType default_boundary = BoundaryType::Farfield;
     std::unordered_map<std::string, BoundaryType> boundary_overrides;
+    std::unordered_map<std::string, BoundaryPhysicalDataConfig> boundary_data;
     SourceTermConfig source_terms;
     CaseRunConfig run;
     OutputConfig output;

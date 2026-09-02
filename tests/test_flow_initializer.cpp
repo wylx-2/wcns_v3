@@ -116,4 +116,39 @@ void test_flow_initializer()
         WCNS_REQUIRE(center[0] > 0.0);
         WCNS_REQUIRE(center[4] > 0.0);
     }
+    {
+        InitialConditionConfig config;
+        config.type = "couette";
+        config.parameters = {
+            {"y0", 0.0}, {"y1", 2.0},
+            {"lower_velocity", -0.25}, {"upper_velocity", 0.75},
+            {"lower_temperature", 1.0}, {"upper_temperature", 1.4},
+            {"temperature_curvature", 0.2}, {"pressure", 0.8},
+        };
+        const auto middle = FlowInitializer::evaluate(
+            config, {0.0, 1.0, 0.0}, gas, reference, floors, 2);
+        WCNS_REQUIRE_NEAR(middle[1], 0.25, 1.0e-14);
+        WCNS_REQUIRE_NEAR(middle[4], 1.25, 1.0e-14);
+        WCNS_REQUIRE_NEAR(
+            pressure_primitive(middle, gas, reference, floors, 2)[4],
+            0.8,
+            1.0e-14);
+    }
+    {
+        InitialConditionConfig config;
+        config.type = "linear_conduction";
+        config.parameters = {
+            {"y0", -1.0}, {"y1", 1.0},
+            {"lower_temperature", 1.0}, {"upper_temperature", 2.0},
+            {"pressure", 0.6},
+        };
+        const auto middle = FlowInitializer::evaluate(
+            config, {0.0, 0.0, 0.0}, gas, reference, floors, 2);
+        WCNS_REQUIRE_NEAR(middle[1], 0.0, 1.0e-14);
+        WCNS_REQUIRE_NEAR(middle[4], 1.5, 1.0e-14);
+        WCNS_REQUIRE_NEAR(
+            pressure_primitive(middle, gas, reference, floors, 2)[4],
+            0.6,
+            1.0e-14);
+    }
 }

@@ -193,13 +193,47 @@ wcns::BlockBoundaryDataMap make_boundary_data(
         wcns::BoundaryDataMap data;
         for (const auto& patch : block.boundaries) {
             wcns::BoundaryData patch_data;
+            const auto configured = config.boundary_data.find(patch.name);
+            const wcns::BoundaryPhysicalDataConfig* physical
+                = configured == config.boundary_data.end()
+                ? nullptr : &configured->second;
+            if (physical != nullptr) {
+                for (std::size_t component = 0; component < 3; ++component) {
+                    patch_data.wall_velocity[component]
+                        = physical->wall_velocity[component].value_or(0.0);
+                }
+            }
             if (patch.type == wcns::BoundaryType::Farfield
                 || patch.type == wcns::BoundaryType::Inflow) {
                 patch_data.target_state = target;
             }
+            if (physical != nullptr && physical->has_target_state()) {
+                const wcns::Real rho = *physical->rho;
+                const wcns::Real u = physical->u.value_or(0.0);
+                const wcns::Real v = physical->v.value_or(0.0);
+                const wcns::Real w = physical->w.value_or(0.0);
+                if (physical->temperature) {
+                    const wcns::TemperaturePrimitiveState state {
+                        rho, u, v, w, *physical->temperature,
+                    };
+                    static_cast<void>(wcns::pressure_primitive(
+                        state, gas, reference, floors, block.cell_dimension()));
+                    patch_data.target_state = state;
+                } else {
+                    patch_data.target_state = wcns::temperature_primitive(
+                        {rho, u, v, w, *physical->pressure},
+                        gas,
+                        reference,
+                        floors,
+                        block.cell_dimension());
+                }
+            }
             if (patch.type == wcns::BoundaryType::NoSlipIsothermalWall) {
-                patch_data.wall_temperature = config.initial.parameter(
-                    "temperature", 1.0);
+                patch_data.wall_temperature
+                    = physical != nullptr && physical->wall_temperature
+                    ? physical->wall_temperature
+                    : std::optional<wcns::Real>(
+                        config.initial.parameter("temperature", 1.0));
             }
             patch_data.validate(patch.type, block.cell_dimension());
             data.emplace(patch.name, patch_data);

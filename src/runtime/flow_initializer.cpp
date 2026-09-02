@@ -44,6 +44,98 @@ TemperaturePrimitiveState from_pressure(
         dimension);
 }
 
+TemperaturePrimitiveState constant_pressure_temperature(
+    Real pressure,
+    Real u,
+    Real v,
+    Real w,
+    Real temperature,
+    const GasModel& gas,
+    const ReferenceScales& reference,
+    const NumericalFloors& floors,
+    int dimension)
+{
+    const Real rho = gas.gamma() * reference.mach() * reference.mach()
+        * pressure / temperature;
+    return from_temperature(
+        rho, u, v, w, temperature,
+        gas, reference, floors, dimension);
+}
+
+Real normalized_wall_coordinate(
+    const InitialConditionConfig& config,
+    Real y)
+{
+    const Real y0 = config.parameter("y0", 0.0);
+    const Real y1 = config.parameter("y1", 1.0);
+    return (y - y0) / (y1 - y0);
+}
+
+Real analytic_pressure(
+    const InitialConditionConfig& config,
+    const GasModel& gas,
+    const ReferenceScales& reference)
+{
+    return config.parameter(
+        "pressure",
+        1.0 / (gas.gamma() * reference.mach() * reference.mach()));
+}
+
+TemperaturePrimitiveState couette_state(
+    const InitialConditionConfig& config,
+    Real y,
+    const GasModel& gas,
+    const ReferenceScales& reference,
+    const NumericalFloors& floors,
+    int dimension)
+{
+    const Real eta = normalized_wall_coordinate(config, y);
+    const Real lower_u = config.parameter("lower_velocity", 0.0);
+    const Real upper_u = config.parameter("upper_velocity", 1.0);
+    const Real lower_temperature = config.parameter(
+        "lower_temperature", config.parameter("temperature", 1.0));
+    const Real upper_temperature = config.parameter(
+        "upper_temperature", config.parameter("temperature", 1.0));
+    const Real temperature = lower_temperature
+        + (upper_temperature - lower_temperature) * eta
+        + config.parameter("temperature_curvature", 0.0) * eta * (1.0 - eta);
+    return constant_pressure_temperature(
+        analytic_pressure(config, gas, reference),
+        lower_u + (upper_u - lower_u) * eta,
+        0.0,
+        0.0,
+        temperature,
+        gas,
+        reference,
+        floors,
+        dimension);
+}
+
+TemperaturePrimitiveState linear_conduction_state(
+    const InitialConditionConfig& config,
+    Real y,
+    const GasModel& gas,
+    const ReferenceScales& reference,
+    const NumericalFloors& floors,
+    int dimension)
+{
+    const Real eta = normalized_wall_coordinate(config, y);
+    const Real lower_temperature = config.parameter("lower_temperature", 1.0);
+    const Real upper_temperature = config.parameter("upper_temperature", 2.0);
+    const Real temperature = lower_temperature
+        + (upper_temperature - lower_temperature) * eta;
+    return constant_pressure_temperature(
+        analytic_pressure(config, gas, reference),
+        0.0,
+        0.0,
+        0.0,
+        temperature,
+        gas,
+        reference,
+        floors,
+        dimension);
+}
+
 TemperaturePrimitiveState uniform_state(
     const InitialConditionConfig& config,
     const GasModel& gas,
@@ -214,16 +306,14 @@ TemperaturePrimitiveState FlowInitializer::evaluate(
             gas, reference, floors, dimension);
     }
     if (config.type == "couette") {
-        return from_temperature(
-            config.parameter("rho", 1.0),
-            coordinates[1],
-            0.0,
-            0.0,
-            config.parameter("temperature", 1.0),
-            gas,
-            reference,
-            floors,
-            dimension);
+        return couette_state(
+            config, coordinates[1],
+            gas, reference, floors, dimension);
+    }
+    if (config.type == "linear_conduction") {
+        return linear_conduction_state(
+            config, coordinates[1],
+            gas, reference, floors, dimension);
     }
     if (config.type == "manufactured_periodic") {
         return manufactured_state(

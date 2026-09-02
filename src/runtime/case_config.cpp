@@ -225,6 +225,9 @@ const std::set<std::string>& fixed_keys()
         "partition.max_load_ratio", "partition.min_cells_per_active_direction",
         "initial.type", "initial.rho", "initial.u", "initial.v", "initial.w",
         "initial.pressure", "initial.temperature", "initial.x0", "initial.y0",
+        "initial.y1", "initial.lower_velocity", "initial.upper_velocity",
+        "initial.lower_temperature", "initial.upper_temperature",
+        "initial.temperature_curvature",
         "initial.beta", "initial.background_u", "initial.background_v",
         "initial.left_rho", "initial.left_u", "initial.left_v", "initial.left_p",
         "initial.right_rho", "initial.right_u", "initial.right_v", "initial.right_p",
@@ -270,14 +273,30 @@ const std::set<std::string>& fixed_keys()
 bool dynamic_boundary_key(const std::string& key)
 {
     constexpr std::string_view prefix = "boundary.";
-    constexpr std::string_view suffix = ".type";
-    return key.size() > prefix.size() + suffix.size()
-        && key.compare(0, prefix.size(), prefix.data(), prefix.size()) == 0
-        && key.compare(
-            key.size() - suffix.size(),
-            suffix.size(),
-            suffix.data(),
-            suffix.size()) == 0;
+    if (key.size() <= prefix.size()
+        || key.compare(0, prefix.size(), prefix.data(), prefix.size()) != 0) {
+        return false;
+    }
+    const auto separator = key.rfind('.');
+    if (separator == std::string::npos || separator <= prefix.size()
+        || separator + 1 >= key.size()) {
+        return false;
+    }
+    static const std::set<std::string> properties {
+        "type", "wall_velocity_x", "wall_velocity_y", "wall_velocity_z",
+        "wall_temperature", "rho", "u", "v", "w", "temperature", "pressure",
+    };
+    return properties.find(key.substr(separator + 1)) != properties.end();
+}
+
+std::pair<std::string, std::string> split_boundary_key(const std::string& key)
+{
+    constexpr std::size_t prefix_size = std::string_view("boundary.").size();
+    const auto separator = key.rfind('.');
+    return {
+        key.substr(prefix_size, separator - prefix_size),
+        key.substr(separator + 1),
+    };
 }
 
 void reject_unknown_keys(const EntryMap& entries)
@@ -462,7 +481,7 @@ void InitialConditionConfig::validate(int dimension) const
 {
     static const std::set<std::string> valid_types {
         "uniform", "quadrant_riemann", "sod_x", "isentropic_vortex",
-        "couette", "manufactured_periodic",
+        "couette", "linear_conduction", "manufactured_periodic",
     };
     if (valid_types.find(type) == valid_types.end()) {
         throw CaseConfigurationError("unknown initial condition type: " + type);
@@ -484,6 +503,37 @@ void InitialConditionConfig::validate(int dimension) const
         throw CaseConfigurationError(
             "initial density, temperature and pressure must be positive");
     }
+    if (type == "couette" || type == "linear_conduction") {
+        const Real y0 = parameter("y0", 0.0);
+        const Real y1 = parameter("y1", 1.0);
+        const Real lower_temperature = parameter(
+            "lower_temperature", parameter("temperature", 1.0));
+        const Real upper_temperature = parameter(
+            "upper_temperature", parameter("temperature", 1.0));
+        if (!(y1 > y0) || lower_temperature <= 0.0
+            || upper_temperature <= 0.0
+            || parameter("pressure", 1.0) <= 0.0) {
+            throw CaseConfigurationError(
+                "analytic viscous initial bounds, pressure and temperatures are invalid");
+        }
+        if (type == "couette") {
+            const Real curvature = parameter("temperature_curvature", 0.0);
+            // T(eta)=T0+(T1-T0)eta+c*eta*(1-eta), eta in [0,1].
+            if (curvature < 0.0) {
+                const Real vertex = 0.5
+                    * (1.0 + (upper_temperature - lower_temperature) / curvature);
+                if (vertex > 0.0 && vertex < 1.0) {
+                    const Real temperature = lower_temperature
+                        + (upper_temperature - lower_temperature) * vertex
+                        + curvature * vertex * (1.0 - vertex);
+                    if (temperature <= 0.0) {
+                        throw CaseConfigurationError(
+                            "Couette analytic temperature is not positive");
+                    }
+                }
+            }
+        }
+    }
 }
 
 std::string InitialConditionConfig::summary() const
@@ -498,6 +548,79 @@ std::string InitialConditionConfig::summary() const
     }
     result << ')';
     return result.str();
+}
+
+bool BoundaryPhysicalDataConfig::has_wall_velocity() const noexcept
+{
+    return std::any_of(
+        wall_velocity.begin(), wall_velocity.end(),
+        [](const auto& value) { return value.has_value(); });
+}
+
+bool BoundaryPhysicalDataConfig::has_target_state() const noexcept
+{
+    return rho || u || v || w || temperature || pressure;
+}
+
+void BoundaryPhysicalDataConfig::validate() const
+{
+    const auto require_finite = [](const std::optional<Real>& value, const char* name) {
+        if (value && !std::isfinite(*value)) {
+            throw CaseConfigurationError(
+                std::string("boundary physical value is not finite: ") + name);
+        }
+    };
+    for (std::size_t component = 0; component < wall_velocity.size(); ++component) {
+        require_finite(wall_velocity[component], "wall_velocity");
+    }
+    require_finite(wall_temperature, "wall_temperature");
+    require_finite(rho, "rho");
+    require_finite(u, "u");
+    require_finite(v, "v");
+    require_finite(w, "w");
+    require_finite(temperature, "temperature");
+    require_finite(pressure, "pressure");
+    if (wall_temperature && *wall_temperature <= 0.0) {
+        throw CaseConfigurationError("boundary wall_temperature must be positive");
+    }
+    if (rho && *rho <= 0.0) {
+        throw CaseConfigurationError("boundary target rho must be positive");
+    }
+    if (temperature && *temperature <= 0.0) {
+        throw CaseConfigurationError("boundary target temperature must be positive");
+    }
+    if (pressure && *pressure <= 0.0) {
+        throw CaseConfigurationError("boundary target pressure must be positive");
+    }
+    if (temperature && pressure) {
+        throw CaseConfigurationError(
+            "boundary target must specify temperature or pressure, not both");
+    }
+    if (has_target_state() && (!rho || (!temperature && !pressure))) {
+        throw CaseConfigurationError(
+            "boundary target requires rho and exactly one of temperature or pressure");
+    }
+}
+
+std::string BoundaryPhysicalDataConfig::summary() const
+{
+    std::ostringstream result;
+    result << std::setprecision(17);
+    const auto append = [&](const char* name, const std::optional<Real>& value) {
+        if (value) result << ',' << name << '=' << *value;
+    };
+    append("wall_velocity_x", wall_velocity[0]);
+    append("wall_velocity_y", wall_velocity[1]);
+    append("wall_velocity_z", wall_velocity[2]);
+    append("wall_temperature", wall_temperature);
+    append("rho", rho);
+    append("u", u);
+    append("v", v);
+    append("w", w);
+    append("temperature", temperature);
+    append("pressure", pressure);
+    auto text = result.str();
+    return text.empty() ? text : text.substr(1);
 }
 
 void SteadyConvergenceConfig::validate() const
@@ -759,11 +882,23 @@ CaseConfig CaseConfig::from_text(const std::string& text)
     result.default_boundary = parse_boundary_type(require(entries, "boundary.default"));
     for (const auto& [key, value] : entries) {
         if (!dynamic_boundary_key(key)) continue;
-        constexpr std::size_t prefix_size = std::string_view("boundary.").size();
-        constexpr std::size_t suffix_size = std::string_view(".type").size();
-        const auto name = key.substr(
-            prefix_size, key.size() - prefix_size - suffix_size);
-        result.boundary_overrides.emplace(name, parse_boundary_type(value));
+        const auto [name, property] = split_boundary_key(key);
+        if (property == "type") {
+            result.boundary_overrides.emplace(name, parse_boundary_type(value));
+            continue;
+        }
+        auto& data = result.boundary_data[name];
+        const Real parsed = parse_real(value, key);
+        if (property == "wall_velocity_x") data.wall_velocity[0] = parsed;
+        else if (property == "wall_velocity_y") data.wall_velocity[1] = parsed;
+        else if (property == "wall_velocity_z") data.wall_velocity[2] = parsed;
+        else if (property == "wall_temperature") data.wall_temperature = parsed;
+        else if (property == "rho") data.rho = parsed;
+        else if (property == "u") data.u = parsed;
+        else if (property == "v") data.v = parsed;
+        else if (property == "w") data.w = parsed;
+        else if (property == "temperature") data.temperature = parsed;
+        else if (property == "pressure") data.pressure = parsed;
     }
 
     result.source_terms.enable_source_terms = parse_bool(
@@ -920,6 +1055,34 @@ void CaseConfig::validate() const
             throw CaseConfigurationError("boundary override is invalid");
         }
     }
+    for (const auto& [name, data] : boundary_data) {
+        if (name.empty()) {
+            throw CaseConfigurationError("boundary data name must not be empty");
+        }
+        data.validate();
+        const auto type_iterator = boundary_overrides.find(name);
+        const BoundaryType type = type_iterator == boundary_overrides.end()
+            ? default_boundary : type_iterator->second;
+        const bool wall = type == BoundaryType::SlipWall
+            || type == BoundaryType::NoSlipAdiabaticWall
+            || type == BoundaryType::NoSlipIsothermalWall;
+        const bool target = type == BoundaryType::Farfield
+            || type == BoundaryType::Inflow
+            || type == BoundaryType::Outflow;
+        if (data.has_wall_velocity() && !wall) {
+            throw CaseConfigurationError(
+                "wall velocity is only valid for wall boundary: " + name);
+        }
+        if (data.wall_temperature
+            && type != BoundaryType::NoSlipIsothermalWall) {
+            throw CaseConfigurationError(
+                "wall temperature requires an isothermal wall: " + name);
+        }
+        if (data.has_target_state() && !target) {
+            throw CaseConfigurationError(
+                "target state is only valid for inflow, farfield or outflow: " + name);
+        }
+    }
     auto inviscid = make_inviscid_config();
     inviscid.validate();
 }
@@ -956,6 +1119,10 @@ std::string CaseConfig::summary() const
     std::vector<std::pair<std::string, BoundaryType>> boundaries(
         boundary_overrides.begin(), boundary_overrides.end());
     std::sort(boundaries.begin(), boundaries.end());
+    std::vector<std::pair<std::string, BoundaryPhysicalDataConfig>> physical_data(
+        boundary_data.begin(), boundary_data.end());
+    std::sort(physical_data.begin(), physical_data.end(),
+        [](const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
     std::ostringstream result;
     result << "case(schema=" << schema_version << ",name=" << case_name
            << ",mesh=" << mesh_path << ",profile=" << make_profile().name()
@@ -965,6 +1132,9 @@ std::string CaseConfig::summary() const
            << ",boundary.default=" << boundary_type_name(default_boundary);
     for (const auto& [name, type] : boundaries) {
         result << ",boundary." << name << '=' << boundary_type_name(type);
+    }
+    for (const auto& [name, data] : physical_data) {
+        result << ",boundary_data." << name << '(' << data.summary() << ')';
     }
     result << ',' << source_terms.summary() << ',' << run.summary()
            << ',' << output.summary()
@@ -978,6 +1148,10 @@ std::string CaseConfig::restart_signature() const
     std::vector<std::pair<std::string, BoundaryType>> boundaries(
         boundary_overrides.begin(), boundary_overrides.end());
     std::sort(boundaries.begin(), boundaries.end());
+    std::vector<std::pair<std::string, BoundaryPhysicalDataConfig>> physical_data(
+        boundary_data.begin(), boundary_data.end());
+    std::sort(physical_data.begin(), physical_data.end(),
+        [](const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
     std::ostringstream result;
     result << "schema=" << schema_version << ";profile="
            << make_profile().restart_signature() << ";reconstruction="
@@ -989,6 +1163,9 @@ std::string CaseConfig::restart_signature() const
     for (const auto& boundary : boundaries) {
         result << ";boundary." << boundary.first << '='
                << boundary_type_name(boundary.second);
+    }
+    for (const auto& [name, data] : physical_data) {
+        result << ";boundary_data." << name << '=' << data.summary();
     }
     result << ";source=" << source_terms.restart_signature()
            << ";viscous=" << (run.viscous ? "true" : "false");
