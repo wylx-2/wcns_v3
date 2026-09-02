@@ -25,7 +25,7 @@ public:
         return blocks_;
     }
 
-    void validate_connectivities() const;
+    void validate_connectivities(bool validate_coordinates = true) const;
 
 private:
     std::vector<StructuredBlock> blocks_;

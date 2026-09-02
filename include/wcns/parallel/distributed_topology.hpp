@@ -21,7 +21,8 @@ class DistributedTopology {
 public:
     [[nodiscard]] static DistributedTopology build(
         const StructuredMesh& mesh,
-        const BlockDistribution& distribution);
+        const BlockDistribution& distribution,
+        bool validate_coordinates = true);
 
     [[nodiscard]] const std::vector<DirectedExchange>& exchanges() const noexcept
     {
@@ -36,4 +37,3 @@ private:
 };
 
 } // namespace wcns
-

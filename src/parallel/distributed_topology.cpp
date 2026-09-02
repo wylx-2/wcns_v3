@@ -61,12 +61,13 @@ int DirectedExchange::message_tag(int tag_base) const
 
 DistributedTopology DistributedTopology::build(
     const StructuredMesh& mesh,
-    const BlockDistribution& distribution)
+    const BlockDistribution& distribution,
+    bool validate_coordinates)
 {
     if (mesh.block_count() != distribution.assignments().size()) {
         throw TopologyError("mesh and distribution contain different block counts");
     }
-    mesh.validate_connectivities();
+    mesh.validate_connectivities(validate_coordinates);
 
     std::vector<const ConnectivityPatch*> canonical;
     for (const auto& block : mesh.blocks()) {

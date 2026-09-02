@@ -127,7 +127,7 @@ const StructuredBlock& StructuredMesh::block(BlockId id) const
     return blocks_[iterator->second];
 }
 
-void StructuredMesh::validate_connectivities() const
+void StructuredMesh::validate_connectivities(bool validate_coordinates) const
 {
     for (const auto& receiver : blocks_) {
         for (const auto& connection : receiver.connectivities) {
@@ -186,7 +186,9 @@ void StructuredMesh::validate_connectivities() const
                 throw TopologyError(
                     "connectivity " + connection.name + " has no reciprocal donor record");
             }
-            validate_interface_coordinates(receiver, donor, connection);
+            if (validate_coordinates) {
+                validate_interface_coordinates(receiver, donor, connection);
+            }
         }
     }
 }

@@ -6,7 +6,9 @@
 #include <cstdlib>
 #include <cstddef>
 #include <limits>
+#include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace wcns {
@@ -80,15 +82,34 @@ void validate_base_dimensions(int cell_dimension, int physical_dimension)
 std::vector<double> read_coordinate(
     int file,
     const CgnsZoneMetadata& zone,
-    const char* coordinate_name)
+    const char* coordinate_name,
+    Index3 vertex_begin,
+    Index3 vertex_end)
 {
-    std::array<cgsize_t, 3> lower {{1, 1, 1}};
-    std::array<cgsize_t, 3> upper {{
-        static_cast<cgsize_t>(zone.vertex_extent.ni),
-        static_cast<cgsize_t>(zone.vertex_extent.nj),
-        static_cast<cgsize_t>(zone.vertex_extent.nk),
+    std::array<cgsize_t, 3> lower {{
+        static_cast<cgsize_t>(vertex_begin.i + 1),
+        static_cast<cgsize_t>(vertex_begin.j + 1),
+        static_cast<cgsize_t>(vertex_begin.k + 1),
     }};
-    std::vector<double> values(zone.vertex_extent.size());
+    std::array<cgsize_t, 3> upper {{
+        static_cast<cgsize_t>(vertex_end.i + 1),
+        static_cast<cgsize_t>(vertex_end.j + 1),
+        static_cast<cgsize_t>(vertex_end.k + 1),
+    }};
+    const Extent3 extent {
+        vertex_end.i - vertex_begin.i + 1,
+        vertex_end.j - vertex_begin.j + 1,
+        vertex_end.k - vertex_begin.k + 1,
+    };
+    if (vertex_begin.i < 0 || vertex_begin.j < 0 || vertex_begin.k < 0
+        || vertex_end.i < vertex_begin.i || vertex_end.j < vertex_begin.j
+        || vertex_end.k < vertex_begin.k
+        || vertex_end.i >= zone.vertex_extent.ni
+        || vertex_end.j >= zone.vertex_extent.nj
+        || vertex_end.k >= zone.vertex_extent.nk) {
+        throw CgnsError("coordinate read range is outside the zone vertex extent");
+    }
+    std::vector<double> values(extent.size());
     check_cgns(
         cg_coord_read(
             file,
@@ -101,6 +122,23 @@ std::vector<double> read_coordinate(
             values.data()),
         "cg_coord_read");
     return values;
+}
+
+std::vector<double> read_coordinate(
+    int file,
+    const CgnsZoneMetadata& zone,
+    const char* coordinate_name)
+{
+    return read_coordinate(
+        file,
+        zone,
+        coordinate_name,
+        {0, 0, 0},
+        {
+            zone.vertex_extent.ni - 1,
+            zone.vertex_extent.nj - 1,
+            zone.vertex_extent.nk - 1,
+        });
 }
 
 void copy_coordinate(const std::vector<double>& source, Array3D<Real>& destination)
@@ -324,13 +362,16 @@ IndexRange3 make_boundary_face_range(
     return faces;
 }
 
-void read_boundaries(int file, const CgnsZoneMetadata& zone, StructuredBlock& block)
+std::vector<BoundaryPatch> read_boundaries(
+    int file,
+    const CgnsZoneMetadata& zone)
 {
     int boundary_count = 0;
     check_cgns(
         cg_nbocos(file, zone.base_file_index, zone.zone_file_index, &boundary_count),
         "cg_nbocos");
-    block.boundaries.reserve(static_cast<std::size_t>(boundary_count));
+    std::vector<BoundaryPatch> boundaries;
+    boundaries.reserve(static_cast<std::size_t>(boundary_count));
 
     for (int boundary_index = 1; boundary_index <= boundary_count; ++boundary_index) {
         char name[33] = {};
@@ -387,12 +428,12 @@ void read_boundaries(int file, const CgnsZoneMetadata& zone, StructuredBlock& bl
 
         const auto vertex_range = convert_vertex_range(
             points,
-            block.vertex_extent(),
+            zone.vertex_extent,
             zone.cell_dimension,
             "boundary vertex PointRange");
         const auto face = identify_boundary_face(
-            vertex_range, block.vertex_extent(), zone.cell_dimension);
-        block.boundaries.push_back({
+            vertex_range, zone.vertex_extent, zone.cell_dimension);
+        boundaries.push_back({
             name,
             convert_boundary_type(boundary_type),
             face,
@@ -400,18 +441,19 @@ void read_boundaries(int file, const CgnsZoneMetadata& zone, StructuredBlock& bl
             AdjacentCellRange(make_adjacent_cell_range(
                 vertex_range,
                 face,
-                block.cell_extent(),
+                zone.cell_extent,
                 zone.cell_dimension,
                 "boundary adjacent-cell range")),
             BoundaryFaceRange(make_boundary_face_range(
                 vertex_range,
                 face,
-                block.cell_extent(),
+                zone.cell_extent,
                 zone.cell_dimension,
                 "boundary face range")),
             {},
         });
     }
+    return boundaries;
 }
 
 const CgnsZoneMetadata& find_donor_zone(
@@ -436,17 +478,18 @@ const CgnsZoneMetadata& find_donor_zone(
     return *result;
 }
 
-void read_connectivities(
+std::vector<ConnectivityPatch> read_connectivities(
     int file,
     const CgnsZoneMetadata& zone,
     const CgnsMeshMetadata& metadata,
-    StructuredBlock& block)
+    int ghost_width)
 {
     int connection_count = 0;
     check_cgns(
         cg_n1to1(file, zone.base_file_index, zone.zone_file_index, &connection_count),
         "cg_n1to1");
-    block.connectivities.reserve(static_cast<std::size_t>(connection_count));
+    std::vector<ConnectivityPatch> connectivities;
+    connectivities.reserve(static_cast<std::size_t>(connection_count));
 
     for (int connection_index = 1; connection_index <= connection_count;
          ++connection_index) {
@@ -483,7 +526,7 @@ void read_connectivities(
             donor_points.begin(), donor_points.begin() + value_count);
         const auto receiver_vertex_range = convert_vertex_range(
             receiver_values,
-            block.vertex_extent(),
+            zone.vertex_extent,
             zone.cell_dimension,
             "connectivity receiver vertex range");
         const auto donor_vertex_range = convert_vertex_range(
@@ -492,7 +535,7 @@ void read_connectivities(
             zone.cell_dimension,
             "connectivity donor vertex range");
         const auto receiver_face = identify_boundary_face(
-            receiver_vertex_range, block.vertex_extent(), zone.cell_dimension);
+            receiver_vertex_range, zone.vertex_extent, zone.cell_dimension);
         const auto donor_face = identify_boundary_face(
             donor_vertex_range, donor_zone.vertex_extent, zone.cell_dimension);
 
@@ -515,9 +558,9 @@ void read_connectivities(
                 + " Transform does not map receiver range onto donor range");
         }
 
-        block.connectivities.push_back({
+        connectivities.push_back({
             name,
-            block.id(),
+            zone.block_id,
             donor_zone.block_id,
             invalid_rank_id,
             receiver_face,
@@ -527,7 +570,7 @@ void read_connectivities(
             ReceiverAdjacentCellRange(make_adjacent_cell_range(
                 receiver_vertex_range,
                 receiver_face,
-                block.cell_extent(),
+                zone.cell_extent,
                 zone.cell_dimension,
                 "connectivity receiver adjacent-cell range")),
             DonorAdjacentCellRange(make_adjacent_cell_range(
@@ -539,13 +582,14 @@ void read_connectivities(
             SharedFaceRange(make_boundary_face_range(
                 receiver_vertex_range,
                 receiver_face,
-                block.cell_extent(),
+                zone.cell_extent,
                 zone.cell_dimension,
                 "connectivity shared-face range")),
             transform,
-            block.ghost_width(),
+            ghost_width,
         });
     }
+    return connectivities;
 }
 
 StructuredBlock read_block_data(
@@ -579,9 +623,452 @@ StructuredBlock read_block_data(
         block.coordinates.z.fill(0.0);
     }
 
-    read_boundaries(file, zone, block);
-    read_connectivities(file, zone, metadata, block);
+    block.boundaries = read_boundaries(file, zone);
+    block.connectivities = read_connectivities(
+        file, zone, metadata, ghost_width);
     return block;
+}
+
+const CgnsZoneMetadata& find_source_zone(
+    const CgnsMeshMetadata& metadata,
+    BlockId source_zone)
+{
+    for (const auto& zone : metadata.zones) {
+        if (zone.block_id == source_zone) return zone;
+    }
+    throw CgnsError(
+        "partition leaf references unknown source zone "
+        + std::to_string(source_zone));
+}
+
+Extent3 leaf_cell_extent(
+    const CgnsPartitionLeaf& leaf,
+    int dimension)
+{
+    return {
+        leaf.cell_end.i - leaf.cell_begin.i,
+        leaf.cell_end.j - leaf.cell_begin.j,
+        dimension == 3 ? leaf.cell_end.k - leaf.cell_begin.k : 1,
+    };
+}
+
+void validate_leaf(
+    const CgnsPartitionLeaf& leaf,
+    const CgnsZoneMetadata& zone)
+{
+    if (leaf.block_id < 0 || leaf.owner_rank < 0
+        || leaf.cell_begin.i < 0 || leaf.cell_begin.j < 0
+        || leaf.cell_end.i <= leaf.cell_begin.i
+        || leaf.cell_end.j <= leaf.cell_begin.j
+        || leaf.cell_end.i > zone.cell_extent.ni
+        || leaf.cell_end.j > zone.cell_extent.nj) {
+        throw CgnsError("partition leaf cell range is invalid");
+    }
+    if (zone.cell_dimension == 3) {
+        if (leaf.cell_begin.k < 0 || leaf.cell_end.k <= leaf.cell_begin.k
+            || leaf.cell_end.k > zone.cell_extent.nk) {
+            throw CgnsError("three-dimensional partition K range is invalid");
+        }
+    } else if (leaf.cell_begin.k != 0 || leaf.cell_end.k != 1) {
+        throw CgnsError("two-dimensional partition K range must be [0,1)");
+    }
+}
+
+StructuredBlock make_leaf_block(
+    int file,
+    const CgnsZoneMetadata& zone,
+    const CgnsPartitionLeaf& leaf,
+    int ghost_width,
+    bool read_coordinates)
+{
+    const auto cells = leaf_cell_extent(leaf, zone.cell_dimension);
+    const Extent3 vertices {
+        cells.ni + 1,
+        cells.nj + 1,
+        zone.cell_dimension == 3 ? cells.nk + 1 : 1,
+    };
+    StructuredBlock block(
+        leaf.block_id,
+        zone.name + "__part_" + std::to_string(leaf.block_id),
+        leaf.owner_rank,
+        zone.cell_dimension,
+        zone.physical_dimension,
+        vertices,
+        ghost_width);
+    if (!read_coordinates) {
+        const auto invalid = std::numeric_limits<Real>::quiet_NaN();
+        block.coordinates.x.fill(invalid);
+        block.coordinates.y.fill(invalid);
+        block.coordinates.z.fill(invalid);
+        return block;
+    }
+    if (!coordinate_exists(file, zone, "CoordinateX")
+        || !coordinate_exists(file, zone, "CoordinateY")) {
+        throw CgnsError("structured zone must provide CoordinateX and CoordinateY");
+    }
+    const Index3 vertex_end {
+        leaf.cell_end.i,
+        leaf.cell_end.j,
+        zone.cell_dimension == 3 ? leaf.cell_end.k : 0,
+    };
+    copy_coordinate(
+        read_coordinate(
+            file, zone, "CoordinateX", leaf.cell_begin, vertex_end),
+        block.coordinates.x);
+    copy_coordinate(
+        read_coordinate(
+            file, zone, "CoordinateY", leaf.cell_begin, vertex_end),
+        block.coordinates.y);
+    if (coordinate_exists(file, zone, "CoordinateZ")) {
+        copy_coordinate(
+            read_coordinate(
+                file, zone, "CoordinateZ", leaf.cell_begin, vertex_end),
+            block.coordinates.z);
+    } else if (zone.physical_dimension == 3) {
+        throw CgnsError("three-dimensional physical space requires CoordinateZ");
+    } else {
+        block.coordinates.z.fill(0.0);
+    }
+    return block;
+}
+
+std::optional<IndexRange3> intersect_leaf_vertices(
+    const IndexRange3& range,
+    const CgnsPartitionLeaf& leaf,
+    int dimension)
+{
+    IndexRange3 result;
+    for (int axis = 0; axis < dimension; ++axis) {
+        const auto a = static_cast<std::size_t>(axis);
+        const int range_low = std::min(range.begin[a], range.end[a]);
+        const int range_high = std::max(range.begin[a], range.end[a]);
+        const int low = std::max(range_low, leaf.cell_begin[a]);
+        const int high = std::min(range_high, leaf.cell_end[a]);
+        if (low > high) return std::nullopt;
+        if (range.end[a] >= range.begin[a]) {
+            result.begin[a] = low;
+            result.end[a] = high;
+        } else {
+            result.begin[a] = high;
+            result.end[a] = low;
+        }
+    }
+    if (dimension == 2) {
+        result.begin.k = 0;
+        result.end.k = 0;
+    }
+    return result;
+}
+
+IndexRange3 localize_range(
+    IndexRange3 range,
+    const CgnsPartitionLeaf& leaf,
+    int dimension)
+{
+    for (int axis = 0; axis < dimension; ++axis) {
+        const auto a = static_cast<std::size_t>(axis);
+        range.begin[a] -= leaf.cell_begin[a];
+        range.end[a] -= leaf.cell_begin[a];
+    }
+    if (dimension == 2) {
+        range.begin.k = 0;
+        range.end.k = 0;
+    }
+    return range;
+}
+
+bool is_face_range(
+    const IndexRange3& range,
+    FaceLocation face,
+    int dimension)
+{
+    for (int axis = 0; axis < dimension; ++axis) {
+        const auto count = range.counts()[static_cast<std::size_t>(axis)];
+        if (axis == static_cast<int>(face.axis)) {
+            if (count != 1) return false;
+        } else if (count < 2) {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::vector<BoundaryPatch> slice_boundaries(
+    const std::vector<BoundaryPatch>& source,
+    const CgnsPartitionLeaf& leaf,
+    Extent3 local_cells,
+    int dimension)
+{
+    std::vector<BoundaryPatch> result;
+    for (const auto& patch : source) {
+        const auto intersection = intersect_leaf_vertices(
+            patch.vertex_range.untyped(), leaf, dimension);
+        if (!intersection || !is_face_range(*intersection, patch.face, dimension)) {
+            continue;
+        }
+        const auto local_vertices = localize_range(*intersection, leaf, dimension);
+        result.push_back({
+            patch.name,
+            patch.type,
+            patch.face,
+            VertexRange(local_vertices),
+            AdjacentCellRange(make_adjacent_cell_range(
+                local_vertices,
+                patch.face,
+                local_cells,
+                dimension,
+                "partitioned boundary adjacent-cell range")),
+            BoundaryFaceRange(make_boundary_face_range(
+                local_vertices,
+                patch.face,
+                local_cells,
+                dimension,
+                "partitioned boundary face range")),
+            patch.parameters,
+        });
+    }
+    return result;
+}
+
+void append_original_connectivities(
+    std::vector<StructuredBlock>& blocks,
+    const std::unordered_map<BlockId, std::vector<ConnectivityPatch>>& source_connections,
+    const std::vector<CgnsPartitionLeaf>& leaves)
+{
+    std::unordered_map<BlockId, std::size_t> block_index;
+    for (std::size_t index = 0; index < blocks.size(); ++index) {
+        block_index.emplace(blocks[index].id(), index);
+    }
+    for (const auto& receiver_leaf : leaves) {
+        auto& receiver_block = blocks.at(block_index.at(receiver_leaf.block_id));
+        const auto connection_iterator = source_connections.find(
+            receiver_leaf.source_zone);
+        if (connection_iterator == source_connections.end()) continue;
+        for (const auto& source : connection_iterator->second) {
+            const auto receiver_intersection = intersect_leaf_vertices(
+                source.receiver_vertex_range.untyped(),
+                receiver_leaf,
+                receiver_block.cell_dimension());
+            if (!receiver_intersection
+                || !is_face_range(
+                    *receiver_intersection,
+                    source.receiver_face,
+                    receiver_block.cell_dimension())) {
+                continue;
+            }
+            const IndexRange3 donor_candidate {
+                source.transform.map(
+                    receiver_intersection->begin,
+                    source.receiver_vertex_range.begin,
+                    source.donor_vertex_range.begin,
+                    receiver_block.cell_dimension()),
+                source.transform.map(
+                    receiver_intersection->end,
+                    source.receiver_vertex_range.begin,
+                    source.donor_vertex_range.begin,
+                    receiver_block.cell_dimension()),
+            };
+            for (const auto& donor_leaf : leaves) {
+                if (donor_leaf.source_zone != source.donor_block) continue;
+                const auto donor_intersection = intersect_leaf_vertices(
+                    donor_candidate,
+                    donor_leaf,
+                    receiver_block.cell_dimension());
+                if (!donor_intersection
+                    || !is_face_range(
+                        *donor_intersection,
+                        source.donor_face,
+                        receiver_block.cell_dimension())) {
+                    continue;
+                }
+                const auto inverse = source.transform.inverse(
+                    receiver_block.cell_dimension());
+                const IndexRange3 receiver_piece {
+                    inverse.map(
+                        donor_intersection->begin,
+                        source.donor_vertex_range.begin,
+                        source.receiver_vertex_range.begin,
+                        receiver_block.cell_dimension()),
+                    inverse.map(
+                        donor_intersection->end,
+                        source.donor_vertex_range.begin,
+                        source.receiver_vertex_range.begin,
+                        receiver_block.cell_dimension()),
+                };
+                const auto local_receiver = localize_range(
+                    receiver_piece,
+                    receiver_leaf,
+                    receiver_block.cell_dimension());
+                const auto local_donor = localize_range(
+                    *donor_intersection,
+                    donor_leaf,
+                    receiver_block.cell_dimension());
+                const auto& donor_block = blocks.at(
+                    block_index.at(donor_leaf.block_id));
+                receiver_block.connectivities.push_back({
+                    source.name + "__part_" + std::to_string(receiver_leaf.block_id)
+                        + "_to_" + std::to_string(donor_leaf.block_id),
+                    receiver_leaf.block_id,
+                    donor_leaf.block_id,
+                    donor_leaf.owner_rank,
+                    source.receiver_face,
+                    source.donor_face,
+                    ReceiverVertexRange(local_receiver),
+                    DonorVertexRange(local_donor),
+                    ReceiverAdjacentCellRange(make_adjacent_cell_range(
+                        local_receiver,
+                        source.receiver_face,
+                        receiver_block.cell_extent(),
+                        receiver_block.cell_dimension(),
+                        "partitioned receiver adjacent-cell range")),
+                    DonorAdjacentCellRange(make_adjacent_cell_range(
+                        local_donor,
+                        source.donor_face,
+                        donor_block.cell_extent(),
+                        donor_block.cell_dimension(),
+                        "partitioned donor adjacent-cell range")),
+                    SharedFaceRange(make_boundary_face_range(
+                        local_receiver,
+                        source.receiver_face,
+                        receiver_block.cell_extent(),
+                        receiver_block.cell_dimension(),
+                        "partitioned shared-face range")),
+                    source.transform,
+                    receiver_block.ghost_width(),
+                    invalid_connection_id,
+                    source.periodic,
+                });
+            }
+        }
+    }
+}
+
+void append_sibling_connectivities(
+    std::vector<StructuredBlock>& blocks,
+    const std::vector<CgnsPartitionLeaf>& leaves)
+{
+    std::unordered_map<BlockId, std::size_t> block_index;
+    for (std::size_t index = 0; index < blocks.size(); ++index) {
+        block_index.emplace(blocks[index].id(), index);
+    }
+    for (std::size_t first = 0; first < leaves.size(); ++first) {
+        for (std::size_t second = first + 1; second < leaves.size(); ++second) {
+            const auto& lhs = leaves[first];
+            const auto& rhs = leaves[second];
+            if (lhs.source_zone != rhs.source_zone) continue;
+            const int dimension = blocks.at(block_index.at(lhs.block_id)).cell_dimension();
+            int normal_axis = -1;
+            Side lhs_side = Side::Upper;
+            IndexRange3 global_vertices;
+            bool valid = true;
+            for (int axis = 0; axis < dimension; ++axis) {
+                const auto a = static_cast<std::size_t>(axis);
+                if (lhs.cell_end[a] == rhs.cell_begin[a]) {
+                    if (normal_axis >= 0) {
+                        valid = false;
+                        break;
+                    }
+                    normal_axis = axis;
+                    lhs_side = Side::Upper;
+                    global_vertices.begin[a] = lhs.cell_end[a];
+                    global_vertices.end[a] = lhs.cell_end[a];
+                } else if (rhs.cell_end[a] == lhs.cell_begin[a]) {
+                    if (normal_axis >= 0) {
+                        valid = false;
+                        break;
+                    }
+                    normal_axis = axis;
+                    lhs_side = Side::Lower;
+                    global_vertices.begin[a] = lhs.cell_begin[a];
+                    global_vertices.end[a] = lhs.cell_begin[a];
+                } else {
+                    const int low = std::max(lhs.cell_begin[a], rhs.cell_begin[a]);
+                    const int high = std::min(lhs.cell_end[a], rhs.cell_end[a]);
+                    if (high <= low) {
+                        valid = false;
+                        break;
+                    }
+                    global_vertices.begin[a] = low;
+                    global_vertices.end[a] = high;
+                }
+            }
+            if (!valid || normal_axis < 0) continue;
+            if (dimension == 2) {
+                global_vertices.begin.k = 0;
+                global_vertices.end.k = 0;
+            }
+            auto& lhs_block = blocks.at(block_index.at(lhs.block_id));
+            auto& rhs_block = blocks.at(block_index.at(rhs.block_id));
+            const FaceLocation lhs_face {
+                static_cast<Axis>(normal_axis), lhs_side};
+            const FaceLocation rhs_face {
+                static_cast<Axis>(normal_axis),
+                lhs_side == Side::Upper ? Side::Lower : Side::Upper};
+            const auto lhs_vertices = localize_range(
+                global_vertices, lhs, dimension);
+            const auto rhs_vertices = localize_range(
+                global_vertices, rhs, dimension);
+            const auto add = [&](StructuredBlock& receiver,
+                                 const CgnsPartitionLeaf& receiver_leaf,
+                                 const IndexRange3& receiver_vertices,
+                                 FaceLocation receiver_face,
+                                 StructuredBlock& donor,
+                                 const CgnsPartitionLeaf& donor_leaf,
+                                 const IndexRange3& donor_vertices,
+                                 FaceLocation donor_face) {
+                receiver.connectivities.push_back({
+                    "partition_internal_" + std::to_string(receiver_leaf.block_id)
+                        + "_to_" + std::to_string(donor_leaf.block_id),
+                    receiver_leaf.block_id,
+                    donor_leaf.block_id,
+                    donor_leaf.owner_rank,
+                    receiver_face,
+                    donor_face,
+                    ReceiverVertexRange(receiver_vertices),
+                    DonorVertexRange(donor_vertices),
+                    ReceiverAdjacentCellRange(make_adjacent_cell_range(
+                        receiver_vertices,
+                        receiver_face,
+                        receiver.cell_extent(),
+                        dimension,
+                        "partition sibling receiver cells")),
+                    DonorAdjacentCellRange(make_adjacent_cell_range(
+                        donor_vertices,
+                        donor_face,
+                        donor.cell_extent(),
+                        dimension,
+                        "partition sibling donor cells")),
+                    SharedFaceRange(make_boundary_face_range(
+                        receiver_vertices,
+                        receiver_face,
+                        receiver.cell_extent(),
+                        dimension,
+                        "partition sibling shared faces")),
+                    {},
+                    receiver.ghost_width(),
+                });
+            };
+            add(
+                lhs_block, lhs, lhs_vertices, lhs_face,
+                rhs_block, rhs, rhs_vertices, rhs_face);
+            add(
+                rhs_block, rhs, rhs_vertices, rhs_face,
+                lhs_block, lhs, lhs_vertices, lhs_face);
+        }
+    }
+}
+
+void copy_topology_to_local(
+    const std::vector<StructuredBlock>& global_blocks,
+    std::vector<StructuredBlock>& local_blocks)
+{
+    std::unordered_map<BlockId, const StructuredBlock*> sources;
+    for (const auto& block : global_blocks) sources.emplace(block.id(), &block);
+    for (auto& local : local_blocks) {
+        const auto* source = sources.at(local.id());
+        local.boundaries = source->boundaries;
+        local.connectivities = source->connectivities;
+    }
 }
 
 } // namespace
@@ -676,6 +1163,66 @@ StructuredMesh CgnsReader::read_mesh(
         throw CgnsError(std::string("invalid CGNS multiblock topology: ") + error.what());
     }
     return mesh;
+}
+
+CgnsPartitionedMesh CgnsReader::read_partitioned_mesh(
+    const std::string& path,
+    const std::vector<CgnsPartitionLeaf>& leaves,
+    RankId local_rank,
+    int ghost_width) const
+{
+    if (local_rank < 0 || ghost_width < 0 || leaves.empty()) {
+        throw CgnsError("partitioned CGNS read arguments are invalid");
+    }
+    const auto metadata = read_metadata(path);
+    FileHandle file(path);
+    std::vector<StructuredBlock> global_blocks;
+    std::vector<StructuredBlock> local_blocks;
+    global_blocks.reserve(leaves.size());
+    std::unordered_map<BlockId, std::vector<BoundaryPatch>> source_boundaries;
+    std::unordered_map<BlockId, std::vector<ConnectivityPatch>> source_connections;
+    std::unordered_map<BlockId, bool> block_ids;
+
+    for (const auto& zone : metadata.zones) {
+        source_boundaries.emplace(
+            zone.block_id, read_boundaries(file.id(), zone));
+        source_connections.emplace(
+            zone.block_id,
+            read_connectivities(file.id(), zone, metadata, ghost_width));
+    }
+    for (const auto& leaf : leaves) {
+        const auto& zone = find_source_zone(metadata, leaf.source_zone);
+        validate_leaf(leaf, zone);
+        if (!block_ids.emplace(leaf.block_id, true).second) {
+            throw CgnsError("partition leaf block ids must be unique");
+        }
+        auto global = make_leaf_block(
+            file.id(), zone, leaf, ghost_width, false);
+        global.boundaries = slice_boundaries(
+            source_boundaries.at(zone.block_id),
+            leaf,
+            global.cell_extent(),
+            zone.cell_dimension);
+        global_blocks.push_back(std::move(global));
+        if (leaf.owner_rank == local_rank) {
+            local_blocks.push_back(make_leaf_block(
+                file.id(), zone, leaf, ghost_width, true));
+        }
+    }
+
+    append_original_connectivities(
+        global_blocks, source_connections, leaves);
+    append_sibling_connectivities(global_blocks, leaves);
+    copy_topology_to_local(global_blocks, local_blocks);
+
+    StructuredMesh global_mesh(std::move(global_blocks));
+    try {
+        global_mesh.validate_connectivities(false);
+    } catch (const TopologyError& error) {
+        throw CgnsError(
+            std::string("invalid partitioned CGNS topology: ") + error.what());
+    }
+    return {std::move(global_mesh), std::move(local_blocks)};
 }
 
 } // namespace wcns

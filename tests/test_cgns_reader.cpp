@@ -2,8 +2,11 @@
 
 #include <wcns/io/cgns_reader.hpp>
 #include <wcns/mesh/metrics.hpp>
+#include <wcns/parallel/block_distribution.hpp>
+#include <wcns/parallel/distributed_topology.hpp>
 
 #include <cstdlib>
+#include <cmath>
 #include <exception>
 #include <iostream>
 #include <stdexcept>
@@ -257,6 +260,77 @@ void test_out_of_extent_connectivity(const char* path)
     throw std::runtime_error("out-of-extent CGNS connectivity was accepted");
 }
 
+// 验收单 CGNS zone 的坐标 hyperslab、物理边界切片和兄弟块互反连接。
+void test_partitioned_zone(const char* path)
+{
+    wcns::CgnsReader reader;
+    const std::vector<wcns::CgnsPartitionLeaf> leaves {
+        {0, 0, {0, 0, 0}, {2, 3, 1}, 0},
+        {1, 0, {2, 0, 0}, {4, 3, 1}, 1},
+    };
+    auto partitioned = reader.read_partitioned_mesh(path, leaves, 1, 3);
+    WCNS_REQUIRE(partitioned.global_mesh.block_count() == 2);
+    WCNS_REQUIRE(partitioned.local_blocks.size() == 1);
+    const auto& local = partitioned.local_blocks.front();
+    WCNS_REQUIRE(local.id() == 1);
+    WCNS_REQUIRE(local.owner_rank() == 1);
+    WCNS_REQUIRE(local.cell_extent() == (wcns::Extent3 {2, 3, 1}));
+    WCNS_REQUIRE_NEAR(local.coordinates.x(0, 0, 0), 0.5, 1.0e-14);
+    WCNS_REQUIRE_NEAR(local.coordinates.x(2, 3, 0), 1.0, 1.0e-14);
+    WCNS_REQUIRE_NEAR(local.coordinates.y(2, 3, 0), 1.0, 1.0e-14);
+    WCNS_REQUIRE(local.boundaries.size() == 3);
+    WCNS_REQUIRE(local.connectivities.size() == 1);
+    WCNS_REQUIRE(local.connectivities.front().donor_block == 0);
+    WCNS_REQUIRE(local.connectivities.front().donor_rank == 0);
+    WCNS_REQUIRE(
+        local.connectivities.front().receiver_face
+        == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Lower}));
+    WCNS_REQUIRE(
+        local.connectivities.front().receiver_vertex_range.untyped()
+        == (wcns::IndexRange3 {{0, 0, 0}, {0, 3, 0}}));
+    WCNS_REQUIRE(std::isnan(
+        partitioned.global_mesh.block(0).coordinates.x(0, 0, 0)));
+    partitioned.global_mesh.validate_connectivities(false);
+}
+
+// 验收轴置换原连接在 receiver/donor 两侧二次切片后仍成对且可建立通信计划。
+void test_partitioned_multiblock(const char* path)
+{
+    using namespace wcns;
+    CgnsReader reader;
+    const std::vector<CgnsPartitionLeaf> leaves {
+        {0, 0, {0, 0, 0}, {4, 1, 1}, 0},
+        {1, 0, {0, 1, 0}, {4, 3, 1}, 0},
+        {2, 1, {0, 0, 0}, {2, 4, 1}, 0},
+        {3, 1, {2, 0, 0}, {3, 4, 1}, 0},
+    };
+    auto partitioned = reader.read_partitioned_mesh(path, leaves, 0, 1);
+    WCNS_REQUIRE(partitioned.global_mesh.block_count() == 4);
+    WCNS_REQUIRE(partitioned.local_blocks.size() == 4);
+    partitioned.global_mesh.validate_connectivities(false);
+
+    const auto& first_interface = partitioned.global_mesh.block(0).connectivities;
+    WCNS_REQUIRE(first_interface.size() == 2);
+    bool found_axis_swapped_original = false;
+    for (const auto& connection : first_interface) {
+        if (connection.donor_block == 3) {
+            found_axis_swapped_original = true;
+            WCNS_REQUIRE(
+                connection.transform == (IndexTransform {{{2, -1, 3}}}));
+        }
+    }
+    WCNS_REQUIRE(found_axis_swapped_original);
+
+    const auto distribution = BlockDistribution::balanced(
+        {{0, 4}, {1, 8}, {2, 8}, {3, 4}},
+        1);
+    const auto topology = DistributedTopology::build(
+        partitioned.global_mesh,
+        distribution,
+        false);
+    WCNS_REQUIRE(topology.exchanges().size() == 8);
+}
+
 } // namespace
 
 // 运行全部 CGNS 读取验收子项并汇总进程退出状态。
@@ -278,6 +352,8 @@ int main(int argc, char** argv)
         test_one_sided_connectivity(argv[6]);
         test_unknown_donor(argv[7]);
         test_out_of_extent_connectivity(argv[4]);
+        test_partitioned_zone(argv[1]);
+        test_partitioned_multiblock(argv[4]);
         std::cout << "CGNS reader tests passed\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {

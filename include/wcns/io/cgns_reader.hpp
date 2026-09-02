@@ -40,6 +40,19 @@ struct CgnsMeshMetadata {
     std::vector<CgnsZoneMetadata> zones;
 };
 
+struct CgnsPartitionLeaf {
+    BlockId block_id = invalid_block_id;
+    BlockId source_zone = invalid_block_id;
+    Index3 cell_begin {};
+    Index3 cell_end {};
+    RankId owner_rank = invalid_rank_id;
+};
+
+struct CgnsPartitionedMesh {
+    StructuredMesh global_mesh;
+    std::vector<StructuredBlock> local_blocks;
+};
+
 class CgnsReader {
 public:
     [[nodiscard]] CgnsMeshMetadata read_metadata(const std::string& path) const;
@@ -53,6 +66,12 @@ public:
     [[nodiscard]] StructuredMesh read_mesh(
         const std::string& path,
         RankId owner_rank,
+        int ghost_width) const;
+
+    [[nodiscard]] CgnsPartitionedMesh read_partitioned_mesh(
+        const std::string& path,
+        const std::vector<CgnsPartitionLeaf>& leaves,
+        RankId local_rank,
         int ghost_width) const;
 };
 
