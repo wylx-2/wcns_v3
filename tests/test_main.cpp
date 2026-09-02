@@ -38,6 +38,7 @@ void test_stage_l_scalar_reconstruction_schemes();
 void test_stage_l_characteristic_reconstruction();
 void test_reconstruction_positivity_fallback();
 void test_stage_l_riemann_solvers();
+void test_stage_l_algorithm_benchmarks();
 void test_rusanov_riemann_solver();
 void test_wcns_inviscid_freestream();
 void test_stage_l_reconstruction_freestream();
@@ -105,6 +106,7 @@ int main()
         test_stage_l_characteristic_reconstruction();
         test_reconstruction_positivity_fallback();
         test_stage_l_riemann_solvers();
+        test_stage_l_algorithm_benchmarks();
         test_rusanov_riemann_solver();
         test_wcns_inviscid_freestream();
         test_stage_l_reconstruction_freestream();

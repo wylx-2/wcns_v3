@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <string_view>
 #include <vector>
@@ -511,6 +512,124 @@ void test_stage_l_riemann_solvers()
         == "hllc");
     WCNS_REQUIRE(two_level_diagnostics.fallback_events[1].to_solver
         == "rusanov");
+}
+
+// 验收阶段 L 的光滑特征收敛、激波/高 Mach 健壮性和非有限模板失败语义。
+void test_stage_l_algorithm_benchmarks()
+{
+    using namespace wcns;
+    const auto gas = reconstruction_gas();
+    const auto reference = reconstruction_reference(gas);
+    const NumericalFloors floors;
+    const auto smooth_error = [&](const char* scheme, Real spacing) {
+        Field<Real> conservative({4, 1, 1}, euler_components, 3);
+        Field<Real> primitive({4, 1, 1}, euler_components, 3);
+        const auto analytic = [](Real x) {
+            return PressurePrimitiveState {
+                1.0 + 0.1 * std::exp(0.4 * x),
+                0.25 + 0.04 * std::exp(0.3 * x),
+                -0.1 + 0.02 * std::exp(0.2 * x),
+                0.0,
+                1.0 + 0.08 * std::exp(0.5 * x),
+            };
+        };
+        for (int i = -3; i < 7; ++i) {
+            const Real x = (static_cast<Real>(i) - 1.5) * spacing;
+            const auto state = analytic(x);
+            store_state(primitive, {i, 0, 0}, state);
+            store_state(conservative, {i, 0, 0}, to_conservative(state));
+        }
+        ReconstructionConfig config;
+        config.scheme = scheme;
+        config.variables = ReconstructionVariables::Characteristic;
+        ReconstructionDiagnostics diagnostics;
+        const auto reconstructed = reconstruct_thermodynamic_face(
+            conservative, primitive, Axis::I, {2, 0, 0}, config,
+            gas, reference, diagnostics, 2, {1.0, 0.0, 0.0});
+        WCNS_REQUIRE(diagnostics.fallback_events.empty());
+        const auto exact = analytic(0.0);
+        Real error = 0.0;
+        for (int component = 0; component < euler_components; ++component) {
+            const auto index = static_cast<std::size_t>(component);
+            error = std::max(error, std::abs(reconstructed.left[index] - exact[index]));
+            error = std::max(error, std::abs(reconstructed.right[index] - exact[index]));
+        }
+        return error;
+    };
+    for (const auto* scheme : {
+             "weno_js", "weno_z", "mdcd_linear", "mdcd_hybrid"}) {
+        const Real coarse = smooth_error(scheme, 0.4);
+        const Real fine = smooth_error(scheme, 0.2);
+        WCNS_REQUIRE(coarse > fine);
+        WCNS_REQUIRE(coarse / fine > 12.0);
+    }
+
+    auto registry = ReconstructionRegistry::with_builtins();
+    std::array<Real, 6> non_finite {{0.0, 1.0, 2.0, 3.0, 4.0, 5.0}};
+    non_finite[2] = std::numeric_limits<Real>::infinity();
+    for (const auto* scheme : {
+             "weno_js", "weno_z", "mdcd_linear", "mdcd_hybrid"}) {
+        WCNS_REQUIRE_THROWS(
+            PhysicsError,
+            registry.create(scheme)->reconstruct_scalar(
+                non_finite, TraceSide::Left, {}));
+    }
+    for (int sample = 0; sample < 50; ++sample) {
+        std::array<Real, 6> values {};
+        for (std::size_t point = 0; point < values.size(); ++point) {
+            values[point] = std::sin(
+                0.37 * static_cast<Real>((sample + 1)
+                    * static_cast<int>(point + 1)));
+        }
+        WCNS_REQUIRE(mdcd_six_point_smoothness(values, 1.0) >= 0.0);
+    }
+
+    const PressurePrimitiveState sod_left {1.0, 0.0, 0.0, 0.0, 1.0};
+    const PressurePrimitiveState sod_right {0.125, 0.0, 0.0, 0.0, 0.1};
+    const PressurePrimitiveState high_mach_left {1.0, 50.0, 0.0, 0.0, 1.0};
+    const PressurePrimitiveState high_mach_right {0.8, 45.0, 0.0, 0.0, 0.7};
+    for (const auto kind : {RiemannSolverKind::Hllc, RiemannSolverKind::Roe}) {
+        const RiemannSolver solver(kind);
+        for (const auto result : {
+                 solver.solve(sod_left, sod_right, {1.0, 0.0, 0.0}, gas, floors),
+                 solver.solve(high_mach_left, high_mach_right,
+                     {1.0, 0.0, 0.0}, gas, floors)}) {
+            WCNS_REQUIRE(result.fallback_reason == RiemannFallbackReason::None);
+            WCNS_REQUIRE(result.spectral_radius > 0.0);
+            for (const auto component : result.flux_per_unit_area) {
+                WCNS_REQUIRE(std::isfinite(component));
+            }
+        }
+    }
+
+    const IdealGas ideal {gas.gamma(), floors.density, floors.pressure};
+    const PressurePrimitiveState wave_left {1.0, 0.5, 0.0, 0.0, 1.0};
+    const auto wave_basis = make_roe_characteristic_basis(
+        wave_left, wave_left, {1.0, 0.0, 0.0}, gas, floors, 3);
+    ConservativeState characteristic_jump {};
+    characteristic_jump[4] = 1.0e-6;
+    const auto conservative_left = to_conservative(wave_left, ideal);
+    const auto physical_jump = restore_characteristic(
+        characteristic_jump, wave_basis);
+    ConservativeState conservative_right = conservative_left;
+    for (int component = 0; component < euler_components; ++component) {
+        const auto index = static_cast<std::size_t>(component);
+        conservative_right[index] += physical_jump[index];
+    }
+    const auto wave_right = to_primitive(conservative_right, ideal);
+    const auto roe_wave = RiemannSolver(RiemannSolverKind::Roe).solve(
+        wave_left, wave_right, {1.0, 0.0, 0.0}, gas, floors);
+    const auto wave_left_flux = euler_flux(
+        wave_left, {1.0, 0.0, 0.0}, ideal);
+    const auto wave_right_flux = euler_flux(
+        wave_right, {1.0, 0.0, 0.0}, ideal);
+    const Real acoustic_speed = 0.5 + std::sqrt(gas.gamma());
+    for (int component = 0; component < euler_components; ++component) {
+        const auto index = static_cast<std::size_t>(component);
+        const Real expected = 0.5 * (wave_left_flux[index] + wave_right_flux[index])
+            - 0.5 * acoustic_speed * physical_jump[index];
+        WCNS_REQUIRE_NEAR(roe_wave.flux_per_unit_area[index], expected, 2.0e-12);
+    }
 }
 
 // 验收默认 Rusanov 只接收单位法向并保持阶段 J 的解析 Euler 通量基线。

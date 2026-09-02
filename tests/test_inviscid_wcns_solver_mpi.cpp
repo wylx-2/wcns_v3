@@ -187,6 +187,26 @@ void run_profile(
     WCNS_REQUIRE(solver.global_riemann_face_count() == 280);
     WCNS_REQUIRE(solver.global_riemann_fallback_count() == 0);
     WCNS_REQUIRE(solver.global_reconstruction_fallback_count() == 0);
+    for (const auto* riemann_name : {"rusanov", "hllc", "roe"}) {
+        InviscidWcnsConfig stage_l_config;
+        stage_l_config.reconstruction.scheme = "weno_z";
+        stage_l_config.reconstruction.variables
+            = ReconstructionVariables::Characteristic;
+        stage_l_config.riemann.scheme = riemann_name;
+        InviscidWcnsSolver stage_l_solver(
+            mpi, local, mesh, topology, distribution.rank_count(), metrics,
+            boundary_data, profile, gas, reference, floors, stage_l_config);
+        stage_l_solver.compute_residuals(0.0, 2);
+        WCNS_REQUIRE(stage_l_solver.global_residual_l2() < 5.0e-11);
+        WCNS_REQUIRE(stage_l_solver.global_riemann_face_count() == 280);
+        WCNS_REQUIRE(stage_l_solver.global_riemann_fallback_count() == 0);
+        WCNS_REQUIRE(stage_l_solver.global_reconstruction_fallback_count() == 0);
+        for (const auto& [name, count]
+             : stage_l_solver.riemann_diagnostics().requested_faces) {
+            static_cast<void>(count);
+            WCNS_REQUIRE(name == riemann_name);
+        }
+    }
     solver.advance(0.01, 0.0);
     WCNS_REQUIRE(solver.global_riemann_face_count() == 280);
     for (const auto& event : solver.riemann_diagnostics().fallback_events) {
