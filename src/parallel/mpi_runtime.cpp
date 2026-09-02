@@ -205,4 +205,79 @@ std::string MpiRuntime::broadcast_string(
     return value;
 }
 
+std::vector<Real> MpiRuntime::gather_reals(
+    const std::vector<Real>& local_values,
+    RankId root) const
+{
+    if (root < 0 || root >= size_) {
+        throw MpiError("gather root is outside MPI rank range");
+    }
+    if (local_values.size()
+        > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+        throw MpiError("local real gather count exceeds MPI int range");
+    }
+#if WCNS_HAS_MPI
+    const int local_count = static_cast<int>(local_values.size());
+    std::vector<int> counts;
+    if (rank_ == root) counts.resize(static_cast<std::size_t>(size_));
+    check_mpi(
+        MPI_Gather(
+            &local_count,
+            1,
+            MPI_INT,
+            rank_ == root ? counts.data() : nullptr,
+            1,
+            MPI_INT,
+            static_cast<int>(root),
+            MPI_COMM_WORLD),
+        "MPI_Gather real counts");
+    std::vector<int> displacements;
+    std::vector<Real> result;
+    int valid_total = 1;
+    if (rank_ == root) {
+        displacements.resize(static_cast<std::size_t>(size_));
+        std::size_t total = 0;
+        for (int rank = 0; rank < size_; ++rank) {
+            displacements[static_cast<std::size_t>(rank)]
+                = static_cast<int>(total);
+            total += static_cast<std::size_t>(
+                counts[static_cast<std::size_t>(rank)]);
+            if (total > static_cast<std::size_t>(
+                    std::numeric_limits<int>::max())) {
+                valid_total = 0;
+                break;
+            }
+        }
+        if (valid_total != 0) result.resize(total);
+    }
+    check_mpi(
+        MPI_Bcast(
+            &valid_total,
+            1,
+            MPI_INT,
+            static_cast<int>(root),
+            MPI_COMM_WORLD),
+        "MPI_Bcast real gather validity");
+    if (valid_total == 0) {
+        throw MpiError("global real gather count exceeds MPI int range");
+    }
+    check_mpi(
+        MPI_Gatherv(
+            local_values.empty() ? nullptr : local_values.data(),
+            local_count,
+            MPI_DOUBLE,
+            rank_ == root && !result.empty() ? result.data() : nullptr,
+            rank_ == root ? counts.data() : nullptr,
+            rank_ == root ? displacements.data() : nullptr,
+            MPI_DOUBLE,
+            static_cast<int>(root),
+            MPI_COMM_WORLD),
+        "MPI_Gatherv real values");
+    return result;
+#else
+    static_cast<void>(root);
+    return local_values;
+#endif
+}
+
 } // namespace wcns

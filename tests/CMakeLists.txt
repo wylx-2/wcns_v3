@@ -65,6 +65,18 @@ if(WCNS_ENABLE_CGNS)
         ${CMAKE_CURRENT_BINARY_DIR}/freestream_case.wcns
         @ONLY
     )
+    set(WCNS_OUTPUT_SUBDIR output-validation-serial)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/freestream_output_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/freestream_output_serial.wcns
+        @ONLY
+    )
+    set(WCNS_OUTPUT_SUBDIR output-validation-mpi)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/freestream_output_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/freestream_output_mpi.wcns
+        @ONLY
+    )
     add_test(
         NAME wcns.run.freestream.serial
         COMMAND wcns_run
@@ -73,6 +85,31 @@ if(WCNS_ENABLE_CGNS)
     set_tests_properties(
         wcns.run.freestream.serial
         PROPERTIES FIXTURES_REQUIRED cgns_files
+    )
+    add_test(
+        NAME wcns.run.output.serial
+        COMMAND wcns_run
+            --config ${CMAKE_CURRENT_BINARY_DIR}/freestream_output_serial.wcns
+    )
+    set_tests_properties(
+        wcns.run.output.serial
+        PROPERTIES
+            FIXTURES_REQUIRED cgns_files
+            FIXTURES_SETUP output_serial_files
+            RESOURCE_LOCK wcns_output_validation
+    )
+
+    add_executable(wcns_field_output_tests test_field_output.cpp)
+    target_link_libraries(wcns_field_output_tests PRIVATE wcns::core wcns::cgns)
+    add_test(
+        NAME wcns.output_files.serial
+        COMMAND wcns_field_output_tests
+            ${CMAKE_CURRENT_BINARY_DIR}/output-validation-serial
+            1
+    )
+    set_tests_properties(
+        wcns.output_files.serial
+        PROPERTIES FIXTURES_REQUIRED output_serial_files
     )
 
     add_executable(wcns_cgns_reader_tests
@@ -141,6 +178,29 @@ if(WCNS_ENABLE_CGNS)
         set_tests_properties(
             wcns.run.freestream.2
             PROPERTIES FIXTURES_REQUIRED cgns_files
+        )
+        add_test(
+            NAME wcns.run.output.2
+            COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
+                $<TARGET_FILE:wcns_run>
+                --config ${CMAKE_CURRENT_BINARY_DIR}/freestream_output_mpi.wcns
+        )
+        set_tests_properties(
+            wcns.run.output.2
+            PROPERTIES
+                FIXTURES_REQUIRED cgns_files
+                FIXTURES_SETUP output_mpi_files
+                RESOURCE_LOCK wcns_output_validation
+        )
+        add_test(
+            NAME wcns.output_files.2
+            COMMAND wcns_field_output_tests
+                ${CMAKE_CURRENT_BINARY_DIR}/output-validation-mpi
+                2
+        )
+        set_tests_properties(
+            wcns.output_files.2
+            PROPERTIES FIXTURES_REQUIRED output_mpi_files
         )
         foreach(rank_count IN ITEMS 4 8)
             add_test(

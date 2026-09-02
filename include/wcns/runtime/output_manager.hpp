@@ -38,7 +38,7 @@ private:
 
 class RuntimeOutputManager final : public ISimulationObserver {
 public:
-    using EventWriter = std::function<void(
+    using EventWriter = std::function<std::vector<std::string>(
         OutputCategory,
         const SimulationState&,
         bool,

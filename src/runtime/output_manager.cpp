@@ -345,7 +345,8 @@ void RuntimeOutputManager::dispatch(
         throw std::runtime_error(
             "configured output category has no production writer");
     }
-    event_writer_(category, state, initial, final);
+    const auto paths = event_writer_(category, state, initial, final);
+    for (const auto& path : paths) record_file(path);
 }
 
 void RuntimeOutputManager::write_history(

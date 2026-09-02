@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #if WCNS_HAS_MPI
 #include <mpi.h>
@@ -40,6 +41,9 @@ public:
     [[nodiscard]] bool all_equal(std::uint64_t local_value) const;
     [[nodiscard]] std::string broadcast_string(
         std::string value,
+        RankId root = 0) const;
+    [[nodiscard]] std::vector<Real> gather_reals(
+        const std::vector<Real>& local_values,
         RankId root = 0) const;
 
 #if WCNS_HAS_MPI

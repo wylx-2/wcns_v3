@@ -3,6 +3,7 @@
 #include <wcns/parallel/distributed_topology.hpp>
 #include <wcns/parallel/mpi_runtime.hpp>
 #include <wcns/runtime/case_config.hpp>
+#include <wcns/runtime/field_output.hpp>
 #include <wcns/runtime/flow_initializer.hpp>
 #include <wcns/runtime/output_manager.hpp>
 #include <wcns/runtime/simulation_driver.hpp>
@@ -335,8 +336,29 @@ int main(int argc, char** argv)
             profile,
             quantity_context,
         };
+        wcns::ProductionFieldWriter field_writer(
+            mpi,
+            config,
+            plan,
+            local_blocks,
+            metrics,
+            quantity_context,
+            mesh_name);
         wcns::RuntimeOutputManager output(
-            mpi, config, plan, &statistic_context);
+            mpi,
+            config,
+            plan,
+            &statistic_context,
+            [&](wcns::OutputCategory category,
+                const wcns::SimulationState& state,
+                bool,
+                bool) -> std::vector<std::string> {
+                if (category == wcns::OutputCategory::Field) {
+                    return field_writer.write(state);
+                }
+                throw std::runtime_error(
+                    "checkpoint writer is not installed yet");
+            });
         wcns::CompositeSimulationObserver observer;
         observer.add(console);
         observer.add(output);

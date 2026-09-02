@@ -29,6 +29,20 @@ int main(int argc, char** argv)
             mpi.rank() == 0 ? std::string("wcns-config") : std::string(),
             0);
         WCNS_REQUIRE(message == "wcns-config");
+        const auto gathered = mpi.gather_reals({
+            static_cast<wcns::Real>(mpi.rank()), 2.0});
+        if (mpi.rank() == 0) {
+            WCNS_REQUIRE(gathered.size()
+                == static_cast<std::size_t>(2 * mpi.size()));
+            for (int rank = 0; rank < mpi.size(); ++rank) {
+                WCNS_REQUIRE_NEAR(
+                    gathered[static_cast<std::size_t>(2 * rank)],
+                    static_cast<wcns::Real>(rank),
+                    1.0e-15);
+            }
+        } else {
+            WCNS_REQUIRE(gathered.empty());
+        }
         mpi.barrier();
         if (mpi.rank() == 0) {
             std::cout << "MPI runtime test passed with " << mpi.size() << " ranks\n";
