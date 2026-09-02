@@ -42,6 +42,24 @@ std::size_t global_diagnostic_count(
     return static_cast<std::size_t>(global);
 }
 
+std::array<Real, 3> metric_area_vector(
+    const MetricField& metric,
+    Axis axis,
+    Index3 face)
+{
+    const FaceAreaVectors* vectors = nullptr;
+    switch (axis) {
+    case Axis::I: vectors = &metric.i_faces(); break;
+    case Axis::J: vectors = &metric.j_faces(); break;
+    case Axis::K: vectors = &metric.k_faces(); break;
+    }
+    return {{
+        vectors->x(face.i, face.j, face.k),
+        vectors->y(face.i, face.j, face.k),
+        vectors->z(face.i, face.j, face.k),
+    }};
+}
+
 } // namespace
 
 void InviscidWcnsConfig::validate() const
@@ -192,6 +210,77 @@ void InviscidWcnsSolver::advance(Real time_step, Real initial_time)
         update_temperature_primitive_interior(
             block, gas_, reference_, floors_);
     }
+}
+
+Real InviscidWcnsSolver::global_time_step(Real cfl)
+{
+    if (!std::isfinite(cfl) || cfl <= 0.0) {
+        throw std::invalid_argument("WCNS CFL must be positive and finite");
+    }
+    Real local_minimum = std::numeric_limits<Real>::infinity();
+    for (auto& block : local_blocks_.blocks()) {
+        update_temperature_primitive_interior(
+            block, gas_, reference_, floors_);
+        const auto& metric = metrics_.at(block.id());
+        const auto cells = block.cell_extent();
+        for (int k = 0; k < cells.nk; ++k) {
+            for (int j = 0; j < cells.nj; ++j) {
+                for (int i = 0; i < cells.ni; ++i) {
+                    TemperaturePrimitiveState state {};
+                    for (int component = 0; component < fluid_components; ++component) {
+                        state[static_cast<std::size_t>(component)]
+                            = block.flow.temperature_primitive(
+                                i, j, k, component);
+                    }
+                    const std::array<Real, 3> velocity {{
+                        state[temperature_velocity_x],
+                        state[temperature_velocity_y],
+                        state[temperature_velocity_z],
+                    }};
+                    const Real sound = thermodynamic_sound_speed(
+                        state,
+                        gas_,
+                        reference_,
+                        floors_,
+                        block.cell_dimension());
+                    Real spectral_sum = 0.0;
+                    for (int logical = 0;
+                         logical < block.cell_dimension();
+                         ++logical) {
+                        const auto axis = static_cast<Axis>(logical);
+                        for (int side = 0; side <= 1; ++side) {
+                            Index3 face {i, j, k};
+                            face[static_cast<std::size_t>(axis)] += side;
+                            const auto area = metric_area_vector(
+                                metric, axis, face);
+                            const Real magnitude = std::sqrt(
+                                area[0] * area[0]
+                                + area[1] * area[1]
+                                + area[2] * area[2]);
+                            spectral_sum += std::abs(
+                                velocity[0] * area[0]
+                                + velocity[1] * area[1]
+                                + velocity[2] * area[2])
+                                + sound * magnitude;
+                        }
+                    }
+                    const Real jacobian = metric.jacobian()(i, j, k);
+                    const Real denominator = spectral_sum / (2.0 * jacobian);
+                    if (!std::isfinite(denominator) || denominator <= 0.0) {
+                        throw PhysicsError(
+                            "WCNS time-step denominator is invalid");
+                    }
+                    local_minimum = std::min(
+                        local_minimum, cfl / denominator);
+                }
+            }
+        }
+    }
+    const Real result = mpi_.min(local_minimum);
+    if (!std::isfinite(result) || result <= 0.0) {
+        throw PhysicsError("WCNS global time step is invalid");
+    }
+    return result;
 }
 
 std::size_t InviscidWcnsSolver::global_reconstruction_fallback_count() const

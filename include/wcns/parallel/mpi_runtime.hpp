@@ -3,6 +3,7 @@
 #include <wcns/core/types.hpp>
 
 #include <stdexcept>
+#include <cstdint>
 #include <string>
 
 #if WCNS_HAS_MPI
@@ -36,6 +37,10 @@ public:
     [[nodiscard]] Real min(Real local_value) const;
     [[nodiscard]] Real max(Real local_value) const;
     [[nodiscard]] bool all_true(bool local_value) const;
+    [[nodiscard]] bool all_equal(std::uint64_t local_value) const;
+    [[nodiscard]] std::string broadcast_string(
+        std::string value,
+        RankId root = 0) const;
 
 #if WCNS_HAS_MPI
     [[nodiscard]] MPI_Comm communicator() const noexcept { return MPI_COMM_WORLD; }
@@ -54,4 +59,3 @@ void check_mpi(int status, const char* operation);
 #endif
 
 } // namespace wcns
-

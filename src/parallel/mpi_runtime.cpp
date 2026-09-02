@@ -1,6 +1,7 @@
 #include <wcns/parallel/mpi_runtime.hpp>
 
 #include <array>
+#include <limits>
 
 namespace wcns {
 
@@ -135,5 +136,73 @@ bool MpiRuntime::all_true(bool local_value) const
 #endif
 }
 
-} // namespace wcns
+bool MpiRuntime::all_equal(std::uint64_t local_value) const
+{
+#if WCNS_HAS_MPI
+    unsigned long long local = static_cast<unsigned long long>(local_value);
+    unsigned long long minimum = 0;
+    unsigned long long maximum = 0;
+    check_mpi(
+        MPI_Allreduce(
+            &local,
+            &minimum,
+            1,
+            MPI_UNSIGNED_LONG_LONG,
+            MPI_MIN,
+            MPI_COMM_WORLD),
+        "MPI_Allreduce uint64 minimum");
+    check_mpi(
+        MPI_Allreduce(
+            &local,
+            &maximum,
+            1,
+            MPI_UNSIGNED_LONG_LONG,
+            MPI_MAX,
+            MPI_COMM_WORLD),
+        "MPI_Allreduce uint64 maximum");
+    return minimum == maximum;
+#else
+    static_cast<void>(local_value);
+    return true;
+#endif
+}
 
+std::string MpiRuntime::broadcast_string(
+    std::string value,
+    RankId root) const
+{
+    if (root < 0 || root >= size_) {
+        throw MpiError("broadcast root is outside MPI rank range");
+    }
+#if WCNS_HAS_MPI
+    unsigned long long size = rank_ == root
+        ? static_cast<unsigned long long>(value.size()) : 0;
+    check_mpi(
+        MPI_Bcast(
+            &size,
+            1,
+            MPI_UNSIGNED_LONG_LONG,
+            static_cast<int>(root),
+            MPI_COMM_WORLD),
+        "MPI_Bcast string size");
+    if (size > static_cast<unsigned long long>(std::numeric_limits<int>::max())) {
+        throw MpiError("broadcast string exceeds MPI int count range");
+    }
+    if (rank_ != root) value.resize(static_cast<std::size_t>(size));
+    if (size > 0) {
+        check_mpi(
+            MPI_Bcast(
+                value.data(),
+                static_cast<int>(size),
+                MPI_CHAR,
+                static_cast<int>(root),
+                MPI_COMM_WORLD),
+            "MPI_Bcast string data");
+    }
+#else
+    static_cast<void>(root);
+#endif
+    return value;
+}
+
+} // namespace wcns

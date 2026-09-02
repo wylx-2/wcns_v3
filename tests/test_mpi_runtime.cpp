@@ -21,6 +21,14 @@ int main(int argc, char** argv)
         WCNS_REQUIRE(mpi.min(rank_value) == 1.0);
         WCNS_REQUIRE(mpi.max(rank_value) == static_cast<wcns::Real>(mpi.size()));
         WCNS_REQUIRE(mpi.all_true(mpi.rank() < mpi.size()));
+        WCNS_REQUIRE(mpi.all_equal(42));
+        WCNS_REQUIRE(
+            mpi.size() == 1
+            || !mpi.all_equal(static_cast<std::uint64_t>(mpi.rank())));
+        const auto message = mpi.broadcast_string(
+            mpi.rank() == 0 ? std::string("wcns-config") : std::string(),
+            0);
+        WCNS_REQUIRE(message == "wcns-config");
         mpi.barrier();
         if (mpi.rank() == 0) {
             std::cout << "MPI runtime test passed with " << mpi.size() << " ranks\n";

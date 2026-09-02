@@ -52,8 +52,24 @@ if(WCNS_ENABLE_CGNS)
             ${CMAKE_CURRENT_BINARY_DIR}/generated_multi_3d.cgns
             ${CMAKE_CURRENT_BINARY_DIR}/generated_one_sided_2d.cgns
             ${CMAKE_CURRENT_BINARY_DIR}/generated_unknown_donor_2d.cgns
+            ${CMAKE_CURRENT_BINARY_DIR}/generated_partition_2d.cgns
     )
     set_tests_properties(wcns.generate_test_cgns PROPERTIES FIXTURES_SETUP cgns_files)
+
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/freestream_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/freestream_case.wcns
+        @ONLY
+    )
+    add_test(
+        NAME wcns.run.freestream.serial
+        COMMAND wcns_run
+            --config ${CMAKE_CURRENT_BINARY_DIR}/freestream_case.wcns
+    )
+    set_tests_properties(
+        wcns.run.freestream.serial
+        PROPERTIES FIXTURES_REQUIRED cgns_files
+    )
 
     add_executable(wcns_cgns_reader_tests
         test_cgns_reader.cpp
@@ -112,6 +128,16 @@ if(WCNS_ENABLE_CGNS)
     set_tests_properties(wcns.geometry_plan.serial PROPERTIES FIXTURES_REQUIRED cgns_files)
 
     if(WCNS_ENABLE_MPI)
+        add_test(
+            NAME wcns.run.freestream.2
+            COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
+                $<TARGET_FILE:wcns_run>
+                --config ${CMAKE_CURRENT_BINARY_DIR}/freestream_case.wcns
+        )
+        set_tests_properties(
+            wcns.run.freestream.2
+            PROPERTIES FIXTURES_REQUIRED cgns_files
+        )
         add_test(
             NAME wcns.halo_exchange.2
             COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2

@@ -41,6 +41,7 @@ public:
 
     void compute_residuals(Real stage_time, int rk_stage = 0);
     void advance(Real time_step, Real initial_time);
+    [[nodiscard]] Real global_time_step(Real cfl);
 
     [[nodiscard]] Real global_residual_l2() const;
     [[nodiscard]] const ReconstructionDiagnostics& reconstruction_diagnostics() const noexcept

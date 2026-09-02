@@ -169,6 +169,11 @@ add_library(wcns_runtime STATIC
 add_library(wcns::runtime ALIAS wcns_runtime)
 target_link_libraries(wcns_runtime PUBLIC wcns::solver)
 
+if(WCNS_ENABLE_CGNS)
+    add_executable(wcns_run src/app/wcns_run.cpp)
+    target_link_libraries(wcns_run PRIVATE wcns::runtime wcns::io)
+endif()
+
 if(WCNS_BUILD_TESTS)
     include(CTest)
     add_subdirectory(tests)

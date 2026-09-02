@@ -348,7 +348,9 @@ FaceFluxHaloPlan FaceFluxHaloPlan::build(
     if (version == 0 || version > maximum_exact_message_version) {
         throw TopologyError("face-flux plan version must be non-zero");
     }
-    mesh.validate_connectivities();
+    // Distributed production meshes keep only topology for remote blocks;
+    // CGNS coordinate continuity is validated during mesh ingestion.
+    mesh.validate_connectivities(false);
     std::vector<const ConnectivityPatch*> canonical;
     for (const auto& block : mesh.blocks()) {
         for (const auto& connection : block.connectivities) {

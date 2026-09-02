@@ -144,6 +144,46 @@ void write_2d(const std::string& path, bool add_invalid_boundary = false)
     file.close();
 }
 
+void write_partition_2d(const std::string& path)
+{
+    constexpr int ni = 33;
+    constexpr int nj = 17;
+    CgnsFile file(path, CG_MODE_WRITE);
+    int base = 0;
+    int zone = 0;
+    int coordinate = 0;
+    check_cgns(
+        cg_base_write(file.id(), "BasePartition2D", 2, 2, &base),
+        "cg_base_write partition");
+    cgsize_t size[6] = {ni, nj, ni - 1, nj - 1, 0, 0};
+    check_cgns(
+        cg_zone_write(
+            file.id(), base, "PartitionZone2D", size, Structured, &zone),
+        "cg_zone_write partition");
+    std::vector<double> x(static_cast<std::size_t>(ni * nj));
+    std::vector<double> y(x.size());
+    for (int j = 0; j < nj; ++j) {
+        for (int i = 0; i < ni; ++i) {
+            const auto index = static_cast<std::size_t>(j * ni + i);
+            x[index] = static_cast<double>(i) / static_cast<double>(ni - 1);
+            y[index] = static_cast<double>(j) / static_cast<double>(nj - 1);
+        }
+    }
+    check_cgns(
+        cg_coord_write(
+            file.id(), base, zone, RealDouble, "CoordinateX", x.data(), &coordinate),
+        "cg_coord_write partition X");
+    check_cgns(
+        cg_coord_write(
+            file.id(), base, zone, RealDouble, "CoordinateY", y.data(), &coordinate),
+        "cg_coord_write partition Y");
+    write_boundary(file.id(), base, zone, "imin", BCFarfield, {1, 1, 1, nj});
+    write_boundary(file.id(), base, zone, "imax", BCFarfield, {ni, 1, ni, nj});
+    write_boundary(file.id(), base, zone, "jmin", BCFarfield, {1, 1, ni, 1});
+    write_boundary(file.id(), base, zone, "jmax", BCFarfield, {1, nj, ni, nj});
+    file.close();
+}
+
 void write_3d(const std::string& path)
 {
     constexpr int ni = 4;
@@ -404,12 +444,12 @@ void verify(
 
 int main(int argc, char** argv)
 {
-    if (argc != 8) {
+    if (argc != 9) {
         std::cerr
             << "usage: wcns_generate_test_cgns <2d-output.cgns> <3d-output.cgns> "
                "<invalid-2d-output.cgns> <multi-2d-output.cgns> "
                "<multi-3d-output.cgns> <one-sided-2d-output.cgns> "
-               "<unknown-donor-2d-output.cgns>\n";
+               "<unknown-donor-2d-output.cgns> <partition-2d-output.cgns>\n";
         return EXIT_FAILURE;
     }
 
@@ -422,6 +462,7 @@ int main(int argc, char** argv)
         write_multiblock_3d(argv[5]);
         write_multiblock_2d(argv[6], false);
         write_multiblock_2d(argv[7], false, "Missing2D");
+        write_partition_2d(argv[8]);
         verify(argv[1], 2, 1, 4);
         verify(argv[2], 3, 1, 6);
         verify(argv[3], 2, 1, 5);
@@ -429,6 +470,7 @@ int main(int argc, char** argv)
         verify(argv[5], 3, 2, 0);
         verify(argv[6], 2, 2, 0);
         verify(argv[7], 2, 2, 0);
+        verify(argv[8], 2, 1, 4);
         std::cout << "generated and verified CGNS test grids\n";
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {
