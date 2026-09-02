@@ -105,13 +105,19 @@ RiemannResult rusanov_result(
     const Real spectral_radius = std::max(
         std::abs(normal_velocity(left, normal)) + sound_speed(left, ideal),
         std::abs(normal_velocity(right, normal)) + sound_speed(right, ideal));
-    return {
+    RiemannResult result {
         rusanov_flux(left, right, normal, ideal),
         spectral_radius,
-        std::move(requested),
+        requested,
         "rusanov",
         reason,
+        {},
     };
+    if (requested != "rusanov") {
+        result.fallback_path.push_back({
+            std::move(requested), "rusanov", reason});
+    }
+    return result;
 }
 
 class RusanovStrategy final : public IRiemannSolver {
@@ -188,11 +194,11 @@ public:
         }
         if (speed_left >= 0.0) {
             return {left_flux, spectral_radius, "hllc", "hllc",
-                RiemannFallbackReason::None};
+                RiemannFallbackReason::None, {}};
         }
         if (speed_right <= 0.0) {
             return {right_flux, spectral_radius, "hllc", "hllc",
-                RiemannFallbackReason::None};
+                RiemannFallbackReason::None, {}};
         }
         const Real left_term = left[0] * (speed_left - un_left);
         const Real right_term = right[0] * (speed_right - un_right);
@@ -260,7 +266,7 @@ public:
                 ? star_flux(left, left_conservative, left_flux, speed_left, un_left)
                 : star_flux(right, right_conservative, right_flux, speed_right, un_right);
             return {flux, spectral_radius, "hllc", "hllc",
-                RiemannFallbackReason::None};
+                RiemannFallbackReason::None, {}};
         } catch (const PhysicsError&) {
             return rusanov_result(
                 left, right, normal, gas, floors,
@@ -295,6 +301,8 @@ public:
         const auto fallback = [&](RiemannFallbackReason reason) {
             auto result = HllcStrategy(parameters_).solve(
                 left, right, normal, gas, floors);
+            result.fallback_path.insert(
+                result.fallback_path.begin(), {"roe", "hllc", reason});
             result.requested_solver = "roe";
             result.fallback_reason = reason;
             return result;
@@ -346,6 +354,7 @@ public:
                 "roe",
                 "roe",
                 RiemannFallbackReason::None,
+                {},
             };
         } catch (const PhysicsError&) {
             return fallback(RiemannFallbackReason::InvalidRoeAverage);
@@ -357,6 +366,76 @@ private:
 };
 
 } // namespace
+
+std::string_view riemann_fallback_reason_name(RiemannFallbackReason reason)
+{
+    switch (reason) {
+    case RiemannFallbackReason::None: return "none";
+    case RiemannFallbackReason::InvalidWaveSpeed: return "invalid_wave_speed";
+    case RiemannFallbackReason::InvalidIntermediateState:
+        return "invalid_intermediate_state";
+    case RiemannFallbackReason::InvalidRoeAverage: return "invalid_roe_average";
+    case RiemannFallbackReason::NonFiniteFlux: return "non_finite_flux";
+    }
+    throw std::invalid_argument("unknown Riemann fallback reason");
+}
+
+void RiemannDiagnostics::record(
+    const RiemannResult& result,
+    FaceDiagnosticLocation location)
+{
+    if (result.requested_solver.empty() || result.used_solver.empty()) {
+        throw std::invalid_argument("Riemann diagnostic requires solver names");
+    }
+    ++total_faces;
+    ++requested_faces[result.requested_solver];
+    ++used_faces[result.used_solver];
+    if (result.fallback_reason == RiemannFallbackReason::None) {
+        if (result.requested_solver != result.used_solver) {
+            throw std::logic_error("Riemann solver changed without a fallback reason");
+        }
+        if (!result.fallback_path.empty()) {
+            throw std::logic_error("Riemann result has a path without a fallback");
+        }
+        return;
+    }
+    if (result.requested_solver == result.used_solver
+        || result.fallback_path.empty()) {
+        throw std::logic_error("Riemann fallback diagnostic is inconsistent");
+    }
+    std::string current = result.requested_solver;
+    for (const auto& step : result.fallback_path) {
+        const auto index = static_cast<std::size_t>(step.reason);
+        if (step.from_solver != current || step.to_solver.empty()
+            || step.from_solver == step.to_solver
+            || step.reason == RiemannFallbackReason::None
+            || index >= fallback_reasons.size()) {
+            throw std::logic_error("Riemann fallback path is inconsistent");
+        }
+        ++fallback_reasons[index];
+        fallback_events.push_back({
+            location, step.from_solver, step.to_solver, step.reason});
+        current = step.to_solver;
+    }
+    if (current != result.used_solver) {
+        throw std::logic_error("Riemann fallback path does not reach the used solver");
+    }
+}
+
+std::size_t RiemannDiagnostics::fallback_count() const noexcept
+{
+    return fallback_events.size();
+}
+
+std::size_t RiemannDiagnostics::fallback_count(
+    RiemannFallbackReason reason) const
+{
+    const auto index = static_cast<std::size_t>(reason);
+    if (index >= fallback_reasons.size()) {
+        throw std::invalid_argument("unknown Riemann fallback reason");
+    }
+    return fallback_reasons[index];
+}
 
 void RiemannSolverRegistry::register_solver(std::string name, Factory factory)
 {
@@ -527,6 +606,30 @@ RiemannResult RiemannSolver::solve(
     if (result.used_solver.empty()) result.used_solver = result.requested_solver;
     if (result.requested_solver != name()) {
         throw std::logic_error("Riemann result requested-solver diagnostic is inconsistent");
+    }
+    if (result.fallback_reason == RiemannFallbackReason::None) {
+        if (result.used_solver != result.requested_solver
+            || !result.fallback_path.empty()) {
+            throw std::logic_error(
+                "Riemann result changed solver without a fallback path");
+        }
+    } else {
+        if (result.fallback_path.empty()) {
+            throw std::logic_error("Riemann fallback result has no path");
+        }
+        std::string current = result.requested_solver;
+        for (const auto& step : result.fallback_path) {
+            if (step.from_solver != current || step.to_solver.empty()
+                || step.from_solver == step.to_solver
+                || step.reason == RiemannFallbackReason::None) {
+                throw std::logic_error("Riemann fallback path is inconsistent");
+            }
+            current = step.to_solver;
+        }
+        if (current != result.used_solver) {
+            throw std::logic_error(
+                "Riemann fallback path does not reach the used solver");
+        }
     }
     if (!std::isfinite(result.spectral_radius) || result.spectral_radius < 0.0) {
         throw PhysicsError("Riemann solver returned an invalid spectral radius");

@@ -2,7 +2,9 @@
 
 #include <wcns/physics/thermodynamics.hpp>
 #include <wcns/solver/euler.hpp>
+#include <wcns/solver/numerical_diagnostics.hpp>
 
+#include <array>
 #include <functional>
 #include <memory>
 #include <string>
@@ -43,13 +45,43 @@ struct RiemannConfig {
     [[nodiscard]] std::string restart_signature() const;
 };
 
+struct RiemannFallbackStep {
+    std::string from_solver;
+    std::string to_solver;
+    RiemannFallbackReason reason = RiemannFallbackReason::None;
+};
+
 struct RiemannResult {
     ConservativeState flux_per_unit_area {};
     Real spectral_radius = 0.0;
     std::string requested_solver;
     std::string used_solver;
     RiemannFallbackReason fallback_reason = RiemannFallbackReason::None;
+    std::vector<RiemannFallbackStep> fallback_path;
 };
+
+struct RiemannFallbackEvent {
+    FaceDiagnosticLocation location {};
+    std::string from_solver;
+    std::string to_solver;
+    RiemannFallbackReason reason = RiemannFallbackReason::None;
+};
+
+struct RiemannDiagnostics {
+    std::size_t total_faces = 0;
+    std::unordered_map<std::string, std::size_t> requested_faces;
+    std::unordered_map<std::string, std::size_t> used_faces;
+    std::array<std::size_t, 5> fallback_reasons {};
+    std::vector<RiemannFallbackEvent> fallback_events;
+
+    void record(const RiemannResult& result, FaceDiagnosticLocation location);
+    [[nodiscard]] std::size_t fallback_count() const noexcept;
+    [[nodiscard]] std::size_t fallback_count(
+        RiemannFallbackReason reason) const;
+};
+
+[[nodiscard]] std::string_view riemann_fallback_reason_name(
+    RiemannFallbackReason reason);
 
 class IRiemannSolver {
 public:

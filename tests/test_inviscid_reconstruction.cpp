@@ -287,14 +287,28 @@ void test_stage_l_characteristic_reconstruction()
     }
     config.scheme = "linear5";
     diagnostics = {};
+    const FaceDiagnosticLocation location {
+        7, 2, Axis::I, {2, 0, 0}, 41, 3};
     const auto fallback = reconstruct_thermodynamic_face(
         conservative_field, primitive_field, Axis::I, {2, 0, 0}, config,
-        gas, reference, diagnostics, 2, {1.0, 0.0, 0.0});
+        gas, reference, diagnostics, 2, {1.0, 0.0, 0.0}, location);
     WCNS_REQUIRE(fallback.left == valid);
     WCNS_REQUIRE(fallback.right == valid);
     WCNS_REQUIRE(diagnostics.characteristic_fallbacks == 1);
     WCNS_REQUIRE(diagnostics.primitive_fallbacks == 1);
     WCNS_REQUIRE(diagnostics.first_order_fallbacks == 1);
+    WCNS_REQUIRE(diagnostics.fallback_events.size() == 2);
+    WCNS_REQUIRE(diagnostics.fallback_events[0].location.block == 7);
+    WCNS_REQUIRE(diagnostics.fallback_events[0].location.rank == 2);
+    WCNS_REQUIRE(diagnostics.fallback_events[0].location.rk_stage == 3);
+    WCNS_REQUIRE(diagnostics.fallback_events[0].from_strategy
+        == "linear5:characteristic");
+    WCNS_REQUIRE(diagnostics.fallback_events[0].to_strategy
+        == "linear5:primitive");
+    WCNS_REQUIRE(diagnostics.fallback_events[0].reason
+        == ReconstructionFallbackReason::InvalidCharacteristicState);
+    WCNS_REQUIRE(diagnostics.fallback_events[1].to_strategy
+        == "first_order:primitive");
 }
 
 // 验收五阶线性重构的四次多项式精确性及 WCNS-JS 的尺度不变性。
@@ -356,6 +370,11 @@ void test_reconstruction_positivity_fallback()
     WCNS_REQUIRE(result.right == valid);
     WCNS_REQUIRE(diagnostics.linear_faces == 1);
     WCNS_REQUIRE(diagnostics.first_order_fallbacks == 1);
+    WCNS_REQUIRE(diagnostics.fallback_events.size() == 1);
+    WCNS_REQUIRE(diagnostics.fallback_events[0].from_strategy
+        == "linear5:primitive");
+    WCNS_REQUIRE(diagnostics.fallback_events[0].to_strategy
+        == "first_order:primitive");
 }
 
 // 验收三种 Riemann 求解器的相容性、接触保持、迎风极限和法向反转对称性。
@@ -440,6 +459,58 @@ void test_stage_l_riemann_solvers()
     WCNS_REQUIRE_THROWS(
         std::invalid_argument,
         config.validate(RiemannSolverRegistry::with_builtins(config.parameters)));
+
+    RiemannSolverParameters fallback_parameters;
+    fallback_parameters.denominator_tolerance = 0.5;
+    const PressurePrimitiveState near_floor {
+        1.0e-8, 0.0, 0.0, 0.0, 1.0e-8};
+    const auto fallback_result = RiemannSolver(
+        RiemannSolverKind::Hllc, fallback_parameters).solve(
+        near_floor, near_floor, {1.0, 0.0, 0.0}, gas, floors);
+    WCNS_REQUIRE(fallback_result.requested_solver == "hllc");
+    WCNS_REQUIRE(fallback_result.used_solver == "rusanov");
+    WCNS_REQUIRE(fallback_result.fallback_reason
+        == RiemannFallbackReason::InvalidWaveSpeed);
+    RiemannDiagnostics diagnostics;
+    const FaceDiagnosticLocation location {
+        9, 3, Axis::J, {4, 5, 0}, 17, 2};
+    diagnostics.record(fallback_result, location);
+    WCNS_REQUIRE(diagnostics.total_faces == 1);
+    WCNS_REQUIRE(diagnostics.requested_faces.at("hllc") == 1);
+    WCNS_REQUIRE(diagnostics.used_faces.at("rusanov") == 1);
+    WCNS_REQUIRE(diagnostics.fallback_count() == 1);
+    WCNS_REQUIRE(diagnostics.fallback_count(
+        RiemannFallbackReason::InvalidWaveSpeed) == 1);
+    WCNS_REQUIRE(diagnostics.fallback_events[0].location.axis == Axis::J);
+    WCNS_REQUIRE(diagnostics.fallback_events[0].location.face.i == 4);
+    WCNS_REQUIRE(diagnostics.fallback_events[0].location.face.j == 5);
+    WCNS_REQUIRE(diagnostics.fallback_events[0].location.face.k == 0);
+    WCNS_REQUIRE(riemann_fallback_reason_name(
+        diagnostics.fallback_events[0].reason) == "invalid_wave_speed");
+
+    RiemannResult two_level;
+    two_level.requested_solver = "roe";
+    two_level.used_solver = "rusanov";
+    two_level.fallback_reason = RiemannFallbackReason::InvalidRoeAverage;
+    two_level.fallback_path = {
+        {"roe", "hllc", RiemannFallbackReason::InvalidRoeAverage},
+        {"hllc", "rusanov", RiemannFallbackReason::InvalidIntermediateState},
+    };
+    RiemannDiagnostics two_level_diagnostics;
+    two_level_diagnostics.record(two_level, location);
+    WCNS_REQUIRE(two_level_diagnostics.fallback_count() == 2);
+    WCNS_REQUIRE(two_level_diagnostics.fallback_count(
+        RiemannFallbackReason::InvalidRoeAverage) == 1);
+    WCNS_REQUIRE(two_level_diagnostics.fallback_count(
+        RiemannFallbackReason::InvalidIntermediateState) == 1);
+    WCNS_REQUIRE(two_level_diagnostics.fallback_events[0].from_solver
+        == "roe");
+    WCNS_REQUIRE(two_level_diagnostics.fallback_events[0].to_solver
+        == "hllc");
+    WCNS_REQUIRE(two_level_diagnostics.fallback_events[1].from_solver
+        == "hllc");
+    WCNS_REQUIRE(two_level_diagnostics.fallback_events[1].to_solver
+        == "rusanov");
 }
 
 // 验收默认 Rusanov 只接收单位法向并保持阶段 J 的解析 Euler 通量基线。

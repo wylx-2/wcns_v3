@@ -39,7 +39,7 @@ public:
         NumericalFloors floors,
         InviscidWcnsConfig config = {});
 
-    void compute_residuals(Real stage_time);
+    void compute_residuals(Real stage_time, int rk_stage = 0);
     void advance(Real time_step, Real initial_time);
 
     [[nodiscard]] Real global_residual_l2() const;
@@ -47,6 +47,13 @@ public:
     {
         return reconstruction_diagnostics_;
     }
+    [[nodiscard]] const RiemannDiagnostics& riemann_diagnostics() const noexcept
+    {
+        return riemann_diagnostics_;
+    }
+    [[nodiscard]] std::size_t global_reconstruction_fallback_count() const;
+    [[nodiscard]] std::size_t global_riemann_face_count() const;
+    [[nodiscard]] std::size_t global_riemann_fallback_count() const;
 
 private:
     const MpiRuntime& mpi_;
@@ -65,6 +72,7 @@ private:
     RiemannSolver riemann_ {};
     std::uint64_t version_ = 0;
     ReconstructionDiagnostics reconstruction_diagnostics_ {};
+    RiemannDiagnostics riemann_diagnostics_ {};
 };
 
 } // namespace wcns

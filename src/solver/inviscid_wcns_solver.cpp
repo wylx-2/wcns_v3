@@ -13,6 +13,9 @@ namespace wcns {
 
 namespace {
 
+constexpr std::size_t maximum_exact_diagnostic_count
+    = static_cast<std::size_t>(9007199254740992ULL);
+
 bool same_floors(const NumericalFloors& lhs, const NumericalFloors& rhs)
 {
     return lhs.density == rhs.density && lhs.pressure == rhs.pressure
@@ -23,6 +26,20 @@ bool same_floors(const NumericalFloors& lhs, const NumericalFloors& rhs)
         && lhs.face_area_relative == rhs.face_area_relative
         && lhs.reconstruction_scale == rhs.reconstruction_scale
         && lhs.reconstruction_epsilon == rhs.reconstruction_epsilon;
+}
+
+std::size_t global_diagnostic_count(
+    const MpiRuntime& mpi, std::size_t local, const char* label)
+{
+    if (local > maximum_exact_diagnostic_count) {
+        throw std::overflow_error(std::string(label) + " exceeds exact MPI reduction range");
+    }
+    const Real global = mpi.sum(static_cast<Real>(local));
+    if (!std::isfinite(global) || global < 0.0
+        || global > static_cast<Real>(maximum_exact_diagnostic_count)) {
+        throw std::overflow_error(std::string(label) + " global reduction is invalid");
+    }
+    return static_cast<std::size_t>(global);
 }
 
 } // namespace
@@ -99,10 +116,13 @@ InviscidWcnsSolver::InviscidWcnsSolver(
     }
 }
 
-void InviscidWcnsSolver::compute_residuals(Real stage_time)
+void InviscidWcnsSolver::compute_residuals(Real stage_time, int rk_stage)
 {
     if (!std::isfinite(stage_time)) {
         throw std::invalid_argument("WCNS stage time must be finite");
+    }
+    if (rk_stage < 0 || rk_stage > 3) {
+        throw std::invalid_argument("WCNS RK stage must lie in [0,3]");
     }
     if (version_ == std::numeric_limits<std::uint64_t>::max()) {
         throw std::overflow_error("WCNS state version overflow");
@@ -127,6 +147,7 @@ void InviscidWcnsSolver::compute_residuals(Real stage_time)
     std::unordered_map<BlockId, InviscidFaceFluxField> fluxes;
     FaceFluxFieldRegistry flux_registry;
     reconstruction_diagnostics_ = {};
+    riemann_diagnostics_ = {};
     for (auto& block : local_blocks_.blocks()) {
         const auto data = boundary_data_.find(block.id());
         const auto ghost = PhysicalGhostStateOperator::fill(
@@ -140,7 +161,8 @@ void InviscidWcnsSolver::compute_residuals(Real stage_time)
             std::forward_as_tuple(compute_inviscid_face_fluxes(
                 block, metrics_.at(block.id()), profile_, config_.reconstruction,
                 riemann_, gas_, reference_, floors_, data->second,
-                config_.boundary, version_, reconstruction_diagnostics_)));
+                config_.boundary, version_, reconstruction_diagnostics_,
+                &riemann_diagnostics_, rk_stage)));
         if (!inserted) {
             throw std::logic_error("duplicate local WCNS face-flux block");
         }
@@ -161,12 +183,35 @@ void InviscidWcnsSolver::advance(Real time_step, Real initial_time)
 {
     std::vector<StructuredBlock*> blocks;
     for (auto& block : local_blocks_.blocks()) blocks.push_back(&block);
+    int rk_stage = 0;
     advance_ssprk3(blocks, time_step, initial_time,
-        [this](Real stage_time) { compute_residuals(stage_time); });
+        [this, &rk_stage](Real stage_time) {
+            compute_residuals(stage_time, ++rk_stage);
+        });
     for (auto& block : local_blocks_.blocks()) {
         update_temperature_primitive_interior(
             block, gas_, reference_, floors_);
     }
+}
+
+std::size_t InviscidWcnsSolver::global_reconstruction_fallback_count() const
+{
+    return global_diagnostic_count(
+        mpi_, reconstruction_diagnostics_.fallback_events.size(),
+        "reconstruction fallback count");
+}
+
+std::size_t InviscidWcnsSolver::global_riemann_fallback_count() const
+{
+    return global_diagnostic_count(
+        mpi_, riemann_diagnostics_.fallback_count(),
+        "Riemann fallback count");
+}
+
+std::size_t InviscidWcnsSolver::global_riemann_face_count() const
+{
+    return global_diagnostic_count(
+        mpi_, riemann_diagnostics_.total_faces, "Riemann face count");
 }
 
 Real InviscidWcnsSolver::global_residual_l2() const

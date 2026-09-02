@@ -4,6 +4,7 @@
 #include <wcns/mesh/topology.hpp>
 #include <wcns/physics/thermodynamics.hpp>
 #include <wcns/solver/euler.hpp>
+#include <wcns/solver/numerical_diagnostics.hpp>
 
 #include <array>
 #include <cstddef>
@@ -136,6 +137,20 @@ struct ReconstructionConfig {
     [[nodiscard]] std::string restart_signature() const;
 };
 
+enum class ReconstructionFallbackReason {
+    InvalidCharacteristicState,
+    InvalidReconstructedState,
+};
+
+struct ReconstructionFallbackEvent {
+    FaceDiagnosticLocation location {};
+    std::string requested_scheme;
+    std::string from_strategy;
+    std::string to_strategy;
+    ReconstructionFallbackReason reason
+        = ReconstructionFallbackReason::InvalidReconstructedState;
+};
+
 struct ReconstructionDiagnostics {
     std::size_t nonlinear_faces = 0;
     std::size_t linear_faces = 0;
@@ -144,6 +159,14 @@ struct ReconstructionDiagnostics {
     std::size_t primitive_fallbacks = 0;
     std::size_t linear_fallbacks = 0;
     std::size_t first_order_fallbacks = 0;
+    std::vector<ReconstructionFallbackEvent> fallback_events;
+
+    void record_fallback(
+        FaceDiagnosticLocation location,
+        std::string requested_scheme,
+        std::string from_strategy,
+        std::string to_strategy,
+        ReconstructionFallbackReason reason);
 };
 
 struct ScalarFaceStates {
@@ -233,6 +256,7 @@ struct EulerCharacteristicBasis {
     const ReferenceScales& reference,
     ReconstructionDiagnostics& diagnostics,
     int dimension,
-    Normal3 unit_normal = {1.0, 0.0, 0.0});
+    Normal3 unit_normal = {1.0, 0.0, 0.0},
+    FaceDiagnosticLocation location = {});
 
 } // namespace wcns

@@ -13,6 +13,9 @@
 namespace wcns {
 namespace {
 
+constexpr std::size_t maximum_exact_diagnostic_count
+    = static_cast<std::size_t>(9007199254740992ULL);
+
 bool same_floors(const NumericalFloors& lhs, const NumericalFloors& rhs)
 {
     return lhs.density == rhs.density && lhs.pressure == rhs.pressure
@@ -51,6 +54,20 @@ std::array<Real, 3> area_vector(
 Real area_squared(const std::array<Real, 3>& area)
 {
     return area[0] * area[0] + area[1] * area[1] + area[2] * area[2];
+}
+
+std::size_t global_diagnostic_count(
+    const MpiRuntime& mpi, std::size_t local, const char* label)
+{
+    if (local > maximum_exact_diagnostic_count) {
+        throw std::overflow_error(std::string(label) + " exceeds exact MPI reduction range");
+    }
+    const Real global = mpi.sum(static_cast<Real>(local));
+    if (!std::isfinite(global) || global < 0.0
+        || global > static_cast<Real>(maximum_exact_diagnostic_count)) {
+        throw std::overflow_error(std::string(label) + " global reduction is invalid");
+    }
+    return static_cast<std::size_t>(global);
 }
 
 } // namespace
@@ -169,10 +186,13 @@ ViscousWcnsSolver::ViscousWcnsSolver(
     }
 }
 
-void ViscousWcnsSolver::compute_residuals(Real stage_time)
+void ViscousWcnsSolver::compute_residuals(Real stage_time, int rk_stage)
 {
     if (!std::isfinite(stage_time)) {
         throw std::invalid_argument("viscous WCNS stage time must be finite");
+    }
+    if (rk_stage < 0 || rk_stage > 3) {
+        throw std::invalid_argument("viscous WCNS RK stage must lie in [0,3]");
     }
     if (version_ == std::numeric_limits<std::uint64_t>::max()) {
         throw std::overflow_error("viscous WCNS state version overflow");
@@ -198,6 +218,7 @@ void ViscousWcnsSolver::compute_residuals(Real stage_time)
     std::unordered_map<BlockId, GradientOperandFaceField> operands;
     GradientOperandFieldRegistry operand_registry;
     reconstruction_diagnostics_ = {};
+    riemann_diagnostics_ = {};
     for (auto& block : local_blocks_.blocks()) {
         const auto& data = boundary_data_.at(block.id());
         const auto ghost = PhysicalGhostStateOperator::fill(
@@ -212,7 +233,7 @@ void ViscousWcnsSolver::compute_residuals(Real stage_time)
                 block, metrics_.at(block.id()), profile_,
                 config_.inviscid.reconstruction, riemann_, gas_, reference_, floors_,
                 data, config_.inviscid.boundary, version_,
-                reconstruction_diagnostics_)));
+                reconstruction_diagnostics_, &riemann_diagnostics_, rk_stage)));
         if (!inserted_inviscid) throw std::logic_error("duplicate inviscid flux block");
         inviscid_registry.add(block.id(), inviscid->second);
 
@@ -281,11 +302,34 @@ void ViscousWcnsSolver::advance(Real time_step, Real initial_time)
 {
     std::vector<StructuredBlock*> blocks;
     for (auto& block : local_blocks_.blocks()) blocks.push_back(&block);
+    int rk_stage = 0;
     advance_ssprk3(blocks, time_step, initial_time,
-        [this](Real stage_time) { compute_residuals(stage_time); });
+        [this, &rk_stage](Real stage_time) {
+            compute_residuals(stage_time, ++rk_stage);
+        });
     for (auto& block : local_blocks_.blocks()) {
         update_temperature_primitive_interior(block, gas_, reference_, floors_);
     }
+}
+
+std::size_t ViscousWcnsSolver::global_reconstruction_fallback_count() const
+{
+    return global_diagnostic_count(
+        mpi_, reconstruction_diagnostics_.fallback_events.size(),
+        "viscous reconstruction fallback count");
+}
+
+std::size_t ViscousWcnsSolver::global_riemann_fallback_count() const
+{
+    return global_diagnostic_count(
+        mpi_, riemann_diagnostics_.fallback_count(),
+        "viscous Riemann fallback count");
+}
+
+std::size_t ViscousWcnsSolver::global_riemann_face_count() const
+{
+    return global_diagnostic_count(
+        mpi_, riemann_diagnostics_.total_faces, "viscous Riemann face count");
 }
 
 Real ViscousWcnsSolver::global_time_step(Real cfl)

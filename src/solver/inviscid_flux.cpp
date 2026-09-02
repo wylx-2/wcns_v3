@@ -230,6 +230,20 @@ bool connection_covers(
     return false;
 }
 
+bool non_owned_connection_face(
+    const StructuredBlock& block, Axis axis, Index3 face)
+{
+    for (const auto& connection : block.connectivities) {
+        if (connection.receiver_face.axis == axis
+            && contains(connection.shared_face_range.untyped(), face)) {
+            const BlockId owner = std::min(
+                connection.receiver_block, connection.donor_block);
+            return block.id() != owner;
+        }
+    }
+    return false;
+}
+
 Real centered_derivative(
     const Field<Real>& flux,
     Axis axis,
@@ -481,12 +495,17 @@ InviscidFaceFluxField compute_inviscid_face_fluxes(
     const BoundaryDataMap& boundary_data,
     const InviscidBoundaryOptions& boundary_options,
     std::uint64_t version,
-    ReconstructionDiagnostics& diagnostics)
+    ReconstructionDiagnostics& diagnostics,
+    RiemannDiagnostics* riemann_diagnostics,
+    int rk_stage)
 {
     ProfileFactory::validate_bundle(profile.components());
     if (metric.profile() != profile.kind()
         || metric.dimension() != block.cell_dimension()) {
         throw ProfileError("inviscid flux metric belongs to another profile or dimension");
+    }
+    if (rk_stage < 0 || rk_stage > 3) {
+        throw std::invalid_argument("inviscid flux RK stage must lie in [0,3]");
     }
     InviscidFaceFluxField result(
         block.cell_extent(), block.cell_dimension(), profile.kind(), version);
@@ -498,12 +517,18 @@ InviscidFaceFluxField compute_inviscid_face_fluxes(
             for (int j = 0; j < extent.nj; ++j) {
                 for (int i = 0; i < extent.ni; ++i) {
                     const Index3 face {i, j, k};
+                    // The non-owner copy is received from FaceFluxHaloExchanger.
+                    // Skipping it here also keeps fallback diagnostics unique.
+                    if (non_owned_connection_face(block, axis, face)) continue;
+                    const FaceDiagnosticLocation diagnostic_location {
+                        block.id(), block.owner_rank(), axis, face, version, rk_stage};
                     Real area = 0.0;
                     const auto normal = unit_normal(faces, face, area);
                     auto states = reconstruct_thermodynamic_face(
                         block.flow.conservative, block.flow.primitive,
                         axis, face, reconstruction, gas, reference,
-                        diagnostics, block.cell_dimension(), normal);
+                        diagnostics, block.cell_dimension(), normal,
+                        diagnostic_location);
                     if (const auto* patch = physical_patch(block, axis, face)) {
                         const auto data_iterator = boundary_data.find(patch->name);
                         if (data_iterator == boundary_data.end()) {
@@ -525,10 +550,14 @@ InviscidFaceFluxField compute_inviscid_face_fluxes(
                         }
                     }
                     const auto numerical
-                        = riemann.flux(states.left, states.right, normal, gas, floors);
+                        = riemann.solve(states.left, states.right, normal, gas, floors);
+                    if (riemann_diagnostics != nullptr) {
+                        riemann_diagnostics->record(numerical, diagnostic_location);
+                    }
                     for (int component = 0; component < euler_components; ++component) {
                         output(i, j, k, component)
-                            = area * numerical[static_cast<std::size_t>(component)];
+                            = area * numerical.flux_per_unit_area[
+                                static_cast<std::size_t>(component)];
                     }
                 }
             }

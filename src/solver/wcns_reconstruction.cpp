@@ -971,7 +971,8 @@ EulerFaceStates reconstruct_thermodynamic_face(
     const ReferenceScales& reference,
     ReconstructionDiagnostics& diagnostics,
     int dimension,
-    Normal3 unit_normal)
+    Normal3 unit_normal,
+    FaceDiagnosticLocation location)
 {
     const auto registry = ReconstructionRegistry::with_builtins();
     config.validate(registry);
@@ -1063,6 +1064,17 @@ EulerFaceStates reconstruct_thermodynamic_face(
     };
 
     const auto selected = registry.create(config.scheme);
+    const auto variable_name = [](ReconstructionVariables variables) {
+        switch (variables) {
+        case ReconstructionVariables::Conservative: return "conservative";
+        case ReconstructionVariables::Primitive: return "primitive";
+        case ReconstructionVariables::Characteristic: return "characteristic";
+        }
+        throw std::invalid_argument("unknown reconstruction variable set");
+    };
+    auto strategy_name = [&](std::string_view scheme, ReconstructionVariables variables) {
+        return std::string(scheme) + ':' + variable_name(variables);
+    };
     if (config.scheme == "linear5") {
         ++diagnostics.linear_faces;
     } else {
@@ -1074,6 +1086,11 @@ EulerFaceStates reconstruct_thermodynamic_face(
             return result;
         }
         ++diagnostics.characteristic_fallbacks;
+        diagnostics.record_fallback(
+            location, config.scheme,
+            strategy_name(config.scheme, ReconstructionVariables::Characteristic),
+            strategy_name(config.scheme, ReconstructionVariables::Primitive),
+            ReconstructionFallbackReason::InvalidCharacteristicState);
         if (attempt_standard(
                 pressure_primitive_field,
                 ReconstructionVariables::Primitive,
@@ -1087,9 +1104,22 @@ EulerFaceStates reconstruct_thermodynamic_face(
         if (attempt_standard(source, config.variables, *selected)) return result;
     }
 
+    std::string fallback_from = strategy_name(
+        config.scheme,
+        config.variables == ReconstructionVariables::Conservative
+            ? ReconstructionVariables::Conservative
+            : ReconstructionVariables::Primitive);
     if (config.scheme != "linear5") {
         ++diagnostics.linear_fallbacks;
         ++diagnostics.linear_faces;
+        diagnostics.record_fallback(
+            location, config.scheme, fallback_from,
+            strategy_name(
+                "linear5",
+                config.variables == ReconstructionVariables::Conservative
+                    ? ReconstructionVariables::Conservative
+                    : ReconstructionVariables::Primitive),
+            ReconstructionFallbackReason::InvalidReconstructedState);
         const auto linear = registry.create("linear5");
         const auto fallback_variables
             = config.variables == ReconstructionVariables::Conservative
@@ -1101,6 +1131,7 @@ EulerFaceStates reconstruct_thermodynamic_face(
         if (attempt_standard(fallback_source, fallback_variables, *linear)) {
             return result;
         }
+        fallback_from = strategy_name("linear5", fallback_variables);
     }
 
     const auto left_index = shifted(face, axis, -1);
@@ -1120,7 +1151,35 @@ EulerFaceStates reconstruct_thermodynamic_face(
     result.left = load_first_order(left_index);
     result.right = load_first_order(right_index);
     ++diagnostics.first_order_fallbacks;
+    diagnostics.record_fallback(
+        location, config.scheme, fallback_from,
+        strategy_name(
+            "first_order",
+            config.variables == ReconstructionVariables::Conservative
+                ? ReconstructionVariables::Conservative
+                : ReconstructionVariables::Primitive),
+        ReconstructionFallbackReason::InvalidReconstructedState);
     return result;
+}
+
+void ReconstructionDiagnostics::record_fallback(
+    FaceDiagnosticLocation location,
+    std::string requested_scheme,
+    std::string from_strategy,
+    std::string to_strategy,
+    ReconstructionFallbackReason reason)
+{
+    if (requested_scheme.empty() || from_strategy.empty() || to_strategy.empty()
+        || from_strategy == to_strategy) {
+        throw std::invalid_argument("reconstruction fallback diagnostic is invalid");
+    }
+    fallback_events.push_back({
+        location,
+        std::move(requested_scheme),
+        std::move(from_strategy),
+        std::move(to_strategy),
+        reason,
+    });
 }
 
 } // namespace wcns

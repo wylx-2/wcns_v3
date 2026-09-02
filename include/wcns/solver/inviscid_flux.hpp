@@ -122,7 +122,9 @@ private:
     const BoundaryDataMap& boundary_data,
     const InviscidBoundaryOptions& boundary_options,
     std::uint64_t version,
-    ReconstructionDiagnostics& diagnostics);
+    ReconstructionDiagnostics& diagnostics,
+    RiemannDiagnostics* riemann_diagnostics = nullptr,
+    int rk_stage = 0);
 
 void compute_wcns_inviscid_residual(
     StructuredBlock& block,

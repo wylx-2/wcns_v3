@@ -184,7 +184,14 @@ void run_profile(
         boundary_data, profile, gas, reference, floors, config);
     solver.compute_residuals(0.0);
     WCNS_REQUIRE(solver.global_residual_l2() < 5.0e-11);
+    WCNS_REQUIRE(solver.global_riemann_face_count() == 280);
+    WCNS_REQUIRE(solver.global_riemann_fallback_count() == 0);
+    WCNS_REQUIRE(solver.global_reconstruction_fallback_count() == 0);
     solver.advance(0.01, 0.0);
+    WCNS_REQUIRE(solver.global_riemann_face_count() == 280);
+    for (const auto& event : solver.riemann_diagnostics().fallback_events) {
+        WCNS_REQUIRE(event.location.rk_stage == 3);
+    }
     Real local_error = 0.0;
     for (const auto& block : local.blocks()) {
         const auto extent = block.cell_extent();
