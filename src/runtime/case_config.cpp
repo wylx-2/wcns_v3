@@ -121,6 +121,28 @@ PartitionMode parse_partition_mode(const std::string& value)
     throw CaseConfigurationError("unknown partition mode: " + value);
 }
 
+RunMode parse_run_mode(const std::string& value)
+{
+    if (value == "steady") return RunMode::Steady;
+    if (value == "unsteady") return RunMode::Unsteady;
+    throw CaseConfigurationError("unknown run mode: " + value);
+}
+
+FieldOutputFormat parse_field_output_format(const std::string& value)
+{
+    if (value == "cgns") return FieldOutputFormat::Cgns;
+    if (value == "tecplot") return FieldOutputFormat::Tecplot;
+    if (value == "both") return FieldOutputFormat::Both;
+    throw CaseConfigurationError("unknown field output format: " + value);
+}
+
+SeriesOutputFormat parse_series_output_format(const std::string& value)
+{
+    if (value == "txt") return SeriesOutputFormat::Text;
+    if (value == "tecplot") return SeriesOutputFormat::Tecplot;
+    throw CaseConfigurationError("unknown series output format: " + value);
+}
+
 ReconstructionVariables parse_reconstruction_variables(const std::string& value)
 {
     if (value == "conservative") return ReconstructionVariables::Conservative;
@@ -217,7 +239,30 @@ const std::set<std::string>& fixed_keys()
         "source.body.az", "source.manufactured.rho",
         "source.manufactured.momentum_x", "source.manufactured.momentum_y",
         "source.manufactured.momentum_z", "source.manufactured.energy",
-        "run.viscous", "run.cfl", "run.max_steps",
+        "run.mode", "run.viscous", "run.cfl", "run.max_steps",
+        "run.t_end", "run.max_wall_time",
+        "steady.min_steps", "steady.check_interval_steps",
+        "steady.consecutive_checks", "steady.reference_floor",
+        "steady.l2_absolute", "steady.l2_relative",
+        "steady.linf_enabled", "steady.linf_absolute",
+        "steady.linf_relative", "output.directory",
+        "output.allow_existing", "output.dimensional",
+        "output.field.enabled", "output.field.format",
+        "output.field.every_steps", "output.field.every_time",
+        "output.field.explicit_times", "output.field.write_initial",
+        "output.field.write_final", "output.field.quantities",
+        "output.history.enabled", "output.history.format",
+        "output.history.every_steps", "output.history.every_time",
+        "output.history.explicit_times", "output.history.write_initial",
+        "output.history.write_final", "output.history.quantities",
+        "output.statistics.enabled", "output.statistics.format",
+        "output.statistics.every_steps", "output.statistics.every_time",
+        "output.statistics.explicit_times", "output.statistics.write_initial",
+        "output.statistics.write_final", "output.statistics.quantities",
+        "output.checkpoint.enabled", "output.checkpoint.every_steps",
+        "output.checkpoint.every_time", "output.checkpoint.explicit_times",
+        "output.checkpoint.write_initial", "output.checkpoint.write_final",
+        "restart.path",
     };
     return keys;
 }
@@ -261,6 +306,71 @@ Real optional_real(
         ? default_value : parse_real(iterator->second, key);
 }
 
+bool optional_bool(
+    const EntryMap& entries,
+    const std::string& key,
+    bool default_value)
+{
+    const auto iterator = entries.find(key);
+    return iterator == entries.end()
+        ? default_value : parse_bool(iterator->second, key);
+}
+
+std::size_t optional_size(
+    const EntryMap& entries,
+    const std::string& key,
+    std::size_t default_value)
+{
+    const auto iterator = entries.find(key);
+    if (iterator == entries.end()) return default_value;
+    const auto value = parse_integer(iterator->second, key);
+    if (value < 0
+        || static_cast<unsigned long long>(value)
+            > std::numeric_limits<std::size_t>::max()) {
+        throw CaseConfigurationError(
+            "configuration key is outside size_t range: " + key);
+    }
+    return static_cast<std::size_t>(value);
+}
+
+std::vector<Real> optional_real_list(
+    const EntryMap& entries,
+    const std::string& key)
+{
+    const auto iterator = entries.find(key);
+    if (iterator == entries.end()) return {};
+    std::vector<Real> result;
+    for (const auto& item : split_list(iterator->second)) {
+        result.push_back(parse_real(item, key));
+    }
+    return result;
+}
+
+std::vector<std::string> optional_string_list(
+    const EntryMap& entries,
+    const std::string& key)
+{
+    const auto iterator = entries.find(key);
+    return iterator == entries.end()
+        ? std::vector<std::string> {} : split_list(iterator->second);
+}
+
+OutputScheduleConfig parse_schedule(
+    const EntryMap& entries,
+    const std::string& prefix,
+    bool default_final)
+{
+    OutputScheduleConfig result;
+    result.every_steps = optional_size(entries, prefix + ".every_steps", 0);
+    result.every_time = optional_real(entries, prefix + ".every_time", 0.0);
+    result.explicit_times = optional_real_list(entries, prefix + ".explicit_times");
+    result.write_initial = optional_bool(
+        entries, prefix + ".write_initial", false);
+    result.write_final = optional_bool(
+        entries, prefix + ".write_final", default_final);
+    return result;
+}
+
 } // namespace
 
 const char* partition_mode_name(PartitionMode mode)
@@ -287,6 +397,34 @@ const char* boundary_type_name(BoundaryType type)
     case BoundaryType::Undefined: return "undefined";
     }
     throw CaseConfigurationError("invalid boundary type");
+}
+
+const char* run_mode_name(RunMode mode)
+{
+    switch (mode) {
+    case RunMode::Steady: return "steady";
+    case RunMode::Unsteady: return "unsteady";
+    }
+    throw CaseConfigurationError("invalid run mode");
+}
+
+const char* field_output_format_name(FieldOutputFormat format)
+{
+    switch (format) {
+    case FieldOutputFormat::Cgns: return "cgns";
+    case FieldOutputFormat::Tecplot: return "tecplot";
+    case FieldOutputFormat::Both: return "both";
+    }
+    throw CaseConfigurationError("invalid field output format");
+}
+
+const char* series_output_format_name(SeriesOutputFormat format)
+{
+    switch (format) {
+    case SeriesOutputFormat::Text: return "txt";
+    case SeriesOutputFormat::Tecplot: return "tecplot";
+    }
+    throw CaseConfigurationError("invalid series output format");
 }
 
 void PartitionConfig::validate(AlgorithmProfileKind profile) const
@@ -362,6 +500,154 @@ std::string InitialConditionConfig::summary() const
     return result.str();
 }
 
+void SteadyConvergenceConfig::validate() const
+{
+    if (min_steps == 0 || check_interval_steps == 0
+        || consecutive_checks == 0) {
+        throw CaseConfigurationError(
+            "steady step/check counts must be positive");
+    }
+    const std::array<std::pair<const char*, Real>, 5> values {{
+        {"reference_floor", reference_floor},
+        {"l2_absolute", l2_absolute},
+        {"l2_relative", l2_relative},
+        {"linf_absolute", linf_absolute},
+        {"linf_relative", linf_relative},
+    }};
+    for (const auto& value : values) {
+        if (!std::isfinite(value.second) || value.second <= 0.0) {
+            throw CaseConfigurationError(
+                std::string("steady ") + value.first
+                + " must be finite and positive");
+        }
+    }
+}
+
+std::string SteadyConvergenceConfig::summary() const
+{
+    std::ostringstream result;
+    result << "steady(min_steps=" << min_steps
+           << ",check_interval=" << check_interval_steps
+           << ",consecutive=" << consecutive_checks
+           << ",reference_floor=" << std::setprecision(17) << reference_floor
+           << ",l2_abs=" << l2_absolute << ",l2_rel=" << l2_relative
+           << ",linf_enabled=" << (linf_enabled ? "true" : "false")
+           << ",linf_abs=" << linf_absolute
+           << ",linf_rel=" << linf_relative << ')';
+    return result.str();
+}
+
+void OutputScheduleConfig::validate() const
+{
+    if (!std::isfinite(every_time) || every_time < 0.0) {
+        throw CaseConfigurationError(
+            "output schedule every_time must be finite and non-negative");
+    }
+    Real previous = -1.0;
+    for (const Real time : explicit_times) {
+        if (!std::isfinite(time) || time < 0.0 || time <= previous) {
+            throw CaseConfigurationError(
+                "output explicit times must be finite, non-negative and strictly increasing");
+        }
+        previous = time;
+    }
+}
+
+std::string OutputScheduleConfig::summary() const
+{
+    std::ostringstream result;
+    result << "schedule(every_steps=" << every_steps
+           << ",every_time=" << std::setprecision(17) << every_time
+           << ",explicit_times=";
+    for (std::size_t index = 0; index < explicit_times.size(); ++index) {
+        if (index != 0) result << ':';
+        result << explicit_times[index];
+    }
+    result << ",initial=" << (write_initial ? "true" : "false")
+           << ",final=" << (write_final ? "true" : "false") << ')';
+    return result.str();
+}
+
+void FieldOutputConfig::validate() const
+{
+    schedule.validate();
+    if (enabled && quantities.empty()) {
+        throw CaseConfigurationError(
+            "enabled field output requires at least one quantity");
+    }
+}
+
+std::string FieldOutputConfig::summary() const
+{
+    std::ostringstream result;
+    result << "field(enabled=" << (enabled ? "true" : "false")
+           << ",format=" << field_output_format_name(format)
+           << ',' << schedule.summary() << ",quantities=";
+    for (std::size_t index = 0; index < quantities.size(); ++index) {
+        if (index != 0) result << ':';
+        result << quantities[index];
+    }
+    result << ')';
+    return result.str();
+}
+
+void SeriesOutputConfig::validate(const char* label) const
+{
+    schedule.validate();
+    if (enabled && quantities.empty() && std::string(label) == "statistics") {
+        throw CaseConfigurationError(
+            "enabled statistics output requires at least one quantity");
+    }
+}
+
+std::string SeriesOutputConfig::summary(const char* label) const
+{
+    std::ostringstream result;
+    result << label << "(enabled=" << (enabled ? "true" : "false")
+           << ",format=" << series_output_format_name(format)
+           << ',' << schedule.summary() << ",quantities=";
+    for (std::size_t index = 0; index < quantities.size(); ++index) {
+        if (index != 0) result << ':';
+        result << quantities[index];
+    }
+    result << ')';
+    return result.str();
+}
+
+void CheckpointOutputConfig::validate() const
+{
+    schedule.validate();
+}
+
+std::string CheckpointOutputConfig::summary() const
+{
+    return std::string("checkpoint(enabled=")
+        + (enabled ? "true," : "false,") + schedule.summary() + ')';
+}
+
+void OutputConfig::validate() const
+{
+    if (directory.empty()) {
+        throw CaseConfigurationError("output directory must not be empty");
+    }
+    field.validate();
+    history.validate("history");
+    statistics.validate("statistics");
+    checkpoint.validate();
+}
+
+std::string OutputConfig::summary() const
+{
+    std::ostringstream result;
+    result << "output(directory=" << directory
+           << ",allow_existing=" << (allow_existing ? "true" : "false")
+           << ",dimensional=" << (dimensional ? "true" : "false")
+           << ',' << field.summary() << ',' << history.summary("history")
+           << ',' << statistics.summary("statistics") << ','
+           << checkpoint.summary() << ')';
+    return result.str();
+}
+
 void CaseRunConfig::validate() const
 {
     if (!std::isfinite(cfl) || cfl <= 0.0) {
@@ -370,14 +656,27 @@ void CaseRunConfig::validate() const
     if (max_steps == 0) {
         throw CaseConfigurationError("run max_steps must be positive");
     }
+    if (!std::isfinite(end_time) || end_time < 0.0
+        || !std::isfinite(max_wall_time) || max_wall_time < 0.0) {
+        throw CaseConfigurationError(
+            "run t_end and max_wall_time must be finite and non-negative");
+    }
+    if (mode == RunMode::Unsteady && end_time <= 0.0) {
+        throw CaseConfigurationError(
+            "unsteady run requires a positive t_end");
+    }
+    steady.validate();
 }
 
 std::string CaseRunConfig::summary() const
 {
     std::ostringstream result;
-    result << "run(viscous=" << (viscous ? "true" : "false")
+    result << "run(mode=" << run_mode_name(mode)
+           << ",viscous=" << (viscous ? "true" : "false")
            << ",cfl=" << std::setprecision(17) << cfl
-           << ",max_steps=" << max_steps << ')';
+           << ",max_steps=" << max_steps << ",t_end=" << end_time
+           << ",max_wall_time=" << max_wall_time << ','
+           << steady.summary() << ')';
     return result.str();
 }
 
@@ -491,6 +790,7 @@ CaseConfig CaseConfig::from_text(const std::string& text)
         optional_real(entries, "source.body.az", 0.0),
     }};
 
+    result.run.mode = parse_run_mode(require(entries, "run.mode"));
     result.run.viscous = parse_bool(require(entries, "run.viscous"), "run.viscous");
     result.run.cfl = parse_real(require(entries, "run.cfl"), "run.cfl");
     const auto max_steps = parse_integer(
@@ -501,6 +801,74 @@ CaseConfig CaseConfig::from_text(const std::string& text)
         throw CaseConfigurationError("run max_steps is outside size_t range");
     }
     result.run.max_steps = static_cast<std::size_t>(max_steps);
+    result.run.end_time = optional_real(entries, "run.t_end", 0.0);
+    result.run.max_wall_time = optional_real(entries, "run.max_wall_time", 0.0);
+    result.run.steady.min_steps = optional_size(
+        entries, "steady.min_steps", 1);
+    result.run.steady.check_interval_steps = optional_size(
+        entries, "steady.check_interval_steps", 1);
+    result.run.steady.consecutive_checks = optional_size(
+        entries, "steady.consecutive_checks", 1);
+    result.run.steady.reference_floor = optional_real(
+        entries, "steady.reference_floor", 1.0e-30);
+    result.run.steady.l2_absolute = optional_real(
+        entries, "steady.l2_absolute", 1.0e-12);
+    result.run.steady.l2_relative = optional_real(
+        entries, "steady.l2_relative", 1.0e-8);
+    result.run.steady.linf_enabled = optional_bool(
+        entries, "steady.linf_enabled", true);
+    result.run.steady.linf_absolute = optional_real(
+        entries, "steady.linf_absolute", 1.0e-11);
+    result.run.steady.linf_relative = optional_real(
+        entries, "steady.linf_relative", 1.0e-8);
+
+    result.output.directory = require(entries, "output.directory");
+    result.output.allow_existing = parse_bool(
+        require(entries, "output.allow_existing"), "output.allow_existing");
+    result.output.dimensional = parse_bool(
+        require(entries, "output.dimensional"), "output.dimensional");
+
+    result.output.field.enabled = parse_bool(
+        require(entries, "output.field.enabled"), "output.field.enabled");
+    if (const auto iterator = entries.find("output.field.format");
+        iterator != entries.end()) {
+        result.output.field.format = parse_field_output_format(iterator->second);
+    }
+    result.output.field.schedule = parse_schedule(entries, "output.field", true);
+    result.output.field.quantities = optional_string_list(
+        entries, "output.field.quantities");
+
+    result.output.history.enabled = parse_bool(
+        require(entries, "output.history.enabled"), "output.history.enabled");
+    if (const auto iterator = entries.find("output.history.format");
+        iterator != entries.end()) {
+        result.output.history.format = parse_series_output_format(iterator->second);
+    }
+    result.output.history.schedule = parse_schedule(entries, "output.history", true);
+    result.output.history.quantities = optional_string_list(
+        entries, "output.history.quantities");
+
+    result.output.statistics.enabled = parse_bool(
+        require(entries, "output.statistics.enabled"),
+        "output.statistics.enabled");
+    if (const auto iterator = entries.find("output.statistics.format");
+        iterator != entries.end()) {
+        result.output.statistics.format = parse_series_output_format(iterator->second);
+    }
+    result.output.statistics.schedule = parse_schedule(
+        entries, "output.statistics", true);
+    result.output.statistics.quantities = optional_string_list(
+        entries, "output.statistics.quantities");
+
+    result.output.checkpoint.enabled = parse_bool(
+        require(entries, "output.checkpoint.enabled"),
+        "output.checkpoint.enabled");
+    result.output.checkpoint.schedule = parse_schedule(
+        entries, "output.checkpoint", true);
+    if (const auto iterator = entries.find("restart.path");
+        iterator != entries.end()) {
+        result.restart_path = iterator->second;
+    }
     result.digest_ = fnv1a(canonical_entries(entries));
     result.validate();
     return result;
@@ -534,6 +902,7 @@ void CaseConfig::validate() const
     partition.validate(profile);
     initial.validate();
     run.validate();
+    output.validate();
     if (default_boundary == BoundaryType::Undefined) {
         throw CaseConfigurationError("default boundary type must be defined");
     }
@@ -589,13 +958,32 @@ std::string CaseConfig::summary() const
         result << ",boundary." << name << '=' << boundary_type_name(type);
     }
     result << ',' << source_terms.summary() << ',' << run.summary()
+           << ',' << output.summary()
+           << ",restart.path=" << (restart_path.empty() ? "<none>" : restart_path)
            << ",digest=0x" << std::hex << digest_ << ')';
     return result.str();
 }
 
 std::string CaseConfig::restart_signature() const
 {
-    return summary();
+    std::vector<std::pair<std::string, BoundaryType>> boundaries(
+        boundary_overrides.begin(), boundary_overrides.end());
+    std::sort(boundaries.begin(), boundaries.end());
+    std::ostringstream result;
+    result << "schema=" << schema_version << ";profile="
+           << make_profile().restart_signature() << ";reconstruction="
+           << reconstruction.restart_signature() << ";riemann="
+           << riemann.restart_signature() << ";gas="
+           << make_gas_model().restart_signature() << ";reference="
+           << make_reference_scales(make_gas_model()).restart_signature()
+           << ";boundary.default=" << boundary_type_name(default_boundary);
+    for (const auto& boundary : boundaries) {
+        result << ";boundary." << boundary.first << '='
+               << boundary_type_name(boundary.second);
+    }
+    result << ";source=" << source_terms.restart_signature()
+           << ";viscous=" << (run.viscous ? "true" : "false");
+    return result.str();
 }
 
 } // namespace wcns

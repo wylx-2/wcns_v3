@@ -36,9 +36,17 @@ initial.temperature = 1
 boundary.default = farfield
 boundary.wall.type = slip_wall
 source.enabled = false
+run.mode = steady
 run.viscous = false
 run.cfl = 0.2
 run.max_steps = 10
+output.directory = output
+output.allow_existing = false
+output.dimensional = false
+output.field.enabled = false
+output.history.enabled = false
+output.statistics.enabled = false
+output.checkpoint.enabled = false
 )";
 }
 
@@ -61,9 +69,30 @@ void test_case_config()
         WCNS_REQUIRE(
             config.boundary_overrides.at("wall") == wcns::BoundaryType::SlipWall);
         WCNS_REQUIRE(config.run.max_steps == 10);
+        WCNS_REQUIRE(config.run.mode == wcns::RunMode::Steady);
+        WCNS_REQUIRE(config.output.directory == "output");
         WCNS_REQUIRE(config.digest() != 0);
         WCNS_REQUIRE(config.summary().find("Re=") != std::string::npos);
         WCNS_REQUIRE(config.summary().find("Ma=") != std::string::npos);
+    }
+    {
+        auto unsteady = valid_config();
+        const auto mode = unsteady.find("run.mode = steady");
+        unsteady.replace(mode, std::string("run.mode = steady").size(),
+            "run.mode = unsteady\nrun.t_end = 0.25");
+        const auto config = wcns::CaseConfig::from_text(unsteady);
+        WCNS_REQUIRE(config.run.mode == wcns::RunMode::Unsteady);
+        WCNS_REQUIRE_NEAR(config.run.end_time, 0.25, 1.0e-15);
+
+        auto missing_end = valid_config();
+        const auto missing_mode = missing_end.find("run.mode = steady");
+        missing_end.replace(
+            missing_mode,
+            std::string("run.mode = steady").size(),
+            "run.mode = unsteady");
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(missing_end));
     }
     {
         auto reordered = valid_config();

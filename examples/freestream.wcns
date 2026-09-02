@@ -31,6 +31,48 @@ initial.temperature = 1.0
 boundary.default = farfield
 source.enabled = false
 
+run.mode = steady
 run.viscous = false
 run.cfl = 0.2
 run.max_steps = 10
+run.max_wall_time = 0
+
+steady.min_steps = 5
+steady.check_interval_steps = 1
+steady.consecutive_checks = 3
+steady.reference_floor = 1e-30
+steady.l2_absolute = 1e-12
+steady.l2_relative = 1e-8
+steady.linf_enabled = true
+steady.linf_absolute = 1e-11
+steady.linf_relative = 1e-8
+
+output.directory = output/freestream
+output.allow_existing = false
+output.dimensional = false
+
+output.field.enabled = true
+output.field.format = both
+output.field.every_steps = 10
+output.field.every_time = 0
+output.field.write_initial = true
+output.field.write_final = true
+output.field.quantities = rho,u,v,w,p,T,rho_u,rho_v,rho_w,rho_E
+
+output.history.enabled = true
+output.history.format = txt
+output.history.every_steps = 1
+output.history.write_initial = true
+output.history.write_final = true
+
+output.statistics.enabled = true
+output.statistics.format = txt
+output.statistics.every_steps = 1
+output.statistics.write_initial = true
+output.statistics.write_final = true
+output.statistics.quantities = total_mass,total_momentum_x,total_energy
+
+output.checkpoint.enabled = true
+output.checkpoint.every_steps = 100
+output.checkpoint.write_initial = false
+output.checkpoint.write_final = true

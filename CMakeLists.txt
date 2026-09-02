@@ -164,6 +164,7 @@ target_link_libraries(wcns_solver PUBLIC wcns::parallel wcns::physics)
 add_library(wcns_runtime STATIC
     src/runtime/case_config.cpp
     src/runtime/flow_initializer.cpp
+    src/runtime/stop_controller.cpp
     src/runtime/structured_partition.cpp
 )
 add_library(wcns::runtime ALIAS wcns_runtime)

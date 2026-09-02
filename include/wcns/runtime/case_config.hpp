@@ -8,9 +8,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <array>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace wcns {
 
@@ -46,10 +48,97 @@ struct InitialConditionConfig {
     [[nodiscard]] std::string summary() const;
 };
 
+enum class RunMode {
+    Steady,
+    Unsteady,
+};
+
+struct SteadyConvergenceConfig {
+    std::size_t min_steps = 1;
+    std::size_t check_interval_steps = 1;
+    std::size_t consecutive_checks = 1;
+    Real reference_floor = 1.0e-30;
+    Real l2_absolute = 1.0e-12;
+    Real l2_relative = 1.0e-8;
+    bool linf_enabled = true;
+    Real linf_absolute = 1.0e-11;
+    Real linf_relative = 1.0e-8;
+
+    void validate() const;
+    [[nodiscard]] std::string summary() const;
+};
+
+struct OutputScheduleConfig {
+    std::size_t every_steps = 0;
+    Real every_time = 0.0;
+    std::vector<Real> explicit_times;
+    bool write_initial = false;
+    bool write_final = true;
+
+    void validate() const;
+    [[nodiscard]] std::string summary() const;
+};
+
+enum class FieldOutputFormat {
+    Cgns,
+    Tecplot,
+    Both,
+};
+
+enum class SeriesOutputFormat {
+    Text,
+    Tecplot,
+};
+
+struct FieldOutputConfig {
+    bool enabled = false;
+    FieldOutputFormat format = FieldOutputFormat::Cgns;
+    OutputScheduleConfig schedule;
+    std::vector<std::string> quantities;
+
+    void validate() const;
+    [[nodiscard]] std::string summary() const;
+};
+
+struct SeriesOutputConfig {
+    bool enabled = false;
+    SeriesOutputFormat format = SeriesOutputFormat::Text;
+    OutputScheduleConfig schedule;
+    std::vector<std::string> quantities;
+
+    void validate(const char* label) const;
+    [[nodiscard]] std::string summary(const char* label) const;
+};
+
+struct CheckpointOutputConfig {
+    bool enabled = false;
+    OutputScheduleConfig schedule;
+
+    void validate() const;
+    [[nodiscard]] std::string summary() const;
+};
+
+struct OutputConfig {
+    std::string directory = "output";
+    bool allow_existing = false;
+    bool dimensional = false;
+    FieldOutputConfig field;
+    SeriesOutputConfig history;
+    SeriesOutputConfig statistics;
+    CheckpointOutputConfig checkpoint;
+
+    void validate() const;
+    [[nodiscard]] std::string summary() const;
+};
+
 struct CaseRunConfig {
+    RunMode mode = RunMode::Steady;
     bool viscous = false;
     Real cfl = 0.2;
     std::size_t max_steps = 1;
+    Real end_time = 0.0;
+    Real max_wall_time = 0.0;
+    SteadyConvergenceConfig steady;
 
     void validate() const;
     [[nodiscard]] std::string summary() const;
@@ -72,6 +161,8 @@ struct CaseConfig {
     std::unordered_map<std::string, BoundaryType> boundary_overrides;
     SourceTermConfig source_terms;
     CaseRunConfig run;
+    OutputConfig output;
+    std::string restart_path;
 
     [[nodiscard]] static CaseConfig from_text(const std::string& text);
     [[nodiscard]] static CaseConfig from_file(const std::string& path);
@@ -92,5 +183,8 @@ private:
 
 [[nodiscard]] const char* partition_mode_name(PartitionMode mode);
 [[nodiscard]] const char* boundary_type_name(BoundaryType type);
+[[nodiscard]] const char* run_mode_name(RunMode mode);
+[[nodiscard]] const char* field_output_format_name(FieldOutputFormat format);
+[[nodiscard]] const char* series_output_format_name(SeriesOutputFormat format);
 
 } // namespace wcns
