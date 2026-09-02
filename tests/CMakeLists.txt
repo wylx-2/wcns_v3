@@ -279,6 +279,68 @@ if(WCNS_ENABLE_CGNS)
             --cells-k 8
             --warp 0.05
     )
+    foreach(profile IN ITEMS phenglei_wcns scmm6_wcns)
+        add_test(
+            NAME wcns.release.freestream.${profile}.2d.serial
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_release_matrix.py
+                --run $<TARGET_FILE:wcns_run>
+                --generator $<TARGET_FILE:wcns_generate_release_cgns>
+                --validator $<TARGET_FILE:wcns_validate_release_case>
+                --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/freestream.wcns.in
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-o2a-${profile}-2d-serial
+                --ranks 1
+                --cells-i 32
+                --cells-j 16
+                --steps 10
+                --profile ${profile}
+                --case-prefix o2a-${profile}-2d
+        )
+        add_test(
+            NAME wcns.release.freestream.${profile}.3d.serial
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_release_matrix.py
+                --run $<TARGET_FILE:wcns_run>
+                --generator $<TARGET_FILE:wcns_generate_release_cgns>
+                --validator $<TARGET_FILE:wcns_validate_release_case>
+                --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/freestream.wcns.in
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-o2a-${profile}-3d-serial
+                --ranks 1
+                --dimension 3
+                --cells-i 16
+                --cells-j 16
+                --cells-k 8
+                --warp 0.05
+                --steps 10
+                --profile ${profile}
+                --case-prefix o2a-${profile}-3d
+        )
+    endforeach()
+    set_tests_properties(
+        wcns.release.freestream.phenglei_wcns.2d.serial
+        PROPERTIES FIXTURES_SETUP release_o2a_single_zone
+    )
+    add_test(
+        NAME wcns.release.freestream.native_multizone.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_release_matrix.py
+            --run $<TARGET_FILE:wcns_run>
+            --generator $<TARGET_FILE:wcns_generate_release_cgns>
+            --validator $<TARGET_FILE:wcns_validate_release_case>
+            --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/freestream.wcns.in
+            --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-o2a-native-multizone-serial
+            --reference-directory ${CMAKE_CURRENT_BINARY_DIR}/release-o2a-phenglei_wcns-2d-serial/output-r1
+            --ranks 1
+            --cells-i 32
+            --cells-j 16
+            --zones-i 2
+            --steps 10
+            --case-prefix o2a-native-multizone
+    )
+    set_tests_properties(
+        wcns.release.freestream.native_multizone.serial
+        PROPERTIES FIXTURES_REQUIRED release_o2a_single_zone
+    )
     add_test(
         NAME wcns.run.output.serial
         COMMAND wcns_run
@@ -540,6 +602,87 @@ if(WCNS_ENABLE_CGNS)
                 --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-matrix-smoke-mpi
                 --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
                 --ranks 1,2
+        )
+        foreach(profile IN ITEMS phenglei_wcns scmm6_wcns)
+            add_test(
+                NAME wcns.release.freestream.${profile}.2d.mpi
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_release_matrix.py
+                    --run $<TARGET_FILE:wcns_run>
+                    --generator $<TARGET_FILE:wcns_generate_release_cgns>
+                    --validator $<TARGET_FILE:wcns_validate_release_case>
+                    --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/freestream.wcns.in
+                    --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-o2a-${profile}-2d-mpi
+                    --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
+                    --ranks 1,2,4
+                    --cells-i 32
+                    --cells-j 16
+                    --steps 10
+                    --profile ${profile}
+                    --case-prefix o2a-${profile}-2d-mpi
+            )
+            add_test(
+                NAME wcns.release.freestream.${profile}.3d.mpi
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_release_matrix.py
+                    --run $<TARGET_FILE:wcns_run>
+                    --generator $<TARGET_FILE:wcns_generate_release_cgns>
+                    --validator $<TARGET_FILE:wcns_validate_release_case>
+                    --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/freestream.wcns.in
+                    --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-o2a-${profile}-3d-mpi
+                    --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
+                    --ranks 1,2
+                    --dimension 3
+                    --cells-i 16
+                    --cells-j 16
+                    --cells-k 8
+                    --warp 0.05
+                    --steps 10
+                    --profile ${profile}
+                    --case-prefix o2a-${profile}-3d-mpi
+            )
+        endforeach()
+        add_test(
+            NAME wcns.release.freestream.native_multizone.mpi
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_release_matrix.py
+                --run $<TARGET_FILE:wcns_run>
+                --generator $<TARGET_FILE:wcns_generate_release_cgns>
+                --validator $<TARGET_FILE:wcns_validate_release_case>
+                --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/freestream.wcns.in
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-o2a-native-multizone-mpi
+                --reference-directory ${CMAKE_CURRENT_BINARY_DIR}/release-o2a-phenglei_wcns-2d-serial/output-r1
+                --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
+                --ranks 1,2
+                --cells-i 32
+                --cells-j 16
+                --zones-i 2
+                --steps 10
+                --case-prefix o2a-native-multizone-mpi
+        )
+        set_tests_properties(
+            wcns.release.freestream.native_multizone.mpi
+            PROPERTIES FIXTURES_REQUIRED release_o2a_single_zone
+        )
+        add_test(
+            NAME wcns.release.freestream.phenglei_wcns.3d_k_split.mpi
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_release_matrix.py
+                --run $<TARGET_FILE:wcns_run>
+                --generator $<TARGET_FILE:wcns_generate_release_cgns>
+                --validator $<TARGET_FILE:wcns_validate_release_case>
+                --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/freestream.wcns.in
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-o2a-phenglei-3d-k-split
+                --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
+                --ranks 1,2
+                --dimension 3
+                --cells-i 8
+                --cells-j 8
+                --cells-k 16
+                --warp 0.05
+                --steps 10
+                --profile phenglei_wcns
+                --case-prefix o2a-phenglei-3d-k-split
         )
         add_test(
             NAME wcns.run.output.2

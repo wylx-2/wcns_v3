@@ -75,6 +75,15 @@ def one_field(directory: Path) -> Path:
     return fields[0]
 
 
+def one_file(directory: Path, pattern: str) -> Path:
+    matches = sorted(directory.glob(pattern))
+    if len(matches) != 1:
+        raise RuntimeError(
+            f"expected exactly one {pattern} in {directory}, found {len(matches)}"
+        )
+    return matches[0]
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--run", required=True, type=Path)
@@ -91,6 +100,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--zones-i", type=int, default=1)
     parser.add_argument("--warp", type=float, default=0.0)
     parser.add_argument("--periodic-x", action="store_true")
+    parser.add_argument("--profile", default="phenglei_wcns")
+    parser.add_argument("--reconstruction", default="weno_z")
+    parser.add_argument("--riemann", default="hllc")
+    parser.add_argument("--steps", type=int, default=3)
+    parser.add_argument("--uniform-tolerance", type=float, default=1.0e-11)
+    parser.add_argument("--case-prefix", default="release-freestream")
+    parser.add_argument("--reference-directory", type=Path)
+    parser.add_argument("--min-cells", type=int, default=8)
     return parser.parse_args()
 
 
@@ -101,6 +118,8 @@ def main() -> int:
         raise RuntimeError("--ranks must contain distinct positive integers")
     if any(value > 1 for value in ranks) and args.mpi_exec is None:
         raise RuntimeError("MPI ranks require --mpi-exec")
+    if args.steps < 1 or args.min_cells < 1 or args.uniform_tolerance < 0.0:
+        raise RuntimeError("steps/min-cells must be positive and tolerance nonnegative")
     clean_work_directory(args.work_dir)
     root = args.work_dir.resolve()
     mesh = root / "release-grid.cgns"
@@ -124,7 +143,7 @@ def main() -> int:
     template = args.template.read_text(encoding="utf-8")
     fields: dict[int, Path] = {}
     for rank_count in ranks:
-        case_name = f"release-freestream-r{rank_count}"
+        case_name = f"{args.case_prefix}-r{rank_count}"
         output = root / f"output-r{rank_count}"
         config = root / f"{case_name}.wcns"
         config.write_text(
@@ -133,10 +152,12 @@ def main() -> int:
                 {
                     "CASE_NAME": case_name,
                     "MESH_PATH": mesh.as_posix(),
-                    "ALGORITHM_PROFILE": "phenglei_wcns",
-                    "RECONSTRUCTION": "weno_z",
-                    "RIEMANN": "hllc",
-                    "MAX_STEPS": "3",
+                    "ALGORITHM_PROFILE": args.profile,
+                    "RECONSTRUCTION": args.reconstruction,
+                    "RIEMANN": args.riemann,
+                    "MAX_STEPS": str(args.steps),
+                    "MIN_STEPS": str(args.steps),
+                    "MIN_CELLS": str(args.min_cells),
                     "OUTPUT_DIRECTORY": output.as_posix(),
                 },
             ),
@@ -158,7 +179,7 @@ def main() -> int:
                     "-0.1",
                     "0.0",
                     "1.0",
-                    "1e-11",
+                    str(args.uniform_tolerance),
                 ],
                 root / f"uniform-r{rank_count}.log",
             )
@@ -167,6 +188,18 @@ def main() -> int:
             run(
                 [str(args.validator), "finite", str(fields[rank_count])],
                 root / f"finite-r{rank_count}.log",
+            )
+        )
+        statistics = one_file(output, f"*.statistics.r{rank_count}.txt")
+        records.append(
+            run(
+                [
+                    str(args.validator),
+                    "series-constant",
+                    str(statistics),
+                    "1e-12",
+                ],
+                root / f"conservation-r{rank_count}.log",
             )
         )
     reference_rank = ranks[0]
@@ -183,6 +216,22 @@ def main() -> int:
                 root / f"compare-r{reference_rank}-r{rank_count}.log",
             )
         )
+    if args.reference_directory is not None:
+        reference_field = one_field(args.reference_directory.resolve())
+        for rank_count in ranks:
+            records.append(
+                run(
+                    [
+                        str(args.validator),
+                        "compare-spatial",
+                        str(reference_field),
+                        str(fields[rank_count]),
+                        "2e-11",
+                        "1e-13",
+                    ],
+                    root / f"compare-spatial-reference-r{rank_count}.log",
+                )
+            )
     summary = {
         "matrix_version": 1,
         "status": "passed",
@@ -192,6 +241,10 @@ def main() -> int:
             "zones_i": args.zones_i,
             "warp": args.warp,
             "periodic_x": args.periodic_x,
+            "profile": args.profile,
+            "reconstruction": args.reconstruction,
+            "riemann": args.riemann,
+            "steps": args.steps,
         },
         "ranks": ranks,
         "records": records,

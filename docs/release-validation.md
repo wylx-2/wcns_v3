@@ -52,5 +52,10 @@ MPI 使用 `--mpi-exec <mpiexec> --ranks 1,2,4`。原生多区/周期/三维扭�
 清理含自身 `.wcns-release-matrix` 标记的既有目录；对未标记目录立即失败，防止误删用户数据。
 每个 rank 使用不同输出目录，随后以 rank 列表首项为参考逐场比较。
 
+`--profile`、`--reconstruction`、`--riemann` 和 `--steps` 选择冻结算法组合与固定推进步数；
+`--reference-directory` 指向另一矩阵的输出目录时，验证器以 cell-center 物理坐标排序后比较，
+因此可严格比较同一逻辑网格的“单 zone 运行时切分”和“原生多 zone”结果，而不要求输出
+zone 布局相同。统计文件同时通过 `series-constant` 检查全程守恒漂移。
+
 CTest 中固定三条串行 smoke（二维、二维原生多区周期、三维扭曲），MPI 构建另执行
 1/2 rank 等价性 smoke。它们验证基础设施可用，不替代 O2--O6 冻结的中等网格发布矩阵。

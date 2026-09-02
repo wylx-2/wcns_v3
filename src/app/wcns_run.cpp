@@ -1,5 +1,6 @@
 #include <wcns/io/cgns_reader.hpp>
 #include <wcns/mesh/high_order_metrics.hpp>
+#include <wcns/mesh/metrics.hpp>
 #include <wcns/parallel/distributed_topology.hpp>
 #include <wcns/parallel/mpi_runtime.hpp>
 #include <wcns/runtime/case_config.hpp>
@@ -13,15 +14,18 @@
 #include <wcns/solver/viscous_wcns_solver.hpp>
 
 #include <cctype>
+#include <algorithm>
 #include <csignal>
 #include <cstdlib>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -243,6 +247,106 @@ wcns::BlockBoundaryDataMap make_boundary_data(
     return result;
 }
 
+const wcns::CgnsZoneMetadata& source_zone_metadata(
+    const wcns::CgnsMeshMetadata& metadata,
+    wcns::BlockId source_zone)
+{
+    const auto iterator = std::find_if(
+        metadata.zones.begin(), metadata.zones.end(),
+        [source_zone](const auto& zone) {
+            return zone.block_id == source_zone;
+        });
+    if (iterator == metadata.zones.end()) {
+        throw std::runtime_error("partition metric source zone is missing");
+    }
+    return *iterator;
+}
+
+wcns::BlockMetricMap initialize_partitioned_metrics(
+    const wcns::MpiRuntime& mpi,
+    const wcns::CgnsReader& reader,
+    const std::string& mesh_name,
+    const wcns::CgnsMeshMetadata& metadata,
+    const wcns::StructuredPartitionPlan& plan,
+    wcns::LocalBlockSet& local_blocks,
+    const wcns::AlgorithmProfile& profile)
+{
+    // Low-order physical-boundary normals remain block-local. High-order metric
+    // operands are evaluated once on each original CGNS zone and then sliced,
+    // so an artificial MPI cut cannot become a one-sided geometry boundary.
+    for (auto& block : local_blocks.blocks()) wcns::compute_metrics(block);
+
+    wcns::BlockMetricMap result;
+    for (const auto& zone : plan.zones()) {
+        wcns::RankId metric_owner = std::numeric_limits<wcns::RankId>::max();
+        for (const auto& leaf : plan.leaves()) {
+            if (leaf.source_zone == zone.source_zone) {
+                metric_owner = std::min(metric_owner, leaf.owner);
+            }
+        }
+        if (metric_owner == std::numeric_limits<wcns::RankId>::max()) {
+            throw std::runtime_error("partition source zone has no leaves");
+        }
+
+        std::vector<std::size_t> counts;
+        std::vector<wcns::Real> owner_payload;
+        if (mpi.rank() == metric_owner) {
+            counts.assign(static_cast<std::size_t>(mpi.size()), 0);
+            auto source_block = reader.read_block(
+                mesh_name,
+                source_zone_metadata(metadata, zone.source_zone),
+                metric_owner,
+                0);
+            const auto source_metric
+                = wcns::initialize_metric_field(source_block, profile).metric;
+            for (int rank = 0; rank < mpi.size(); ++rank) {
+                for (const auto& leaf : plan.leaves()) {
+                    if (leaf.source_zone != zone.source_zone
+                        || leaf.owner != rank) {
+                        continue;
+                    }
+                    const auto metric = wcns::extract_metric_field(
+                        source_metric, leaf.cells.begin, leaf.cell_extent());
+                    const auto packed = wcns::pack_metric_field(metric);
+                    counts[static_cast<std::size_t>(rank)] += packed.size();
+                    owner_payload.insert(
+                        owner_payload.end(), packed.begin(), packed.end());
+                }
+            }
+        }
+        const auto local_payload = mpi.scatter_reals(
+            owner_payload, counts, metric_owner);
+        std::size_t offset = 0;
+        for (const auto& leaf : plan.leaves()) {
+            if (leaf.source_zone != zone.source_zone
+                || leaf.owner != mpi.rank()) {
+                continue;
+            }
+            const auto count = wcns::metric_field_payload_size(
+                leaf.cell_extent(), leaf.cell_dimension);
+            if (offset + count > local_payload.size()) {
+                throw std::runtime_error("partition metric payload is truncated");
+            }
+            const std::vector<wcns::Real> packed(
+                local_payload.begin() + static_cast<std::ptrdiff_t>(offset),
+                local_payload.begin() + static_cast<std::ptrdiff_t>(offset + count));
+            result.emplace(
+                leaf.block,
+                wcns::unpack_metric_field(
+                    profile.kind(), leaf.cell_extent(),
+                    leaf.cell_dimension, packed));
+            offset += count;
+        }
+        if (offset != local_payload.size()) {
+            throw std::runtime_error("partition metric payload has trailing values");
+        }
+    }
+    if (result.size() != local_blocks.blocks().size()) {
+        throw std::runtime_error("partition metric map does not cover local blocks");
+    }
+    return result;
+}
+
 class ConsoleObserver final : public wcns::ISimulationObserver {
 public:
     explicit ConsoleObserver(const wcns::MpiRuntime& mpi)
@@ -317,14 +421,8 @@ int main(int argc, char** argv)
         const auto reference = config.make_reference_scales(gas);
         const auto profile = config.make_profile();
         const wcns::NumericalFloors floors;
-        wcns::BlockMetricMap metrics;
-        for (auto& block : local_blocks.blocks()) {
-            metrics.emplace(
-                std::piecewise_construct,
-                std::forward_as_tuple(block.id()),
-                std::forward_as_tuple(
-                    wcns::initialize_metric_field(block, profile).metric));
-        }
+        auto metrics = initialize_partitioned_metrics(
+            mpi, reader, mesh_name, metadata, plan, local_blocks, profile);
         const auto boundary_data = make_boundary_data(
             local_blocks,
             config,

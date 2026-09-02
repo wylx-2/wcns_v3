@@ -1,13 +1,16 @@
 #include <cgnslib.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <exception>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <map>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -34,6 +37,7 @@ double parse_real(const char* text, const char* name)
 struct ZoneFields {
     int dimension = 0;
     std::vector<cgsize_t> cells;
+    std::vector<std::array<double, 3>> cell_centers;
     std::map<std::string, std::vector<double>> fields;
 };
 
@@ -68,9 +72,59 @@ FieldFile read_fields(const std::string& path)
             ZoneFields values;
             values.dimension = dimension;
             std::size_t count = 1;
+            std::vector<cgsize_t> vertices;
             for (int axis = 0; axis < dimension; ++axis) {
+                vertices.push_back(size[axis]);
                 values.cells.push_back(size[dimension + axis]);
                 count *= static_cast<std::size_t>(size[dimension + axis]);
+            }
+            std::size_t vertex_count = 1;
+            for (const auto extent : vertices) {
+                vertex_count *= static_cast<std::size_t>(extent);
+            }
+            std::array<std::vector<double>, 3> coordinates;
+            for (auto& coordinate : coordinates) coordinate.assign(vertex_count, 0.0);
+            const std::array<const char*, 3> coordinate_names {{
+                "CoordinateX", "CoordinateY", "CoordinateZ",
+            }};
+            std::vector<cgsize_t> vertex_lower(static_cast<std::size_t>(dimension), 1);
+            for (int axis = 0; axis < dimension; ++axis) {
+                check_cgns(
+                    cg_coord_read(
+                        file, 1, zone, coordinate_names[static_cast<std::size_t>(axis)],
+                        RealDouble, vertex_lower.data(), vertices.data(),
+                        coordinates[static_cast<std::size_t>(axis)].data()),
+                    "cg_coord_read release field");
+            }
+            values.cell_centers.resize(count);
+            const auto vertex_index = [&](int i, int j, int k) {
+                const std::size_t ni = static_cast<std::size_t>(vertices[0]);
+                const std::size_t nj = static_cast<std::size_t>(vertices[1]);
+                return (static_cast<std::size_t>(k) * nj
+                    + static_cast<std::size_t>(j)) * ni
+                    + static_cast<std::size_t>(i);
+            };
+            const int cell_nk = dimension == 3 ? static_cast<int>(values.cells[2]) : 1;
+            std::size_t cell = 0;
+            for (int k = 0; k < cell_nk; ++k) {
+                for (int j = 0; j < static_cast<int>(values.cells[1]); ++j) {
+                    for (int i = 0; i < static_cast<int>(values.cells[0]); ++i) {
+                        std::array<double, 3> center {{0.0, 0.0, 0.0}};
+                        const int corner_count = dimension == 3 ? 8 : 4;
+                        for (int corner = 0; corner < corner_count; ++corner) {
+                            const int di = corner & 1;
+                            const int dj = (corner >> 1) & 1;
+                            const int dk = dimension == 3 ? ((corner >> 2) & 1) : 0;
+                            const auto vertex = vertex_index(i + di, j + dj, k + dk);
+                            for (int axis = 0; axis < dimension; ++axis) {
+                                center[static_cast<std::size_t>(axis)]
+                                    += coordinates[static_cast<std::size_t>(axis)][vertex]
+                                    / static_cast<double>(corner_count);
+                            }
+                        }
+                        values.cell_centers[cell++] = center;
+                    }
+                }
             }
             int solutions = 0;
             check_cgns(
@@ -248,6 +302,151 @@ void compare_fields(
               << " max_abs=" << maximum << " tolerance=" << tolerance << '\n';
 }
 
+struct SpatialValue {
+    std::array<double, 3> coordinates;
+    std::vector<double> fields;
+};
+
+std::vector<SpatialValue> spatial_values(
+    const FieldFile& file,
+    const std::vector<std::string>& field_names)
+{
+    std::vector<SpatialValue> result;
+    for (const auto& [zone_name, zone] : file) {
+        static_cast<void>(zone_name);
+        for (std::size_t cell = 0; cell < zone.cell_centers.size(); ++cell) {
+            SpatialValue value;
+            value.coordinates = zone.cell_centers[cell];
+            value.fields.reserve(field_names.size());
+            for (const auto& name : field_names) {
+                value.fields.push_back(require_field(zone, name).at(cell));
+            }
+            result.push_back(std::move(value));
+        }
+    }
+    std::sort(result.begin(), result.end(), [](const auto& lhs, const auto& rhs) {
+        return lhs.coordinates < rhs.coordinates;
+    });
+    return result;
+}
+
+void compare_spatial_fields(
+    const std::string& lhs_path,
+    const std::string& rhs_path,
+    double field_tolerance,
+    double coordinate_tolerance)
+{
+    require_tolerance(field_tolerance);
+    require_tolerance(coordinate_tolerance);
+    const auto lhs = read_fields(lhs_path);
+    const auto rhs = read_fields(rhs_path);
+    if (lhs.empty() || rhs.empty()) {
+        throw std::runtime_error("spatial comparison requires nonempty field files");
+    }
+    std::vector<std::string> fields;
+    for (const auto& [name, values] : lhs.begin()->second.fields) {
+        static_cast<void>(values);
+        fields.push_back(name);
+    }
+    const auto check_field_set = [&](const FieldFile& file) {
+        for (const auto& [zone_name, zone] : file) {
+            static_cast<void>(zone_name);
+            std::vector<std::string> names;
+            for (const auto& [name, values] : zone.fields) {
+                static_cast<void>(values);
+                names.push_back(name);
+            }
+            if (names != fields) {
+                throw std::runtime_error("spatial comparison field sets differ");
+            }
+        }
+    };
+    check_field_set(lhs);
+    check_field_set(rhs);
+    const auto lhs_values = spatial_values(lhs, fields);
+    const auto rhs_values = spatial_values(rhs, fields);
+    if (lhs_values.size() != rhs_values.size()) {
+        throw std::runtime_error("spatial comparison cell counts differ");
+    }
+    double maximum_coordinate = 0.0;
+    double maximum_field = 0.0;
+    for (std::size_t cell = 0; cell < lhs_values.size(); ++cell) {
+        for (std::size_t component = 0; component < 3; ++component) {
+            maximum_coordinate = std::max(
+                maximum_coordinate,
+                std::abs(lhs_values[cell].coordinates[component]
+                    - rhs_values[cell].coordinates[component]));
+        }
+        for (std::size_t field = 0; field < fields.size(); ++field) {
+            if (!std::isfinite(lhs_values[cell].fields[field])
+                || !std::isfinite(rhs_values[cell].fields[field])) {
+                throw std::runtime_error("spatial comparison field is non-finite");
+            }
+            maximum_field = std::max(
+                maximum_field,
+                std::abs(lhs_values[cell].fields[field]
+                    - rhs_values[cell].fields[field]));
+        }
+    }
+    if (maximum_coordinate > coordinate_tolerance
+        || maximum_field > field_tolerance) {
+        throw std::runtime_error("spatial field comparison exceeds tolerance");
+    }
+    std::cout << std::setprecision(17)
+              << "check=compare_spatial cells=" << lhs_values.size()
+              << " max_coordinate=" << maximum_coordinate
+              << " coordinate_tolerance=" << coordinate_tolerance
+              << " max_field=" << maximum_field
+              << " field_tolerance=" << field_tolerance << '\n';
+}
+
+void validate_constant_series(const std::string& path, double tolerance)
+{
+    require_tolerance(tolerance);
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("cannot open release series: " + path);
+    std::vector<std::vector<double>> rows;
+    std::string line;
+    while (std::getline(input, line)) {
+        if (line.empty() || line.front() == '#') continue;
+        std::istringstream values(line);
+        std::vector<double> row;
+        double value = 0.0;
+        while (values >> value) row.push_back(value);
+        if (!values.eof() || row.size() < 3) {
+            throw std::runtime_error("release series contains an invalid data row");
+        }
+        rows.push_back(std::move(row));
+    }
+    if (rows.size() < 2) {
+        throw std::runtime_error("release series requires at least two samples");
+    }
+    double maximum = 0.0;
+    for (const auto& row : rows) {
+        if (row.size() != rows.front().size()) {
+            throw std::runtime_error("release series row widths differ");
+        }
+        for (std::size_t column = 2; column < row.size(); ++column) {
+            if (!std::isfinite(row[column])) {
+                throw std::runtime_error("release series contains a non-finite value");
+            }
+            maximum = std::max(
+                maximum,
+                std::abs(row[column] - rows.front()[column])
+                    / std::max(1.0, std::abs(rows.front()[column])));
+        }
+    }
+    if (maximum > tolerance) {
+        throw std::runtime_error(
+            "series relative drift " + std::to_string(maximum)
+            + " exceeds tolerance " + std::to_string(tolerance));
+    }
+    std::cout << std::setprecision(17)
+              << "check=series_constant rows=" << rows.size()
+              << " max_relative_drift=" << maximum
+              << " tolerance=" << tolerance << '\n';
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -255,8 +454,16 @@ int main(int argc, char** argv)
     try {
         if (argc == 3 && std::string(argv[1]) == "finite") {
             validate_finite(argv[2]);
+        } else if (argc == 4 && std::string(argv[1]) == "series-constant") {
+            validate_constant_series(
+                argv[2], parse_real(argv[3], "tolerance"));
         } else if (argc == 5 && std::string(argv[1]) == "compare") {
             compare_fields(argv[2], argv[3], parse_real(argv[4], "tolerance"));
+        } else if (argc == 6 && std::string(argv[1]) == "compare-spatial") {
+            compare_spatial_fields(
+                argv[2], argv[3],
+                parse_real(argv[4], "field tolerance"),
+                parse_real(argv[5], "coordinate tolerance"));
         } else if (argc == 9 && std::string(argv[1]) == "uniform") {
             validate_uniform(
                 argv[2],
@@ -270,7 +477,10 @@ int main(int argc, char** argv)
             std::cerr
                 << "usage:\n"
                    "  wcns_validate_release_case finite <field.cgns>\n"
+                   "  wcns_validate_release_case series-constant <series.txt> <tol>\n"
                    "  wcns_validate_release_case compare <lhs.cgns> <rhs.cgns> <tol>\n"
+                   "  wcns_validate_release_case compare-spatial <lhs.cgns> "
+                   "<rhs.cgns> <field-tol> <coordinate-tol>\n"
                    "  wcns_validate_release_case uniform <field.cgns> "
                    "<rho> <u> <v> <w> <T> <tol>\n";
             return EXIT_FAILURE;

@@ -202,6 +202,17 @@ void test_phenglei_high_order_metrics_3d()
     WCNS_REQUIRE_NEAR(result.metric.k_faces().x(1, 1, 1), 1.0, 2.0e-14);
     WCNS_REQUIRE_NEAR(result.metric.k_faces().y(1, 1, 1), -2.0, 2.0e-14);
     WCNS_REQUIRE_NEAR(result.metric.k_faces().z(1, 1, 1), 7.0, 2.0e-14);
+    const auto extracted = extract_metric_field(
+        result.metric, {1, 1, 1}, {2, 2, 2});
+    WCNS_REQUIRE_NEAR(extracted.jacobian()(0, 0, 0), 15.0, 2.0e-13);
+    WCNS_REQUIRE_NEAR(extracted.i_faces().x(2, 1, 1), 6.0, 2.0e-14);
+    const auto payload = pack_metric_field(extracted);
+    WCNS_REQUIRE(
+        payload.size() == metric_field_payload_size({2, 2, 2}, 3));
+    const auto unpacked = unpack_metric_field(
+        AlgorithmProfileKind::PhengleiWcns, {2, 2, 2}, 3, payload);
+    WCNS_REQUIRE_NEAR(unpacked.jacobian()(0, 0, 0), 15.0, 2.0e-13);
+    WCNS_REQUIRE_NEAR(unpacked.k_faces().z(1, 1, 2), 7.0, 2.0e-14);
 }
 
 // 验收 SCMM6 共同中心度量在二维仿射映射上保持统一 delta 和解析几何量。

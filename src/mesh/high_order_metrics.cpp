@@ -753,4 +753,161 @@ MetricInitializationResult initialize_metric_field(
     return {std::move(metric), std::move(diagnostics)};
 }
 
+MetricField extract_metric_field(
+    const MetricField& source,
+    Index3 cell_begin,
+    Extent3 cell_extent)
+{
+    if (!cell_extent.valid() || cell_extent.size() == 0) {
+        throw GeometryError("metric extraction extent must be nonempty");
+    }
+    const auto source_cells = source.jacobian().interior_extent();
+    for (int axis = 0; axis < source.dimension(); ++axis) {
+        if (cell_begin[static_cast<std::size_t>(axis)] < 0
+            || cell_begin[static_cast<std::size_t>(axis)]
+                    + cell_extent[static_cast<std::size_t>(axis)]
+                > source_cells[static_cast<std::size_t>(axis)]) {
+            throw GeometryError("metric extraction range is outside source field");
+        }
+    }
+    if (source.dimension() == 2
+        && (cell_begin.k != 0 || cell_extent.nk != 1)) {
+        throw GeometryError("two-dimensional metric extraction has an invalid k range");
+    }
+    MetricField result = MetricFieldBuilderAccess::create(
+        source.profile(), cell_extent, source.dimension());
+    const auto copy_scalar = [](
+        const Array3D<Real>& input,
+        Array3D<Real>& output,
+        Index3 begin) {
+        const auto extent = output.interior_extent();
+        for (int k = 0; k < extent.nk; ++k) {
+            for (int j = 0; j < extent.nj; ++j) {
+                for (int i = 0; i < extent.ni; ++i) {
+                    output(i, j, k) = input(
+                        begin.i + i, begin.j + j, begin.k + k);
+                }
+            }
+        }
+    };
+    copy_scalar(
+        source.cell_coordinates().x,
+        MetricFieldBuilderAccess::cell_coordinates(result).x,
+        cell_begin);
+    copy_scalar(
+        source.cell_coordinates().y,
+        MetricFieldBuilderAccess::cell_coordinates(result).y,
+        cell_begin);
+    copy_scalar(
+        source.cell_coordinates().z,
+        MetricFieldBuilderAccess::cell_coordinates(result).z,
+        cell_begin);
+    copy_scalar(
+        source.jacobian(),
+        MetricFieldBuilderAccess::jacobian(result),
+        cell_begin);
+    const auto copy_faces = [&](
+        const FaceAreaVectors& input,
+        FaceAreaVectors& output) {
+        copy_scalar(input.x, output.x, cell_begin);
+        copy_scalar(input.y, output.y, cell_begin);
+        copy_scalar(input.z, output.z, cell_begin);
+    };
+    copy_faces(source.i_faces(), MetricFieldBuilderAccess::i_faces(result));
+    copy_faces(source.j_faces(), MetricFieldBuilderAccess::j_faces(result));
+    if (source.dimension() == 3) {
+        copy_faces(source.k_faces(), MetricFieldBuilderAccess::k_faces(result));
+    }
+    return result;
+}
+
+std::vector<Real> pack_metric_field(const MetricField& metric)
+{
+    std::vector<Real> result;
+    const auto append = [&](const Array3D<Real>& values) {
+        const auto extent = values.interior_extent();
+        for (int k = 0; k < extent.nk; ++k) {
+            for (int j = 0; j < extent.nj; ++j) {
+                for (int i = 0; i < extent.ni; ++i) {
+                    result.push_back(values(i, j, k));
+                }
+            }
+        }
+    };
+    append(metric.cell_coordinates().x);
+    append(metric.cell_coordinates().y);
+    append(metric.cell_coordinates().z);
+    append(metric.jacobian());
+    const auto append_faces = [&](const FaceAreaVectors& faces) {
+        append(faces.x);
+        append(faces.y);
+        append(faces.z);
+    };
+    append_faces(metric.i_faces());
+    append_faces(metric.j_faces());
+    if (metric.dimension() == 3) append_faces(metric.k_faces());
+    return result;
+}
+
+std::size_t metric_field_payload_size(Extent3 cell_extent, int dimension)
+{
+    if ((dimension != 2 && dimension != 3) || !cell_extent.valid()
+        || cell_extent.size() == 0 || (dimension == 2 && cell_extent.nk != 1)) {
+        throw GeometryError("metric payload extent or dimension is invalid");
+    }
+    const auto face_count = [](Extent3 cells, int axis) {
+        ++cells[static_cast<std::size_t>(axis)];
+        return cells.size();
+    };
+    std::size_t result = 4 * cell_extent.size()
+        + 3 * face_count(cell_extent, 0)
+        + 3 * face_count(cell_extent, 1);
+    if (dimension == 3) result += 3 * face_count(cell_extent, 2);
+    return result;
+}
+
+MetricField unpack_metric_field(
+    AlgorithmProfileKind profile,
+    Extent3 cell_extent,
+    int dimension,
+    const std::vector<Real>& payload)
+{
+    MetricField result = MetricFieldBuilderAccess::create(
+        profile, cell_extent, dimension);
+    std::size_t offset = 0;
+    const auto extract = [&](Array3D<Real>& values) {
+        const auto extent = values.interior_extent();
+        if (offset + extent.size() > payload.size()) {
+            throw GeometryError("packed metric payload is truncated");
+        }
+        for (int k = 0; k < extent.nk; ++k) {
+            for (int j = 0; j < extent.nj; ++j) {
+                for (int i = 0; i < extent.ni; ++i) {
+                    const Real value = payload[offset++];
+                    if (!std::isfinite(value)) {
+                        throw GeometryError("packed metric payload is non-finite");
+                    }
+                    values(i, j, k) = value;
+                }
+            }
+        }
+    };
+    extract(MetricFieldBuilderAccess::cell_coordinates(result).x);
+    extract(MetricFieldBuilderAccess::cell_coordinates(result).y);
+    extract(MetricFieldBuilderAccess::cell_coordinates(result).z);
+    extract(MetricFieldBuilderAccess::jacobian(result));
+    const auto extract_faces = [&](FaceAreaVectors& faces) {
+        extract(faces.x);
+        extract(faces.y);
+        extract(faces.z);
+    };
+    extract_faces(MetricFieldBuilderAccess::i_faces(result));
+    extract_faces(MetricFieldBuilderAccess::j_faces(result));
+    if (dimension == 3) extract_faces(MetricFieldBuilderAccess::k_faces(result));
+    if (offset != payload.size()) {
+        throw GeometryError("packed metric payload has trailing values");
+    }
+    return result;
+}
+
 } // namespace wcns

@@ -7,6 +7,7 @@
 #include <wcns/physics/thermodynamics.hpp>
 
 #include <cstddef>
+#include <vector>
 
 namespace wcns {
 
@@ -105,5 +106,22 @@ struct MetricInitializationResult {
     StructuredBlock& block,
     const AlgorithmProfile& profile,
     const MetricBuildOptions& options = {});
+
+[[nodiscard]] MetricField extract_metric_field(
+    const MetricField& source,
+    Index3 cell_begin,
+    Extent3 cell_extent);
+
+[[nodiscard]] std::vector<Real> pack_metric_field(const MetricField& metric);
+
+[[nodiscard]] std::size_t metric_field_payload_size(
+    Extent3 cell_extent,
+    int dimension);
+
+[[nodiscard]] MetricField unpack_metric_field(
+    AlgorithmProfileKind profile,
+    Extent3 cell_extent,
+    int dimension,
+    const std::vector<Real>& payload);
 
 } // namespace wcns
