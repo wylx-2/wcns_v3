@@ -1,0 +1,434 @@
+#include <wcns/runtime/output_manager.hpp>
+
+#include <algorithm>
+#include <cerrno>
+#include <cmath>
+#include <cstdio>
+#include <iomanip>
+#include <limits>
+#include <sstream>
+#include <stdexcept>
+#include <sys/stat.h>
+#include <utility>
+
+#if defined(_WIN32)
+#include <direct.h>
+#define WCNS_MKDIR(path) _mkdir(path)
+#else
+#include <sys/types.h>
+#define WCNS_MKDIR(path) mkdir(path, 0777)
+#endif
+
+namespace wcns {
+namespace {
+
+Real time_tolerance(Real lhs, Real rhs)
+{
+    return 64.0 * std::numeric_limits<Real>::epsilon()
+        * std::max({Real {1.0}, std::abs(lhs), std::abs(rhs)});
+}
+
+std::string join_path(const std::string& directory, const std::string& name)
+{
+    if (directory.empty()) return name;
+    const char last = directory.back();
+    return directory + ((last == '/' || last == '\\') ? "" : "/") + name;
+}
+
+bool path_exists(const std::string& path)
+{
+    struct stat information {};
+    return stat(path.c_str(), &information) == 0;
+}
+
+bool path_is_directory(const std::string& path)
+{
+    struct stat information {};
+    if (stat(path.c_str(), &information) != 0) return false;
+#if defined(_WIN32)
+    return (information.st_mode & _S_IFDIR) != 0;
+#else
+    return S_ISDIR(information.st_mode);
+#endif
+}
+
+void make_directory_tree(const std::string& input)
+{
+    if (input.empty()) throw std::runtime_error("output directory is empty");
+    std::string path = input;
+    std::replace(path.begin(), path.end(), '\\', '/');
+    std::size_t begin = 0;
+    if (path.size() >= 3 && path[1] == ':' && path[2] == '/') begin = 3;
+    else if (path.front() == '/') begin = 1;
+    for (std::size_t index = begin; index <= path.size(); ++index) {
+        if (index != path.size() && path[index] != '/') continue;
+        const auto prefix = path.substr(0, index);
+        if (prefix.empty() || (prefix.size() == 2 && prefix[1] == ':')) continue;
+        if (path_exists(prefix)) {
+            if (!path_is_directory(prefix)) {
+                throw std::runtime_error(
+                    "output path component is not a directory: " + prefix);
+            }
+            continue;
+        }
+        errno = 0;
+        if (WCNS_MKDIR(prefix.c_str()) != 0 && errno != EEXIST) {
+            throw std::runtime_error(
+                "cannot create output directory: " + prefix);
+        }
+    }
+}
+
+std::string safe_name(std::string name)
+{
+    for (char& character : name) {
+        const bool safe = (character >= 'a' && character <= 'z')
+            || (character >= 'A' && character <= 'Z')
+            || (character >= '0' && character <= '9')
+            || character == '-' || character == '_';
+        if (!safe) character = '_';
+    }
+    return name.empty() ? "case" : name;
+}
+
+void atomic_replace(
+    const std::string& temporary,
+    const std::string& target,
+    bool allow_existing)
+{
+    if (path_exists(target)) {
+        if (!allow_existing) {
+            throw std::runtime_error("output file already exists: " + target);
+        }
+        if (std::remove(target.c_str()) != 0) {
+            throw std::runtime_error("cannot replace output file: " + target);
+        }
+    }
+    if (std::rename(temporary.c_str(), target.c_str()) != 0) {
+        throw std::runtime_error("cannot commit output file: " + target);
+    }
+}
+
+} // namespace
+
+OutputSchedule::OutputSchedule(OutputScheduleConfig config)
+    : config_(std::move(config))
+{
+    config_.validate();
+}
+
+Real OutputSchedule::next_time(Real current_time) const
+{
+    Real result = std::numeric_limits<Real>::infinity();
+    if (config_.every_time > 0.0) {
+        const Real count = std::floor(
+            (current_time + time_tolerance(current_time, current_time))
+            / config_.every_time) + 1.0;
+        result = count * config_.every_time;
+    }
+    for (const Real time : config_.explicit_times) {
+        if (time > current_time + time_tolerance(time, current_time)) {
+            result = std::min(result, time);
+            break;
+        }
+    }
+    return result;
+}
+
+bool OutputSchedule::scheduled(const SimulationState& state) const
+{
+    if (config_.every_steps > 0 && state.step > 0
+        && state.step % config_.every_steps == 0) {
+        return true;
+    }
+    if (config_.every_time > 0.0 && state.time > 0.0) {
+        const Real multiple = std::round(state.time / config_.every_time)
+            * config_.every_time;
+        if (std::abs(state.time - multiple)
+            <= time_tolerance(state.time, multiple)) {
+            return true;
+        }
+    }
+    for (const Real time : config_.explicit_times) {
+        if (std::abs(state.time - time) <= time_tolerance(state.time, time)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool OutputSchedule::already_emitted(const SimulationState& state) const
+{
+    return has_emitted_ && state.step == last_step_
+        && std::abs(state.time - last_time_)
+            <= time_tolerance(state.time, last_time_);
+}
+
+bool OutputSchedule::consume(
+    const SimulationState& state,
+    bool initial,
+    bool final)
+{
+    const bool due = (initial && config_.write_initial)
+        || (final && config_.write_final) || scheduled(state);
+    if (!due || already_emitted(state)) return false;
+    has_emitted_ = true;
+    last_step_ = state.step;
+    last_time_ = state.time;
+    return true;
+}
+
+RuntimeOutputManager::RuntimeOutputManager(
+    const MpiRuntime& mpi,
+    const CaseConfig& config,
+    const StructuredPartitionPlan& partition,
+    EventWriter event_writer)
+    : mpi_(mpi)
+    , config_(config)
+    , partition_(partition)
+    , event_writer_(std::move(event_writer))
+    , field_schedule_(config.output.field.schedule)
+    , history_schedule_(config.output.history.schedule)
+    , statistics_schedule_(config.output.statistics.schedule)
+    , checkpoint_schedule_(config.output.checkpoint.schedule)
+    , output_directory_(config.output.directory)
+{
+}
+
+RuntimeOutputManager::~RuntimeOutputManager()
+{
+    if (history_stream_.is_open()) history_stream_.close();
+}
+
+void RuntimeOutputManager::prepare_directory()
+{
+    if (prepared_) return;
+    std::string status;
+    if (mpi_.rank() == 0) {
+        try {
+            const bool exists = path_exists(output_directory_);
+            if (exists && !path_is_directory(output_directory_)) {
+                throw std::runtime_error(
+                    "output root exists and is not a directory: "
+                    + output_directory_);
+            }
+            if (exists && !config_.output.allow_existing) {
+                throw std::runtime_error(
+                    "output directory already exists: " + output_directory_);
+            }
+            if (!exists) make_directory_tree(output_directory_);
+            status = "OK\n";
+        } catch (const std::exception& error) {
+            status = "ERROR\n" + std::string(error.what());
+        }
+    }
+    status = mpi_.broadcast_string(std::move(status));
+    if (status.rfind("ERROR\n", 0) == 0) {
+        throw std::runtime_error(status.substr(6));
+    }
+    if (status != "OK\n") {
+        throw std::runtime_error("invalid output directory status broadcast");
+    }
+    prepared_ = true;
+
+    if (config_.output.history.enabled && mpi_.rank() == 0) {
+        const auto base = safe_name(config_.case_name) + ".history.r"
+            + std::to_string(mpi_.size());
+        const char* extension
+            = config_.output.history.format == SeriesOutputFormat::Text
+            ? ".txt" : ".dat";
+        history_final_path_ = join_path(output_directory_, base + extension);
+        history_temporary_path_ = history_final_path_ + ".tmp";
+        history_stream_.open(
+            history_temporary_path_, std::ios::out | std::ios::trunc);
+        if (!history_stream_) {
+            throw std::runtime_error(
+                "cannot open residual history temporary file: "
+                + history_temporary_path_);
+        }
+        if (config_.output.history.format == SeriesOutputFormat::Tecplot) {
+            history_stream_
+                << "TITLE=\"WCNS residual history\"\n"
+                << "VARIABLES=\"step\",\"time\",\"dt\",\"cfl\","
+                   "\"wall_time\",\"total_l2\",\"rho_l2\","
+                   "\"rhou_l2\",\"rhov_l2\",\"rhow_l2\","
+                   "\"rhoE_l2\",\"rho_linf\",\"rhou_linf\","
+                   "\"rhov_linf\",\"rhow_linf\",\"rhoE_linf\","
+                   "\"consecutive\",\"reconstruction_fallbacks\","
+                   "\"riemann_fallbacks\",\"residual_checked\","
+                   "\"stop_reason\"\n"
+                << "ZONE T=\"history\"\n";
+        } else {
+            history_stream_
+                << "# step time dt cfl wall_time total_l2 "
+                   "rho_l2 rhou_l2 rhov_l2 rhow_l2 rhoE_l2 "
+                   "rho_linf rhou_linf rhov_linf rhow_linf rhoE_linf "
+                   "consecutive reconstruction_fallbacks riemann_fallbacks "
+                   "residual_checked stop_reason\n";
+        }
+    }
+}
+
+Real RuntimeOutputManager::next_time_event(
+    const SimulationState& state) const
+{
+    Real result = std::numeric_limits<Real>::infinity();
+    if (config_.output.field.enabled) {
+        result = std::min(result, field_schedule_.next_time(state.time));
+    }
+    if (config_.output.history.enabled) {
+        result = std::min(result, history_schedule_.next_time(state.time));
+    }
+    if (config_.output.statistics.enabled) {
+        result = std::min(result, statistics_schedule_.next_time(state.time));
+    }
+    if (config_.output.checkpoint.enabled) {
+        result = std::min(result, checkpoint_schedule_.next_time(state.time));
+    }
+    return result;
+}
+
+void RuntimeOutputManager::dispatch(
+    OutputCategory category,
+    OutputSchedule& schedule,
+    const SimulationState& state,
+    bool initial,
+    bool final,
+    bool enabled)
+{
+    if (!enabled || !schedule.consume(state, initial, final)) return;
+    if (!event_writer_) {
+        throw std::runtime_error(
+            "configured output category has no production writer");
+    }
+    event_writer_(category, state, initial, final);
+}
+
+void RuntimeOutputManager::write_history(
+    const SimulationState& state,
+    bool residual_checked)
+{
+    if (mpi_.rank() != 0) return;
+    if (!history_stream_) {
+        throw std::runtime_error("residual history stream is not writable");
+    }
+    history_stream_ << std::setprecision(17)
+                    << state.step << ' ' << state.time << ' '
+                    << state.time_step << ' ' << config_.run.cfl << ' '
+                    << state.wall_time << ' ' << state.residuals.total_l2();
+    for (const Real value : state.residuals.l2) history_stream_ << ' ' << value;
+    for (const Real value : state.residuals.linf) history_stream_ << ' ' << value;
+    history_stream_ << ' ' << state.steady.consecutive_passes
+                    << ' ' << state.diagnostics.reconstruction_fallbacks
+                    << ' ' << state.diagnostics.riemann_fallbacks
+                    << ' ' << (residual_checked ? 1 : 0)
+                    << ' ' << stop_reason_name(state.stop_reason) << '\n';
+    if (!history_stream_) {
+        throw std::runtime_error("failed to write residual history");
+    }
+}
+
+void RuntimeOutputManager::on_initial(const SimulationState& state)
+{
+    prepare_directory();
+    if (config_.output.history.enabled
+        && history_schedule_.consume(state, true, false)) {
+        write_history(state, false);
+    }
+    dispatch(OutputCategory::Field, field_schedule_, state, true, false,
+        config_.output.field.enabled);
+    dispatch(OutputCategory::Statistics, statistics_schedule_, state, true, false,
+        config_.output.statistics.enabled);
+    dispatch(OutputCategory::Checkpoint, checkpoint_schedule_, state, true, false,
+        config_.output.checkpoint.enabled);
+}
+
+void RuntimeOutputManager::on_step(
+    const SimulationState& state,
+    bool residual_checked)
+{
+    if (config_.output.history.enabled
+        && history_schedule_.consume(state, false, false)) {
+        write_history(state, residual_checked);
+    }
+    dispatch(OutputCategory::Field, field_schedule_, state, false, false,
+        config_.output.field.enabled);
+    dispatch(OutputCategory::Statistics, statistics_schedule_, state, false, false,
+        config_.output.statistics.enabled);
+    dispatch(OutputCategory::Checkpoint, checkpoint_schedule_, state, false, false,
+        config_.output.checkpoint.enabled);
+}
+
+void RuntimeOutputManager::finish_history()
+{
+    if (!config_.output.history.enabled || mpi_.rank() != 0
+        || !history_stream_.is_open()) {
+        return;
+    }
+    history_stream_.flush();
+    if (!history_stream_) {
+        throw std::runtime_error("failed to flush residual history");
+    }
+    history_stream_.close();
+    atomic_replace(
+        history_temporary_path_,
+        history_final_path_,
+        config_.output.allow_existing);
+    record_file(history_final_path_);
+}
+
+void RuntimeOutputManager::write_manifest(const SimulationState& state)
+{
+    if (mpi_.rank() != 0) return;
+    const auto target = join_path(
+        output_directory_,
+        safe_name(config_.case_name) + ".manifest.r"
+            + std::to_string(mpi_.size()) + ".txt");
+    const auto temporary = target + ".tmp";
+    std::ofstream output(temporary, std::ios::out | std::ios::trunc);
+    if (!output) {
+        throw std::runtime_error("cannot open manifest temporary file: " + temporary);
+    }
+    output << "manifest_version=1\n"
+           << "case=" << config_.case_name << '\n'
+           << "mpi_ranks=" << mpi_.size() << '\n'
+           << "config_digest=" << config_.digest() << '\n'
+           << "partition_digest=" << partition_.digest() << '\n'
+           << "step=" << state.step << '\n'
+           << std::setprecision(17)
+           << "time=" << state.time << '\n'
+           << "time_step=" << state.time_step << '\n'
+           << "stop_reason=" << stop_reason_name(state.stop_reason) << '\n'
+           << "config_summary=" << config_.summary() << '\n'
+           << "partition_summary=" << partition_.summary() << '\n';
+    for (const auto& file : files_) output << "file=" << file << '\n';
+    output.close();
+    if (!output) throw std::runtime_error("failed to write manifest: " + temporary);
+    atomic_replace(temporary, target, config_.output.allow_existing);
+    files_.push_back(target);
+}
+
+void RuntimeOutputManager::on_final(const SimulationState& state)
+{
+    if (finalized_) return;
+    if (config_.output.history.enabled
+        && history_schedule_.consume(state, false, true)) {
+        write_history(state, true);
+    }
+    dispatch(OutputCategory::Field, field_schedule_, state, false, true,
+        config_.output.field.enabled);
+    dispatch(OutputCategory::Statistics, statistics_schedule_, state, false, true,
+        config_.output.statistics.enabled);
+    dispatch(OutputCategory::Checkpoint, checkpoint_schedule_, state, false, true,
+        config_.output.checkpoint.enabled);
+    finish_history();
+    write_manifest(state);
+    finalized_ = true;
+}
+
+void RuntimeOutputManager::record_file(std::string path)
+{
+    if (mpi_.rank() == 0) files_.push_back(std::move(path));
+}
+
+} // namespace wcns

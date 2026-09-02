@@ -113,6 +113,44 @@ SolverDiagnostics ViscousSimulationSolver::diagnostics() const
     return collect_diagnostics(solver_);
 }
 
+void CompositeSimulationObserver::add(ISimulationObserver& observer)
+{
+    if (std::find(observers_.begin(), observers_.end(), &observer)
+        != observers_.end()) {
+        throw std::invalid_argument("simulation observer was added twice");
+    }
+    observers_.push_back(&observer);
+}
+
+Real CompositeSimulationObserver::next_time_event(
+    const SimulationState& state) const
+{
+    Real result = std::numeric_limits<Real>::infinity();
+    for (const auto* observer : observers_) {
+        result = std::min(result, observer->next_time_event(state));
+    }
+    return result;
+}
+
+void CompositeSimulationObserver::on_initial(const SimulationState& state)
+{
+    for (auto* observer : observers_) observer->on_initial(state);
+}
+
+void CompositeSimulationObserver::on_step(
+    const SimulationState& state,
+    bool residual_checked)
+{
+    for (auto* observer : observers_) {
+        observer->on_step(state, residual_checked);
+    }
+}
+
+void CompositeSimulationObserver::on_final(const SimulationState& state)
+{
+    for (auto* observer : observers_) observer->on_final(state);
+}
+
 SimulationDriver::SimulationDriver(
     const MpiRuntime& mpi,
     ISimulationSolver& solver,
@@ -163,6 +201,18 @@ SimulationState SimulationDriver::run(SimulationInitialState initial)
             "simulation initial time must be finite and non-negative");
     }
     StopController controller(config_);
+    const auto notify = [&](const std::function<void()>& callback) {
+        bool local_observer_success = true;
+        try {
+            callback();
+        } catch (const std::exception&) {
+            local_observer_success = false;
+        }
+        if (!mpi_.all_true(local_observer_success)) {
+            throw std::runtime_error(
+                "simulation output/observer failed on at least one MPI rank");
+        }
+    };
     controller.restore_steady_state(std::move(initial.steady));
     SimulationState state;
     state.step = initial.step;
@@ -179,12 +229,12 @@ SimulationState SimulationDriver::run(SimulationInitialState initial)
     if (initial_success) {
         state.residuals = solver_.residual_norms();
         state.diagnostics = solver_.diagnostics();
-        observer_.on_initial(state);
+        notify([&] { observer_.on_initial(state); });
     } else {
         state.residuals.finite = false;
         state.stop_reason = StopReason::NumericalFailure;
         state.steady = controller.steady_state();
-        observer_.on_final(state);
+        notify([&] { observer_.on_final(state); });
         return state;
     }
 
@@ -193,7 +243,7 @@ SimulationState SimulationDriver::run(SimulationInitialState initial)
             * std::max(Real {1.0}, config_.end_time);
         if (state.time + tolerance >= config_.end_time) {
             state.stop_reason = StopReason::PhysicalTimeReached;
-            observer_.on_final(state);
+            notify([&] { observer_.on_final(state); });
             return state;
         }
     }
@@ -250,9 +300,9 @@ SimulationState SimulationDriver::run(SimulationInitialState initial)
         const auto decision = controller.evaluate(progress);
         state.stop_reason = decision.reason;
         state.steady = controller.steady_state();
-        observer_.on_step(state, decision.residual_checked);
+        notify([&] { observer_.on_step(state, decision.residual_checked); });
     }
-    observer_.on_final(state);
+    notify([&] { observer_.on_final(state); });
     return state;
 }
 

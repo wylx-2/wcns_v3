@@ -4,6 +4,7 @@
 #include <wcns/parallel/mpi_runtime.hpp>
 #include <wcns/runtime/case_config.hpp>
 #include <wcns/runtime/flow_initializer.hpp>
+#include <wcns/runtime/output_manager.hpp>
 #include <wcns/runtime/simulation_driver.hpp>
 #include <wcns/runtime/structured_partition.hpp>
 #include <wcns/solver/inviscid_wcns_solver.hpp>
@@ -318,7 +319,11 @@ int main(int argc, char** argv)
 
         std::signal(SIGINT, request_stop);
         std::signal(SIGTERM, request_stop);
-        ConsoleObserver observer(mpi);
+        ConsoleObserver console(mpi);
+        wcns::RuntimeOutputManager output(mpi, config, plan);
+        wcns::CompositeSimulationObserver observer;
+        observer.add(console);
+        observer.add(output);
         wcns::SimulationState final_state;
         if (config.run.viscous) {
             wcns::ViscousWcnsConfig solver_config;

@@ -6,6 +6,7 @@
 #include <functional>
 #include <limits>
 #include <string>
+#include <vector>
 
 namespace wcns {
 
@@ -101,6 +102,21 @@ public:
 };
 
 class NullSimulationObserver final : public ISimulationObserver {
+};
+
+class CompositeSimulationObserver final : public ISimulationObserver {
+public:
+    void add(ISimulationObserver& observer);
+    [[nodiscard]] Real next_time_event(
+        const SimulationState& state) const override;
+    void on_initial(const SimulationState& state) override;
+    void on_step(
+        const SimulationState& state,
+        bool residual_checked) override;
+    void on_final(const SimulationState& state) override;
+
+private:
+    std::vector<ISimulationObserver*> observers_;
 };
 
 struct SimulationInitialState {

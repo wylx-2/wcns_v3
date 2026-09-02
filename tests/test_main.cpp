@@ -63,6 +63,7 @@ void test_simulation_driver();
 void test_stop_controller();
 void test_structured_partition();
 void test_flow_initializer();
+void test_output_manager();
 
 // 顺序运行不依赖独立输入文件的全部单元验收入口。
 int main()
@@ -136,6 +137,7 @@ int main()
         test_stop_controller();
         test_structured_partition();
         test_flow_initializer();
+        test_output_manager();
 
         std::cout << "WCNS unit tests passed\n";
         return EXIT_SUCCESS;
