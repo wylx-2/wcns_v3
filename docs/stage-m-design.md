@@ -1,6 +1,7 @@
 # 阶段 M 设计：生产配置、结构分区与初始化
 
-状态：M0 冻结规格。
+状态：M0--M5 已实现，正式自动验收通过；详见
+[`stage-m-acceptance.md`](stage-m-acceptance.md)。
 
 本阶段只建立生产入口到“可受控推进短步”的闭环；停止、监测、输出和重启在阶段 N
 实现。通用约束见 [`release-development-plan.md`](release-development-plan.md)。
