@@ -89,7 +89,7 @@ RK 子步。非 owner 的块间连接面不再先计算后覆盖，而是直接�
 
 ## 7. Git/GitHub 状态
 
-阶段实现按 L1--L5、L7 小目标分别提交。`stage/l-algorithm-extensions` 已同步至
-`https://github.com/wylx-2/wcns_v3.git`；包含本报告的候选提交及 `stage-l-candidate-v1`
-标签在报告提交后同步。阶段 L 未合并到 `main`。
-
+阶段实现按 L1--L5、L7 小目标分别提交，本地分支和候选标签完整。向
+`https://github.com/wylx-2/wcns_v3.git` 推送时，GitHub 443 连接先被重置、随后连接超时；
+因此远程分支和 `stage-l-candidate-v1` 标签尚不能确认同步，网络恢复后必须重试。阶段 L
+未合并到 `main`。
