@@ -16,17 +16,18 @@
 
 namespace {
 
-void add_farfield(
+void add_boundary(
     wcns::StructuredBlock& block,
     const char* name,
-    wcns::FaceLocation face)
+    wcns::FaceLocation face,
+    wcns::BoundaryType type)
 {
     using namespace wcns;
     const auto vertices = block.vertex_extent();
     const auto cells = block.cell_extent();
     BoundaryPatch patch;
     patch.name = name;
-    patch.type = BoundaryType::Farfield;
+    patch.type = type;
     patch.face = face;
     if (face.axis == Axis::I) {
         const int vi = face.side == Side::Lower ? 0 : vertices.ni - 1;
@@ -46,7 +47,9 @@ void add_farfield(
     block.boundaries.push_back(std::move(patch));
 }
 
-wcns::StructuredMesh make_mesh()
+wcns::StructuredMesh make_mesh(
+    wcns::BoundaryType outer_i = wcns::BoundaryType::Farfield,
+    wcns::BoundaryType outer_j = wcns::BoundaryType::Farfield)
 {
     using namespace wcns;
     constexpr int vertices = 9;
@@ -80,12 +83,12 @@ wcns::StructuredMesh make_mesh()
         {{vertices - 2, 0, 0}, {vertices - 2, vertices - 2, 0}},
         {{0, 0, 0}, {0, vertices - 2, 0}},
         {{{1, 2, 3}}}, 3});
-    add_farfield(left, "left-i-lower", {Axis::I, Side::Lower});
-    add_farfield(left, "left-j-lower", {Axis::J, Side::Lower});
-    add_farfield(left, "left-j-upper", {Axis::J, Side::Upper});
-    add_farfield(right, "right-i-upper", {Axis::I, Side::Upper});
-    add_farfield(right, "right-j-lower", {Axis::J, Side::Lower});
-    add_farfield(right, "right-j-upper", {Axis::J, Side::Upper});
+    add_boundary(left, "left-i-lower", {Axis::I, Side::Lower}, outer_i);
+    add_boundary(left, "left-j-lower", {Axis::J, Side::Lower}, outer_j);
+    add_boundary(left, "left-j-upper", {Axis::J, Side::Upper}, outer_j);
+    add_boundary(right, "right-i-upper", {Axis::I, Side::Upper}, outer_i);
+    add_boundary(right, "right-j-lower", {Axis::J, Side::Lower}, outer_j);
+    add_boundary(right, "right-j-upper", {Axis::J, Side::Upper}, outer_j);
     std::vector<StructuredBlock> blocks;
     blocks.push_back(std::move(left));
     blocks.push_back(std::move(right));
@@ -178,6 +181,112 @@ void run_profile(
     WCNS_REQUIRE(mpi.max(local_error) < 8.0e-11);
 }
 
+enum class WallCase {
+    Couette,
+    LinearConduction,
+};
+
+// 验收多块/MPI 下 Couette 动量平衡、粘性耗散及线性导热能量平衡。
+void run_wall_case(
+    const wcns::MpiRuntime& mpi,
+    wcns::AlgorithmProfileKind kind,
+    WallCase wall_case)
+{
+    using namespace wcns;
+    auto mesh = make_mesh(
+        BoundaryType::Outflow, BoundaryType::NoSlipIsothermalWall);
+    std::vector<BlockLoad> loads;
+    for (const auto& block : mesh.blocks()) {
+        loads.push_back({block.id(), block.cell_extent().size()});
+    }
+    const auto distribution = BlockDistribution::balanced(
+        std::move(loads), mpi.size());
+    distribution.apply(mesh);
+    const auto topology = DistributedTopology::build(mesh, distribution);
+    std::vector<StructuredBlock> local_storage;
+    for (const auto& block : mesh.blocks()) {
+        if (block.owner_rank() == mpi.rank()) local_storage.push_back(block);
+    }
+    LocalBlockSet local(mpi.rank(), std::move(local_storage), distribution);
+    const auto gas = make_gas();
+    const auto reference = ReferenceScales::derive(
+        {340.0, 1.2, 288.0, 1.0, 1.8e-5, {}, {}}, gas);
+    const NumericalFloors floors;
+    const auto profile = ProfileFactory::create(kind);
+    BlockMetricMap metrics;
+    BlockBoundaryDataMap boundary_data;
+    for (auto& block : local.blocks()) {
+        const auto cells = block.cell_extent();
+        for (int j = 0; j < cells.nj; ++j) {
+            const Real y = (static_cast<Real>(j) + 0.5)
+                / static_cast<Real>(cells.nj);
+            const Real temperature = wall_case == WallCase::Couette
+                ? 1.0 : 1.0 + y;
+            const Real velocity = wall_case == WallCase::Couette ? y : 0.0;
+            const TemperaturePrimitiveState state {{
+                1.0 / temperature, velocity, 0.0, 0.0, temperature}};
+            const auto conservative = thermodynamic_conservative(
+                state, gas, reference, floors, 2);
+            for (int i = 0; i < cells.ni; ++i) {
+                store_state(block.flow.conservative, {i, j, 0}, conservative);
+            }
+        }
+        metrics.emplace(
+            std::piecewise_construct,
+            std::forward_as_tuple(block.id()),
+            std::forward_as_tuple(
+                initialize_metric_field(block, profile).metric));
+        BoundaryDataMap data;
+        for (const auto& patch : block.boundaries) {
+            BoundaryData patch_data;
+            if (patch.type == BoundaryType::NoSlipIsothermalWall) {
+                const bool upper = patch.face.side == Side::Upper;
+                patch_data.wall_temperature = wall_case == WallCase::Couette
+                    ? 1.0 : (upper ? 2.0 : 1.0);
+                if (wall_case == WallCase::Couette && upper) {
+                    patch_data.wall_velocity = {{1.0, 0.0, 0.0}};
+                }
+            }
+            data.emplace(patch.name, patch_data);
+        }
+        boundary_data.emplace(block.id(), std::move(data));
+    }
+    ViscousWcnsConfig config;
+    config.inviscid.reconstruction.kind = ReconstructionKind::Linear5;
+    ViscousWcnsSolver solver(
+        mpi, local, mesh, topology, distribution.rank_count(), metrics,
+        boundary_data, profile, gas, reference, floors, config);
+    solver.compute_residuals(0.0);
+
+    Real local_balance_error = 0.0;
+    Real local_energy_error = 0.0;
+    const Real physical_height = 8.0;
+    const Real expected_couette_heating
+        = 1.0 / (physical_height * physical_height * reference.reynolds());
+    for (const auto& block : local.blocks()) {
+        const auto cells = block.cell_extent();
+        for (int j = 0; j < cells.nj; ++j) {
+            for (int i = 0; i < cells.ni; ++i) {
+                for (int component = 0; component < total_energy; ++component) {
+                    local_balance_error = std::max(local_balance_error,
+                        std::abs(block.flow.residual(i, j, 0, component)));
+                }
+                const Real expected = wall_case == WallCase::Couette
+                    ? expected_couette_heating : 0.0;
+                local_energy_error = std::max(local_energy_error,
+                    std::abs(block.flow.residual(i, j, 0, total_energy)
+                        - expected));
+            }
+        }
+    }
+    const Real balance_error = mpi.max(local_balance_error);
+    const Real energy_error = mpi.max(local_energy_error);
+    if (wall_case == WallCase::Couette) {
+        WCNS_REQUIRE(balance_error < 2.0e-10);
+    }
+    WCNS_REQUIRE(energy_error < 2.0e-10);
+}
+
 } // namespace
 
 // 验收两套粘性 WCNS 驱动在单 rank/双 rank 多块网格上的自由流、halo 和一步状态一致性。
@@ -187,6 +296,14 @@ int main(int argc, char** argv)
         wcns::MpiRuntime mpi(argc, argv);
         run_profile(mpi, wcns::AlgorithmProfileKind::PhengleiWcns);
         run_profile(mpi, wcns::AlgorithmProfileKind::Scmm6Wcns);
+        run_wall_case(
+            mpi, wcns::AlgorithmProfileKind::PhengleiWcns, WallCase::Couette);
+        run_wall_case(
+            mpi, wcns::AlgorithmProfileKind::Scmm6Wcns, WallCase::Couette);
+        run_wall_case(mpi, wcns::AlgorithmProfileKind::PhengleiWcns,
+            WallCase::LinearConduction);
+        run_wall_case(mpi, wcns::AlgorithmProfileKind::Scmm6Wcns,
+            WallCase::LinearConduction);
         if (mpi.rank() == 0) {
             std::cout << "viscous WCNS solver tests passed with "
                       << mpi.size() << " ranks\n";

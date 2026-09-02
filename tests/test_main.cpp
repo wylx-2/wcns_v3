@@ -48,6 +48,7 @@ void test_viscous_residual_reynolds_scaling();
 void test_viscous_flux_periodic_transform();
 void test_viscous_linear_gradients();
 void test_viscous_gradient_periodic_transform();
+void test_viscous_manufactured_convergence();
 void test_wall_dirichlet_derivative();
 void test_viscous_boundary_trace();
 
@@ -108,6 +109,7 @@ int main()
         test_viscous_flux_periodic_transform();
         test_viscous_linear_gradients();
         test_viscous_gradient_periodic_transform();
+        test_viscous_manufactured_convergence();
         test_wall_dirichlet_derivative();
         test_viscous_boundary_trace();
 
