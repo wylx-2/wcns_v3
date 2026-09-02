@@ -66,18 +66,21 @@ if(WCNS_ENABLE_CGNS)
         @ONLY
     )
     set(WCNS_OUTPUT_SUBDIR output-validation-serial)
+    set(WCNS_HISTORY_FORMAT txt)
     configure_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/data/freestream_output_case.wcns.in
         ${CMAKE_CURRENT_BINARY_DIR}/freestream_output_serial.wcns
         @ONLY
     )
     set(WCNS_OUTPUT_SUBDIR output-validation-mpi)
+    set(WCNS_HISTORY_FORMAT tecplot)
     configure_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/data/freestream_output_case.wcns.in
         ${CMAKE_CURRENT_BINARY_DIR}/freestream_output_mpi.wcns
         @ONLY
     )
     set(WCNS_CHECKPOINT_OUTPUT checkpoint-validation)
+    set(WCNS_CHECKPOINT_GAMMA 1.4)
     set(WCNS_CHECKPOINT_ENABLED true)
     set(WCNS_RESTART_FIELD false)
     set(WCNS_RESTART_LINE "# fresh start")
@@ -86,10 +89,32 @@ if(WCNS_ENABLE_CGNS)
         ${CMAKE_CURRENT_BINARY_DIR}/checkpoint_source.wcns
         @ONLY
     )
+    set(WCNS_UNSTEADY_CASE unsteady-freestream)
+    set(WCNS_UNSTEADY_OUTPUT unsteady-validation)
+    set(WCNS_UNSTEADY_ALLOW_EXISTING true)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/unsteady_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/unsteady_case.wcns
+        @ONLY
+    )
+    set(WCNS_UNSTEADY_CASE existing-output-rejection)
+    set(WCNS_UNSTEADY_OUTPUT existing-output-rejection)
+    set(WCNS_UNSTEADY_ALLOW_EXISTING false)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/unsteady_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/existing_output_case.wcns
+        @ONLY
+    )
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/maximum_steps_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/maximum_steps_case.wcns
+        @ONLY
+    )
     set(WCNS_CHECKPOINT_ENABLED false)
     set(WCNS_RESTART_FIELD true)
     set(WCNS_RESTART_LINE
         "restart.path = ${CMAKE_CURRENT_BINARY_DIR}/checkpoint-validation/checkpoint-freestream.checkpoint.latest.cgns")
+    set(WCNS_CHECKPOINT_GAMMA 1.4)
     set(WCNS_CHECKPOINT_OUTPUT restart-validation-serial)
     configure_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/data/checkpoint_case.wcns.in
@@ -100,6 +125,36 @@ if(WCNS_ENABLE_CGNS)
     configure_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/data/checkpoint_case.wcns.in
         ${CMAKE_CURRENT_BINARY_DIR}/restart_mpi.wcns
+        @ONLY
+    )
+    set(WCNS_CHECKPOINT_GAMMA 1.3)
+    set(WCNS_CHECKPOINT_OUTPUT restart-invalid)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/checkpoint_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/restart_invalid.wcns
+        @ONLY
+    )
+    set(WCNS_CONTINUITY_OUTPUT restart-continuity-source)
+    set(WCNS_CONTINUITY_CHECKPOINT true)
+    set(WCNS_CONTINUITY_RESTART "# fresh start")
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/restart_continuity_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/restart_continuity_source.wcns
+        @ONLY
+    )
+    set(WCNS_CONTINUITY_CHECKPOINT false)
+    set(WCNS_CONTINUITY_RESTART
+        "restart.path = ${CMAKE_CURRENT_BINARY_DIR}/restart-continuity-source/restart-continuity.checkpoint.step00000001.time3p000000000eM04.cgns")
+    set(WCNS_CONTINUITY_OUTPUT restart-continuity-serial)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/restart_continuity_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/restart_continuity_serial.wcns
+        @ONLY
+    )
+    set(WCNS_CONTINUITY_OUTPUT restart-continuity-mpi)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/restart_continuity_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/restart_continuity_mpi.wcns
         @ONLY
     )
     add_test(
@@ -131,6 +186,7 @@ if(WCNS_ENABLE_CGNS)
         COMMAND wcns_field_output_tests
             ${CMAKE_CURRENT_BINARY_DIR}/output-validation-serial
             1
+            txt
     )
     set_tests_properties(
         wcns.output_files.serial
@@ -138,6 +194,8 @@ if(WCNS_ENABLE_CGNS)
     )
     add_executable(wcns_checkpoint_file_tests test_checkpoint_file.cpp)
     target_link_libraries(wcns_checkpoint_file_tests PRIVATE wcns::core wcns::cgns)
+    add_executable(wcns_cgns_field_compare test_cgns_field_compare.cpp)
+    target_link_libraries(wcns_cgns_field_compare PRIVATE wcns::core wcns::cgns)
     add_test(
         NAME wcns.run.checkpoint_source
         COMMAND wcns_run
@@ -169,6 +227,90 @@ if(WCNS_ENABLE_CGNS)
         PROPERTIES
             FIXTURES_REQUIRED checkpoint_file
             RESOURCE_LOCK wcns_checkpoint_validation
+    )
+    add_test(
+        NAME wcns.run.unsteady_exact_time
+        COMMAND wcns_run
+            --config ${CMAKE_CURRENT_BINARY_DIR}/unsteady_case.wcns
+    )
+    set_tests_properties(
+        wcns.run.unsteady_exact_time
+        PROPERTIES FIXTURES_REQUIRED cgns_files
+    )
+    add_test(
+        NAME wcns.run.maximum_steps_exit
+        COMMAND ${CMAKE_COMMAND}
+            -DPROGRAM=$<TARGET_FILE:wcns_run>
+            -DCONFIG=${CMAKE_CURRENT_BINARY_DIR}/maximum_steps_case.wcns
+            -DEXPECTED_EXIT=2
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/run_expect_exit.cmake
+    )
+    set_tests_properties(
+        wcns.run.maximum_steps_exit
+        PROPERTIES FIXTURES_REQUIRED cgns_files
+    )
+    add_test(
+        NAME wcns.run.incompatible_restart
+        COMMAND ${CMAKE_COMMAND}
+            -DPROGRAM=$<TARGET_FILE:wcns_run>
+            -DCONFIG=${CMAKE_CURRENT_BINARY_DIR}/restart_invalid.wcns
+            -DEXPECTED_EXIT=1
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/run_expect_exit.cmake
+    )
+    set_tests_properties(
+        wcns.run.incompatible_restart
+        PROPERTIES FIXTURES_REQUIRED checkpoint_file
+    )
+    add_test(
+        NAME wcns.run.existing_output_rejection
+        COMMAND ${CMAKE_COMMAND}
+            -DPROGRAM=$<TARGET_FILE:wcns_run>
+            -DCONFIG=${CMAKE_CURRENT_BINARY_DIR}/existing_output_case.wcns
+            -DOUTPUT_DIRECTORY=${CMAKE_CURRENT_BINARY_DIR}/existing-output-rejection
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/run_existing_output_rejection.cmake
+    )
+    set_tests_properties(
+        wcns.run.existing_output_rejection
+        PROPERTIES
+            FIXTURES_REQUIRED cgns_files
+            RESOURCE_LOCK wcns_existing_output_rejection
+    )
+    add_test(
+        NAME wcns.run.restart_continuity_source
+        COMMAND wcns_run
+            --config ${CMAKE_CURRENT_BINARY_DIR}/restart_continuity_source.wcns
+    )
+    set_tests_properties(
+        wcns.run.restart_continuity_source
+        PROPERTIES
+            FIXTURES_REQUIRED cgns_files
+            FIXTURES_SETUP restart_continuity_source_files
+            RESOURCE_LOCK wcns_restart_continuity
+    )
+    add_test(
+        NAME wcns.run.restart_continuity.serial
+        COMMAND wcns_run
+            --config ${CMAKE_CURRENT_BINARY_DIR}/restart_continuity_serial.wcns
+    )
+    set_tests_properties(
+        wcns.run.restart_continuity.serial
+        PROPERTIES
+            FIXTURES_REQUIRED restart_continuity_source_files
+            FIXTURES_SETUP restart_continuity_serial_files
+            RESOURCE_LOCK wcns_restart_continuity
+    )
+    set(WCNS_CONTINUITY_FINAL
+        restart-continuity.field.step00000002.time6p000000000eM04.cgns)
+    add_test(
+        NAME wcns.restart_continuity.serial
+        COMMAND wcns_cgns_field_compare
+            ${CMAKE_CURRENT_BINARY_DIR}/restart-continuity-source/${WCNS_CONTINUITY_FINAL}
+            ${CMAKE_CURRENT_BINARY_DIR}/restart-continuity-serial/${WCNS_CONTINUITY_FINAL}
+            1e-13
+    )
+    set_tests_properties(
+        wcns.restart_continuity.serial
+        PROPERTIES FIXTURES_REQUIRED restart_continuity_serial_files
     )
 
     add_executable(wcns_cgns_reader_tests
@@ -253,9 +395,10 @@ if(WCNS_ENABLE_CGNS)
         )
         add_test(
             NAME wcns.output_files.2
-            COMMAND wcns_field_output_tests
+        COMMAND wcns_field_output_tests
                 ${CMAKE_CURRENT_BINARY_DIR}/output-validation-mpi
                 2
+                tecplot
         )
         set_tests_properties(
             wcns.output_files.2
@@ -272,6 +415,30 @@ if(WCNS_ENABLE_CGNS)
             PROPERTIES
                 FIXTURES_REQUIRED checkpoint_file
                 RESOURCE_LOCK wcns_checkpoint_validation
+        )
+        add_test(
+            NAME wcns.run.restart_continuity.2
+            COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
+                $<TARGET_FILE:wcns_run>
+                --config ${CMAKE_CURRENT_BINARY_DIR}/restart_continuity_mpi.wcns
+        )
+        set_tests_properties(
+            wcns.run.restart_continuity.2
+            PROPERTIES
+                FIXTURES_REQUIRED restart_continuity_source_files
+                FIXTURES_SETUP restart_continuity_mpi_files
+                RESOURCE_LOCK wcns_restart_continuity
+        )
+        add_test(
+            NAME wcns.restart_continuity.2
+            COMMAND wcns_cgns_field_compare
+                ${CMAKE_CURRENT_BINARY_DIR}/restart-continuity-source/${WCNS_CONTINUITY_FINAL}
+                ${CMAKE_CURRENT_BINARY_DIR}/restart-continuity-mpi/${WCNS_CONTINUITY_FINAL}
+                1e-12
+        )
+        set_tests_properties(
+            wcns.restart_continuity.2
+            PROPERTIES FIXTURES_REQUIRED restart_continuity_mpi_files
         )
         foreach(rank_count IN ITEMS 4 8)
             add_test(

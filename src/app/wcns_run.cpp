@@ -367,6 +367,7 @@ int main(int argc, char** argv)
             mpi,
             config,
             plan,
+            checkpoint.mesh_signature(),
             &statistic_context,
             [&](wcns::OutputCategory category,
                 const wcns::SimulationState& state,

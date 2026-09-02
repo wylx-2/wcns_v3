@@ -2,6 +2,17 @@ cmake_minimum_required(VERSION 3.20)
 
 project(wcns VERSION 0.1.0 LANGUAGES C CXX)
 
+execute_process(
+    COMMAND git rev-parse --short=12 HEAD
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    OUTPUT_VARIABLE WCNS_GIT_COMMIT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+if(NOT WCNS_GIT_COMMIT)
+    set(WCNS_GIT_COMMIT unknown)
+endif()
+
 option(WCNS_BUILD_TESTS "Build WCNS unit tests" ON)
 option(WCNS_ENABLE_CGNS "Enable CGNS mesh I/O" ON)
 option(WCNS_ENABLE_MPI "Enable MPI parallel execution" OFF)
@@ -172,6 +183,12 @@ add_library(wcns_runtime STATIC
 )
 add_library(wcns::runtime ALIAS wcns_runtime)
 target_link_libraries(wcns_runtime PUBLIC wcns::solver)
+target_compile_definitions(
+    wcns_runtime
+    PRIVATE
+        WCNS_GIT_COMMIT="${WCNS_GIT_COMMIT}"
+        WCNS_PROGRAM_VERSION="${PROJECT_VERSION}"
+)
 
 if(WCNS_ENABLE_CGNS)
     target_sources(wcns_runtime PRIVATE

@@ -13,6 +13,7 @@ public:
     wcns::Real residual_value = 1.0;
     std::size_t advance_count = 0;
     std::vector<wcns::Real> time_steps;
+    bool fail_advance = false;
 
     wcns::Real global_time_step(wcns::Real) override
     {
@@ -21,6 +22,7 @@ public:
 
     void advance(wcns::Real time_step, wcns::Real) override
     {
+        if (fail_advance) throw std::runtime_error("injected advance failure");
         ++advance_count;
         time_steps.push_back(time_step);
         residual_value *= 1.0e-4;
@@ -114,5 +116,44 @@ void test_simulation_driver()
         WCNS_REQUIRE(final.stop_reason == wcns::StopReason::SteadyConverged);
         WCNS_REQUIRE(final.step == 2);
         WCNS_REQUIRE(final.steady.consecutive_passes == 1);
+    }
+    {
+        FakeSolver solver;
+        TimeEventObserver observer;
+        wcns::CaseRunConfig config;
+        config.mode = wcns::RunMode::Steady;
+        config.max_steps = 10;
+        config.max_wall_time = 0.005;
+        config.steady.min_steps = 100;
+        wcns::Real clock = 0.0;
+        wcns::SimulationDriver driver(
+            mpi, solver, config, observer, {},
+            [&clock] { clock += 0.01; return clock; });
+        WCNS_REQUIRE(
+            driver.run().stop_reason == wcns::StopReason::WallTimeCheckpoint);
+    }
+    {
+        FakeSolver solver;
+        TimeEventObserver observer;
+        wcns::CaseRunConfig config;
+        config.mode = wcns::RunMode::Steady;
+        config.max_steps = 1;
+        config.steady.min_steps = 100;
+        wcns::SimulationDriver driver(
+            mpi, solver, config, observer, [] { return true; });
+        WCNS_REQUIRE(
+            driver.run().stop_reason == wcns::StopReason::UserSignalCheckpoint);
+    }
+    {
+        FakeSolver solver;
+        solver.fail_advance = true;
+        TimeEventObserver observer;
+        wcns::CaseRunConfig config;
+        config.mode = wcns::RunMode::Steady;
+        config.max_steps = 10;
+        config.steady.min_steps = 100;
+        wcns::SimulationDriver driver(mpi, solver, config, observer);
+        WCNS_REQUIRE(
+            driver.run().stop_reason == wcns::StopReason::NumericalFailure);
     }
 }

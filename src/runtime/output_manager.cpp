@@ -1,6 +1,7 @@
 #include <wcns/runtime/output_manager.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cerrno>
 #include <cmath>
 #include <cstdio>
@@ -10,6 +11,13 @@
 #include <stdexcept>
 #include <sys/stat.h>
 #include <utility>
+
+#ifndef WCNS_GIT_COMMIT
+#define WCNS_GIT_COMMIT "unknown"
+#endif
+#ifndef WCNS_PROGRAM_VERSION
+#define WCNS_PROGRAM_VERSION "unknown"
+#endif
 
 #if defined(_WIN32)
 #include <direct.h>
@@ -21,6 +29,10 @@
 
 namespace wcns {
 namespace {
+
+const std::array<const char*, euler_components> residual_names {{
+    "rho", "rhou", "rhov", "rhow", "rhoE",
+}};
 
 Real time_tolerance(Real lhs, Real rhs)
 {
@@ -182,11 +194,13 @@ RuntimeOutputManager::RuntimeOutputManager(
     const MpiRuntime& mpi,
     const CaseConfig& config,
     const StructuredPartitionPlan& partition,
+    std::string mesh_signature,
     const StatisticContext* statistic_context,
     EventWriter event_writer)
     : mpi_(mpi)
     , config_(config)
     , partition_(partition)
+    , mesh_signature_(std::move(mesh_signature))
     , statistic_context_(statistic_context)
     , statistic_registry_(StatisticRegistry::create_builtin())
     , event_writer_(std::move(event_writer))
@@ -254,20 +268,33 @@ void RuntimeOutputManager::prepare_directory()
             history_stream_
                 << "TITLE=\"WCNS residual history\"\n"
                 << "VARIABLES=\"step\",\"time\",\"dt\",\"cfl\","
-                   "\"wall_time\",\"total_l2\",\"rho_l2\","
-                   "\"rhou_l2\",\"rhov_l2\",\"rhow_l2\","
-                   "\"rhoE_l2\",\"rho_linf\",\"rhou_linf\","
-                   "\"rhov_linf\",\"rhow_linf\",\"rhoE_linf\","
-                   "\"consecutive\",\"reconstruction_fallbacks\","
+                   "\"wall_time\",\"total_l2\"";
+            for (const char* suffix : {"l2", "reference_l2", "normalized_l2",
+                                       "linf", "reference_linf", "normalized_linf"}) {
+                for (const char* component : residual_names) {
+                    history_stream_ << ",\"" << component << '_' << suffix << "\"";
+                }
+            }
+            history_stream_
+                << ",\"consecutive\",\"reconstruction_fallbacks\","
                    "\"riemann_fallbacks\",\"residual_checked\","
-                   "\"stop_reason\"\n"
-                << "ZONE T=\"history\"\n";
+                   "\"stop_reason_code\"\n"
+                   "AUXDATA STOP_REASON_CODES=\"0=running;1=steady_converged;"
+                   "2=physical_time_reached;3=maximum_steps;"
+                   "4=wall_time_checkpoint;5=user_signal_checkpoint;"
+                   "6=numerical_failure\"\n"
+                   "ZONE T=\"history\"\n";
         } else {
             history_stream_
-                << "# step time dt cfl wall_time total_l2 "
-                   "rho_l2 rhou_l2 rhov_l2 rhow_l2 rhoE_l2 "
-                   "rho_linf rhou_linf rhov_linf rhow_linf rhoE_linf "
-                   "consecutive reconstruction_fallbacks riemann_fallbacks "
+                << "# step time dt cfl wall_time total_l2";
+            for (const char* suffix : {"l2", "reference_l2", "normalized_l2",
+                                       "linf", "reference_linf", "normalized_linf"}) {
+                for (const char* component : residual_names) {
+                    history_stream_ << ' ' << component << '_' << suffix;
+                }
+            }
+            history_stream_
+                << " consecutive reconstruction_fallbacks riemann_fallbacks "
                    "residual_checked stop_reason\n";
         }
     }
@@ -362,12 +389,40 @@ void RuntimeOutputManager::write_history(
                     << state.time_step << ' ' << config_.run.cfl << ' '
                     << state.wall_time << ' ' << state.residuals.total_l2();
     for (const Real value : state.residuals.l2) history_stream_ << ' ' << value;
+    const Real nan = std::numeric_limits<Real>::quiet_NaN();
+    for (const Real value : state.steady.reference_l2) {
+        history_stream_ << ' '
+            << (state.steady.reference_initialized ? value : nan);
+    }
+    for (std::size_t component = 0; component < euler_components; ++component) {
+        history_stream_ << ' '
+            << (state.steady.reference_initialized
+                ? state.residuals.l2[component]
+                    / state.steady.reference_l2[component]
+                : nan);
+    }
     for (const Real value : state.residuals.linf) history_stream_ << ' ' << value;
+    for (const Real value : state.steady.reference_linf) {
+        history_stream_ << ' '
+            << (state.steady.reference_initialized ? value : nan);
+    }
+    for (std::size_t component = 0; component < euler_components; ++component) {
+        history_stream_ << ' '
+            << (state.steady.reference_initialized
+                ? state.residuals.linf[component]
+                    / state.steady.reference_linf[component]
+                : nan);
+    }
     history_stream_ << ' ' << state.steady.consecutive_passes
                     << ' ' << state.diagnostics.reconstruction_fallbacks
                     << ' ' << state.diagnostics.riemann_fallbacks
-                    << ' ' << (residual_checked ? 1 : 0)
-                    << ' ' << stop_reason_name(state.stop_reason) << '\n';
+                    << ' ' << (residual_checked ? 1 : 0) << ' ';
+    if (config_.output.history.format == SeriesOutputFormat::Tecplot) {
+        history_stream_ << static_cast<int>(state.stop_reason);
+    } else {
+        history_stream_ << stop_reason_name(state.stop_reason);
+    }
+    history_stream_ << '\n';
     if (!history_stream_) {
         throw std::runtime_error("failed to write residual history");
     }
@@ -398,6 +453,7 @@ void RuntimeOutputManager::on_step(
         && history_schedule_.consume(state, false, false)) {
         write_history(state, residual_checked);
     }
+    if (state.stop_reason == StopReason::NumericalFailure) return;
     dispatch(OutputCategory::Field, field_schedule_, state, false, false,
         config_.output.field.enabled);
     if (config_.output.statistics.enabled
@@ -476,14 +532,25 @@ void RuntimeOutputManager::write_manifest(const SimulationState& state)
         throw std::runtime_error("cannot open manifest temporary file: " + temporary);
     }
     output << "manifest_version=1\n"
+           << "program_version=" << WCNS_PROGRAM_VERSION << '\n'
+           << "git_commit=" << WCNS_GIT_COMMIT << '\n'
+           << "compiler=" << __VERSION__ << '\n'
+#ifdef NDEBUG
+           << "build_type=Release\n"
+#else
+           << "build_type=Debug\n"
+#endif
            << "case=" << config_.case_name << '\n'
            << "mpi_ranks=" << mpi_.size() << '\n'
            << "config_digest=" << config_.digest() << '\n'
            << "partition_digest=" << partition_.digest() << '\n'
+           << "mesh_signature=" << mesh_signature_ << '\n'
+           << "restart_signature=" << config_.restart_signature() << '\n'
            << "step=" << state.step << '\n'
            << std::setprecision(17)
            << "time=" << state.time << '\n'
            << "time_step=" << state.time_step << '\n'
+           << "wall_time=" << state.wall_time << '\n'
            << "stop_reason=" << stop_reason_name(state.stop_reason) << '\n'
            << "config_summary=" << config_.summary() << '\n'
            << "partition_summary=" << partition_.summary() << '\n';
@@ -501,17 +568,19 @@ void RuntimeOutputManager::on_final(const SimulationState& state)
         && history_schedule_.consume(state, false, true)) {
         write_history(state, true);
     }
-    dispatch(OutputCategory::Field, field_schedule_, state, false, true,
-        config_.output.field.enabled);
-    if (config_.output.statistics.enabled
-        && statistics_schedule_.consume(state, false, true)) {
-        write_statistics(state);
+    if (state.stop_reason != StopReason::NumericalFailure) {
+        dispatch(OutputCategory::Field, field_schedule_, state, false, true,
+            config_.output.field.enabled);
+        if (config_.output.statistics.enabled
+            && statistics_schedule_.consume(state, false, true)) {
+            write_statistics(state);
+        }
+        const bool safety_checkpoint
+            = state.stop_reason == StopReason::WallTimeCheckpoint
+            || state.stop_reason == StopReason::UserSignalCheckpoint;
+        dispatch(OutputCategory::Checkpoint, checkpoint_schedule_, state, false, true,
+            config_.output.checkpoint.enabled || safety_checkpoint);
     }
-    const bool safety_checkpoint
-        = state.stop_reason == StopReason::WallTimeCheckpoint
-        || state.stop_reason == StopReason::UserSignalCheckpoint;
-    dispatch(OutputCategory::Checkpoint, checkpoint_schedule_, state, false, true,
-        config_.output.checkpoint.enabled || safety_checkpoint);
     finish_history();
     finish_statistics();
     write_manifest(state);

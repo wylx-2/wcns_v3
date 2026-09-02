@@ -81,9 +81,10 @@ void validate_cgns(const std::string& path)
 // 独立重读 CGNS/Tecplot/历史/统计文件，防止只验证“写文件未报错”。
 int main(int argc, char** argv)
 {
-    if (argc != 3) {
+    if (argc != 4) {
         std::cerr
-            << "usage: wcns_field_output_tests <output-directory> <rank-count>\n";
+            << "usage: wcns_field_output_tests <output-directory> "
+               "<rank-count> <history-format>\n";
         return EXIT_FAILURE;
     }
     try {
@@ -95,9 +96,16 @@ int main(int argc, char** argv)
         const auto tecplot = read_text(join(directory, stem + ".dat"));
         WCNS_REQUIRE(tecplot.find("DATAPACKING=POINT") != std::string::npos);
         WCNS_REQUIRE(tecplot.find("\"rho\"") != std::string::npos);
+        const std::string history_format = argv[3];
         const auto history = read_text(join(
-            directory, "output-freestream.history.r" + ranks + ".txt"));
-        WCNS_REQUIRE(history.find("steady_converged") != std::string::npos);
+            directory, "output-freestream.history.r" + ranks
+                + (history_format == "tecplot" ? ".dat" : ".txt")));
+        if (history_format == "tecplot") {
+            WCNS_REQUIRE(history.find("stop_reason_code") != std::string::npos);
+            WCNS_REQUIRE(history.find("STOP_REASON_CODES") != std::string::npos);
+        } else {
+            WCNS_REQUIRE(history.find("steady_converged") != std::string::npos);
+        }
         const auto statistics = read_text(join(
             directory, "output-freestream.statistics.r" + ranks + ".dat"));
         WCNS_REQUIRE(statistics.find("total_mass") != std::string::npos);

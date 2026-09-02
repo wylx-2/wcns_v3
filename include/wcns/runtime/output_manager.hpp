@@ -48,6 +48,7 @@ public:
         const MpiRuntime& mpi,
         const CaseConfig& config,
         const StructuredPartitionPlan& partition,
+        std::string mesh_signature = {},
         const StatisticContext* statistic_context = nullptr,
         EventWriter event_writer = {});
     ~RuntimeOutputManager() override;
@@ -84,6 +85,7 @@ private:
     const MpiRuntime& mpi_;
     const CaseConfig& config_;
     const StructuredPartitionPlan& partition_;
+    std::string mesh_signature_;
     const StatisticContext* statistic_context_ = nullptr;
     StatisticRegistry statistic_registry_;
     EventWriter event_writer_;

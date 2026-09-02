@@ -1,0 +1,13 @@
+if(NOT DEFINED PROGRAM OR NOT DEFINED CONFIG OR NOT DEFINED OUTPUT_DIRECTORY)
+    message(FATAL_ERROR "PROGRAM, CONFIG and OUTPUT_DIRECTORY are required")
+endif()
+
+file(REMOVE_RECURSE "${OUTPUT_DIRECTORY}")
+execute_process(COMMAND "${PROGRAM}" --config "${CONFIG}" RESULT_VARIABLE first_result)
+if(NOT first_result EQUAL 0)
+    message(FATAL_ERROR "first run returned ${first_result}, expected 0")
+endif()
+execute_process(COMMAND "${PROGRAM}" --config "${CONFIG}" RESULT_VARIABLE second_result)
+if(NOT second_result EQUAL 1)
+    message(FATAL_ERROR "second run returned ${second_result}, expected 1")
+endif()
