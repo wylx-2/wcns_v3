@@ -86,6 +86,7 @@ git diff --check
 
 ## 7. Git/GitHub 状态
 
-阶段 M 各小目标均已形成独立本地提交。报告提交后创建 `stage-m-candidate-v1` 标签并尝试
-推送 `stage/release` 和标签。若 GitHub 仍不可达，按流程记录为“远程未同步”，不阻塞本地
-进入阶段 N；阶段 O 集中人工验收前必须补齐远程同步。
+阶段 M 各小目标均已形成独立本地提交，并已创建 `stage-m-candidate-v1` 标签。2026-09-02
+向 `https://github.com/wylx-2/wcns_v3.git` 推送 `stage/release` 及标签时连接被重置，故当前
+状态为“远程未同步”。按流程这不阻塞本地进入阶段 N；阶段 O 集中人工验收前必须补齐远程
+同步。
