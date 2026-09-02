@@ -134,6 +134,20 @@ void test_viscous_cartesian_flux()
         PhysicsError,
         compute_viscous_cartesian_flux(
             trace, transport, gas, reference, NumericalFloors {}, 2));
+
+    ViscousFaceTrace trace_3d;
+    trace_3d.state = {{1.0, 1.0, 2.0, 3.0, 2.0}};
+    trace_3d.gradients[0] = {{1.0, 2.0, 3.0}};
+    trace_3d.gradients[1] = {{4.0, 5.0, 6.0}};
+    trace_3d.gradients[2] = {{7.0, 8.0, 9.0}};
+    trace_3d.gradients[3] = {{0.1, 0.2, 0.3}};
+    const auto flux_3d = compute_viscous_cartesian_flux(
+        trace_3d, transport, gas, reference, NumericalFloors {}, 3);
+    WCNS_REQUIRE_NEAR(flux_3d.z[momentum_x], 20.0, 1.0e-14);
+    WCNS_REQUIRE_NEAR(flux_3d.z[momentum_y], 28.0, 1.0e-14);
+    WCNS_REQUIRE_NEAR(flux_3d.z[momentum_z], 16.0, 1.0e-14);
+    WCNS_REQUIRE_NEAR(
+        flux_3d.z[total_energy], 124.0 + 0.3 * chi, 1.0e-12);
 }
 
 // 验收粘性通量散度只在残差装配时乘一次 1/Re，并保持零质量粘性残差。

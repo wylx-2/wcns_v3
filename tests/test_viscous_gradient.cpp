@@ -94,6 +94,87 @@ void run_linear_gradient(wcns::AlgorithmProfileKind kind)
     WCNS_REQUIRE(std::isnan(gradients.values()(-1, -1, 0, 0)));
 }
 
+void run_linear_gradient_3d(wcns::AlgorithmProfileKind kind)
+{
+    using namespace wcns;
+    StructuredBlock block(0, "linear-gradient-3d", 0, 3, 3, {9, 9, 9}, 3);
+    const auto vertices = block.vertex_extent();
+    for (int k = 0; k < vertices.nk; ++k) {
+        for (int j = 0; j < vertices.nj; ++j) {
+            for (int i = 0; i < vertices.ni; ++i) {
+                block.coordinates.x(i, j, k) = static_cast<Real>(i);
+                block.coordinates.y(i, j, k) = static_cast<Real>(j);
+                block.coordinates.z(i, j, k) = static_cast<Real>(k);
+            }
+        }
+    }
+    const auto cells = block.cell_extent();
+    auto& state = block.flow.temperature_primitive;
+    const auto store = [&](int i, int j, int k) {
+        const Real x = static_cast<Real>(i) + 0.5;
+        const Real y = static_cast<Real>(j) + 0.5;
+        const Real z = static_cast<Real>(k) + 0.5;
+        state(i, j, k, temperature_density) = 1.0;
+        state(i, j, k, temperature_velocity_x) = 1.0 + x + 2.0 * y + 3.0 * z;
+        state(i, j, k, temperature_velocity_y) = -2.0 - 0.5 * x + 0.25 * y - 0.75 * z;
+        state(i, j, k, temperature_velocity_z) = 0.5 + 0.4 * x - 0.3 * y + 0.2 * z;
+        state(i, j, k, temperature_value) = 3.0 + 0.1 * x + 0.2 * y + 0.3 * z;
+    };
+    for (int k = 0; k < cells.nk; ++k) {
+        for (int j = 0; j < cells.nj; ++j) {
+            for (int i = 0; i < cells.ni; ++i) store(i, j, k);
+        }
+    }
+    for (int layer = 1; layer <= state.ghost_width(); ++layer) {
+        for (int k = 0; k < cells.nk; ++k) {
+            for (int j = 0; j < cells.nj; ++j) {
+                store(-layer, j, k);
+                store(cells.ni - 1 + layer, j, k);
+            }
+        }
+        for (int k = 0; k < cells.nk; ++k) {
+            for (int i = 0; i < cells.ni; ++i) {
+                store(i, -layer, k);
+                store(i, cells.nj - 1 + layer, k);
+            }
+        }
+        for (int j = 0; j < cells.nj; ++j) {
+            for (int i = 0; i < cells.ni; ++i) {
+                store(i, j, -layer);
+                store(i, j, cells.nk - 1 + layer);
+            }
+        }
+    }
+    const auto profile = ProfileFactory::create(kind);
+    const auto metric = initialize_metric_field(block, profile).metric;
+    const auto operands = compute_gradient_face_operands(
+        block, metric, profile, 9);
+    const auto gradients = compute_primitive_gradients(
+        block, metric, operands, profile);
+    const std::array<std::array<Real, 3>, 4> exact {{
+        {{1.0, 2.0, 3.0}},
+        {{-0.5, 0.25, -0.75}},
+        {{0.4, -0.3, 0.2}},
+        {{0.1, 0.2, 0.3}},
+    }};
+    for (int k = 0; k < cells.nk; ++k) {
+        for (int j = 0; j < cells.nj; ++j) {
+            for (int i = 0; i < cells.ni; ++i) {
+                for (int variable = 0; variable < viscous_primitive_components;
+                     ++variable) {
+                    for (int direction = 0; direction < 3; ++direction) {
+                        WCNS_REQUIRE_NEAR(gradients(
+                            {i, j, k}, static_cast<ViscousPrimitive>(variable),
+                            direction), exact[static_cast<std::size_t>(variable)]
+                                [static_cast<std::size_t>(direction)], 2.0e-12);
+                    }
+                }
+            }
+        }
+    }
+    WCNS_REQUIRE(std::isnan(gradients.values()(-1, -1, -1, 0)));
+}
+
 wcns::Real manufactured_temperature_error(
     wcns::AlgorithmProfileKind kind,
     int cell_count)
@@ -185,6 +266,8 @@ void test_viscous_linear_gradients()
 {
     run_linear_gradient(wcns::AlgorithmProfileKind::PhengleiWcns);
     run_linear_gradient(wcns::AlgorithmProfileKind::Scmm6Wcns);
+    run_linear_gradient_3d(wcns::AlgorithmProfileKind::PhengleiWcns);
+    run_linear_gradient_3d(wcns::AlgorithmProfileKind::Scmm6Wcns);
 }
 
 // 验收旋转周期的速度梯度二阶张量和温度梯度矢量接收侧变换。
