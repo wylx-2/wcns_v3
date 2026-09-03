@@ -234,9 +234,10 @@ TemperaturePrimitiveState isentropic_vortex_state(
     const Real v = config.parameter("background_v", 1.0)
         + beta * exponential * dx / (2.0 * pi);
     const Real temperature = 1.0
-        - (gas.gamma() - 1.0) * beta * beta
+        - (gas.gamma() - 1.0) * reference.mach() * reference.mach()
+            * beta * beta
             * std::exp(1.0 - radius_squared)
-            / (8.0 * gas.gamma() * pi * pi);
+            / (8.0 * pi * pi);
     if (!std::isfinite(temperature) || temperature <= floors.temperature) {
         throw FlowInitializationError(
             "isentropic vortex produces a non-positive temperature");

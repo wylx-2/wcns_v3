@@ -335,9 +335,14 @@ $\beta=5$、背景速度 $(1,1)$。令 $r^2=(x-5)^2+(y-5)^2$：
 \delta v= \frac{\beta}{2\pi}e^{(1-r^2)/2}(x-5),
 \]
 \[
-T=1-\frac{(\gamma-1)\beta^2}{8\gamma\pi^2}e^{1-r^2},\qquad
-\rho=T^{1/(\gamma-1)},\qquad p=\rho^\gamma.
+T=1-\frac{(\gamma-1)Ma^2\beta^2}{8\pi^2}e^{1-r^2},\qquad
+\rho=T^{1/(\gamma-1)},\qquad
+p=\frac{\rho^\gamma}{\gamma Ma^2}.
 \]
+
+这里的 $Ma$ 只能由算例的 $U_{ref},T_{ref},\widetilde R$ 导出。上式对应本程序以
+$\rho_{ref}U_{ref}^2$ 缩放压力的控制方程；若另取 $Ma^2=1/\gamma$，才退化为常见的
+$1/\gamma$ 温度扰动系数写法。解析验证器必须使用同一组参考量，不能把该特例隐含写死。
 
 使用 $32^2,64^2,128^2$ 网格推进至 $t=10$，比较解析平移解的 $L_1/L_2/L_\infty$
 误差、观测阶、质量/动量/能量守恒、准确终止时间和 1/2/4/8 rank 一致性。两 profile、

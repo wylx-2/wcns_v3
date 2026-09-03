@@ -447,6 +447,86 @@ void validate_constant_series(const std::string& path, double tolerance)
               << " tolerance=" << tolerance << '\n';
 }
 
+void validate_isentropic_vortex(
+    const std::string& path,
+    double time,
+    double length,
+    double x0,
+    double y0,
+    double beta,
+    double background_u,
+    double background_v,
+    double gamma,
+    double mach,
+    double l1_tolerance)
+{
+    if (!(length > 0.0) || !(gamma > 1.0) || !(mach > 0.0)) {
+        throw std::invalid_argument("vortex length, gamma and Mach are invalid");
+    }
+    require_tolerance(l1_tolerance);
+    constexpr double pi = 3.141592653589793238462643383279502884;
+    const double center_x = std::fmod(x0 + background_u * time, length);
+    const double center_y = std::fmod(y0 + background_v * time, length);
+    const auto file = read_fields(path);
+    double density_l1 = 0.0;
+    double density_l2 = 0.0;
+    double density_linf = 0.0;
+    double maximum_primitive = 0.0;
+    std::size_t cells = 0;
+    for (const auto& [zone_name, zone] : file) {
+        static_cast<void>(zone_name);
+        const auto& density = require_field(zone, "Density");
+        const auto& velocity_x = require_field(zone, "VelocityX");
+        const auto& velocity_y = require_field(zone, "VelocityY");
+        const auto& temperature = require_field(zone, "Temperature");
+        for (std::size_t cell = 0; cell < zone.cell_centers.size(); ++cell) {
+            const double dx = std::remainder(
+                zone.cell_centers[cell][0] - center_x, length);
+            const double dy = std::remainder(
+                zone.cell_centers[cell][1] - center_y, length);
+            const double radius_squared = dx * dx + dy * dy;
+            const double exponential = std::exp(0.5 * (1.0 - radius_squared));
+            const double exact_u = background_u
+                - beta * exponential * dy / (2.0 * pi);
+            const double exact_v = background_v
+                + beta * exponential * dx / (2.0 * pi);
+            const double exact_temperature = 1.0
+                - (gamma - 1.0) * mach * mach * beta * beta
+                    * std::exp(1.0 - radius_squared)
+                    / (8.0 * pi * pi);
+            const double exact_density
+                = std::pow(exact_temperature, 1.0 / (gamma - 1.0));
+            const double density_error = std::abs(density[cell] - exact_density);
+            density_l1 += density_error;
+            density_l2 += density_error * density_error;
+            density_linf = std::max(density_linf, density_error);
+            maximum_primitive = std::max({
+                maximum_primitive,
+                density_error,
+                std::abs(velocity_x[cell] - exact_u),
+                std::abs(velocity_y[cell] - exact_v),
+                std::abs(temperature[cell] - exact_temperature),
+            });
+            ++cells;
+        }
+    }
+    if (cells == 0) throw std::runtime_error("vortex output has no cells");
+    density_l1 /= static_cast<double>(cells);
+    density_l2 = std::sqrt(density_l2 / static_cast<double>(cells));
+    if (density_l1 > l1_tolerance) {
+        throw std::runtime_error(
+            "vortex density L1 error " + std::to_string(density_l1)
+            + " exceeds tolerance " + std::to_string(l1_tolerance));
+    }
+    std::cout << std::setprecision(17)
+              << "check=isentropic_vortex cells=" << cells
+              << " rho_l1=" << density_l1
+              << " rho_l2=" << density_l2
+              << " rho_linf=" << density_linf
+              << " primitive_linf=" << maximum_primitive
+              << " tolerance=" << l1_tolerance << '\n';
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -473,6 +553,19 @@ int main(int argc, char** argv)
                  {"VelocityZ", parse_real(argv[6], "w")},
                  {"Temperature", parse_real(argv[7], "temperature")}},
                 parse_real(argv[8], "tolerance"));
+        } else if (argc == 13 && std::string(argv[1]) == "vortex") {
+            validate_isentropic_vortex(
+                argv[2],
+                parse_real(argv[3], "time"),
+                parse_real(argv[4], "length"),
+                parse_real(argv[5], "x0"),
+                parse_real(argv[6], "y0"),
+                parse_real(argv[7], "beta"),
+                parse_real(argv[8], "background_u"),
+                parse_real(argv[9], "background_v"),
+                parse_real(argv[10], "gamma"),
+                parse_real(argv[11], "Mach"),
+                parse_real(argv[12], "tolerance"));
         } else {
             std::cerr
                 << "usage:\n"
@@ -482,7 +575,10 @@ int main(int argc, char** argv)
                    "  wcns_validate_release_case compare-spatial <lhs.cgns> "
                    "<rhs.cgns> <field-tol> <coordinate-tol>\n"
                    "  wcns_validate_release_case uniform <field.cgns> "
-                   "<rho> <u> <v> <w> <T> <tol>\n";
+                   "<rho> <u> <v> <w> <T> <tol>\n"
+                   "  wcns_validate_release_case vortex <field.cgns> <time> "
+                   "<length> <x0> <y0> <beta> <u0> <v0> <gamma> <Mach> "
+                   "<L1-tol>\n";
             return EXIT_FAILURE;
         }
         return EXIT_SUCCESS;

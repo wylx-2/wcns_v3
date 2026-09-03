@@ -192,7 +192,7 @@ void test_periodic_shared_metric_synchronization()
     }
 }
 
-// 验收多块轴置换连接上的张量积单元权重为正且共享面加权贡献抵消。
+// 验收多块轴置换连接按整条物理线切分守恒权重，且共享面加权贡献抵消。
 void test_global_conservation_weights()
 {
     using namespace wcns;
@@ -202,6 +202,8 @@ void test_global_conservation_weights()
              AlgorithmProfileKind::Scmm6Wcns}) {
         const auto profile = ProfileFactory::create(kind);
         const auto weights = GlobalConservationWeights::build(mesh, profile);
+        const auto composite = build_line_conservation_weights(profile, 12);
+        const auto transverse = build_line_conservation_weights(profile, 6);
         WCNS_REQUIRE(weights.maximum_line_residual() < 1.0e-11);
         WCNS_REQUIRE(weights.maximum_shared_face_mismatch() < 1.0e-11);
         for (const BlockId id : {BlockId {0}, BlockId {1}}) {
@@ -210,6 +212,12 @@ void test_global_conservation_weights()
             for (int j = 0; j < extent.nj; ++j) {
                 for (int i = 0; i < extent.ni; ++i) {
                     WCNS_REQUIRE(block_weights(i, j, 0) > 0.0);
+                    const Real expected = id == 0
+                        ? composite.cell_weights[static_cast<std::size_t>(i)]
+                            * transverse.cell_weights[static_cast<std::size_t>(j)]
+                        : transverse.cell_weights[static_cast<std::size_t>(i)]
+                            * composite.cell_weights[static_cast<std::size_t>(j + 6)];
+                    WCNS_REQUIRE_NEAR(block_weights(i, j, 0), expected, 2.0e-13);
                 }
             }
         }

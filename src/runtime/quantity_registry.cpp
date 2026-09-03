@@ -129,45 +129,19 @@ Real weighted_conservative_integral(
     const StatisticContext& context,
     int component)
 {
-    std::unordered_map<BlockId, const PartitionLeaf*> leaves;
-    for (const auto& leaf : context.partition.leaves()) {
-        leaves.emplace(leaf.block, &leaf);
-    }
-    std::unordered_map<BlockId, std::array<LineConservationWeights, 3>> weights;
-    for (const auto& zone : context.partition.zones()) {
-        std::array<LineConservationWeights, 3> lines;
-        lines[0] = build_line_conservation_weights(
-            context.profile, zone.cell_extent.ni);
-        lines[1] = build_line_conservation_weights(
-            context.profile, zone.cell_extent.nj);
-        lines[2] = build_line_conservation_weights(
-            context.profile,
-            zone.cell_dimension == 3 ? zone.cell_extent.nk : 1,
-            zone.cell_dimension == 2);
-        weights.emplace(zone.source_zone, std::move(lines));
-    }
     Real local = 0.0;
     for (const auto& block : context.local_blocks.blocks()) {
-        const auto leaf_iterator = leaves.find(block.id());
         const auto metric_iterator = context.metrics.find(block.id());
-        if (leaf_iterator == leaves.end() || metric_iterator == context.metrics.end()) {
-            throw std::invalid_argument("statistic is missing leaf or metric data");
+        if (metric_iterator == context.metrics.end()) {
+            throw std::invalid_argument("statistic is missing metric data");
         }
-        const auto& leaf = *leaf_iterator->second;
-        const auto& lines = weights.at(leaf.source_zone);
+        const auto& weights = context.conservation_weights.block(block.id()).cell;
         const auto& jacobian = metric_iterator->second.jacobian();
         const auto extent = block.cell_extent();
         for (int k = 0; k < extent.nk; ++k) {
             for (int j = 0; j < extent.nj; ++j) {
                 for (int i = 0; i < extent.ni; ++i) {
-                    const Real weight
-                        = lines[0].cell_weights[static_cast<std::size_t>(
-                              leaf.cells.begin.i + i)]
-                        * lines[1].cell_weights[static_cast<std::size_t>(
-                              leaf.cells.begin.j + j)]
-                        * lines[2].cell_weights[static_cast<std::size_t>(
-                              leaf.cells.begin.k + k)]
-                        * jacobian(i, j, k);
+                    const Real weight = weights(i, j, k) * jacobian(i, j, k);
                     const Real value = block.flow.conservative(
                         i, j, k, component);
                     if (!std::isfinite(weight) || weight <= 0.0

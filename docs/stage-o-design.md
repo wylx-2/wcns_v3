@@ -67,7 +67,8 @@
 ### 4.2 光滑无粘
 
 二维等熵涡采用 [`release-development-plan.md`](release-development-plan.md) 第 7.2 节解析式，
-周期区域 `[0,10]^2`，终止时间 `t=10`。WENO-JS/WENO-Z/MDCD-LINEAR/MDCD-HYBRID 各在
+其温度扰动含由参考量导出的 $Ma^2$（压力按 $\rho_{ref}U_{ref}^2$ 缩放）；周期区域
+`[0,10]^2`，终止时间 `t=10`。WENO-JS/WENO-Z/MDCD-LINEAR/MDCD-HYBRID 各在
 32²、64²、128² 上与 HLLC 组合；两个 profile 至少覆盖 WENO-Z 和 MDCD-HYBRID。密度
 `L1/L2/Linf` 均记录，64→128 的 `L1` 观测阶不得低于 3.5，128² 的 `L1<=2e-5`，守恒量
 相对漂移 `<=2e-11`。4×3 重构/Riemann 全组合在 32² 推进 5 个 CFL 步，要求正性、有限性且

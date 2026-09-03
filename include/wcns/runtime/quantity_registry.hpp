@@ -2,6 +2,7 @@
 
 #include <wcns/core/topology_field.hpp>
 #include <wcns/runtime/structured_partition.hpp>
+#include <wcns/mesh/conservation_weights.hpp>
 #include <wcns/solver/inviscid_wcns_solver.hpp>
 #include <wcns/solver/transport_model.hpp>
 
@@ -90,6 +91,7 @@ struct StatisticContext {
     const LocalBlockSet& local_blocks;
     const BlockMetricMap& metrics;
     const StructuredPartitionPlan& partition;
+    const GlobalConservationWeights& conservation_weights;
     AlgorithmProfile profile;
     QuantityContext quantities;
 };

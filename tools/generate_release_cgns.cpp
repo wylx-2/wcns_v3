@@ -39,6 +39,17 @@ double parse_warp(const char* text)
     return value;
 }
 
+double parse_positive_real(const char* text, const char* name)
+{
+    std::size_t consumed = 0;
+    const double value = std::stod(text, &consumed);
+    if (consumed != std::string(text).size() || !std::isfinite(value)
+        || value <= 0.0) {
+        throw std::invalid_argument(std::string(name) + " must be positive and finite");
+    }
+    return value;
+}
+
 bool parse_bool(const char* text)
 {
     const std::string value(text);
@@ -266,26 +277,156 @@ void generate(
     }
 }
 
+void generate_periodic_square(
+    const std::string& path,
+    int cells_i,
+    int cells_j,
+    double length)
+{
+    if (cells_i % 2 != 0 || cells_j % 2 != 0
+        || !std::isfinite(length) || length <= 0.0) {
+        throw std::invalid_argument(
+            "periodic-square requires even cell counts and positive finite length");
+    }
+    const int local_i = cells_i / 2;
+    const int local_j = cells_j / 2;
+    const int ni = local_i + 1;
+    const int nj = local_j + 1;
+    int file = 0;
+    check_cgns(cg_open(path.c_str(), CG_MODE_WRITE, &file), "cg_open periodic square");
+    try {
+        int base = 0;
+        check_cgns(
+            cg_base_write(file, "WCNSPeriodicSquare", 2, 2, &base),
+            "cg_base_write periodic square");
+        const auto square_zone_name = [](int i, int j) {
+            return "Zone" + std::to_string(j * 2 + i + 1);
+        };
+        for (int zone_j = 0; zone_j < 2; ++zone_j) {
+            for (int zone_i = 0; zone_i < 2; ++zone_i) {
+                const auto name = square_zone_name(zone_i, zone_j);
+                cgsize_t size[6] = {ni, nj, local_i, local_j, 0, 0};
+                int zone = 0;
+                check_cgns(
+                    cg_zone_write(
+                        file, base, name.c_str(), size, Structured, &zone),
+                    "cg_zone_write periodic square");
+                std::vector<double> x(static_cast<std::size_t>(ni * nj));
+                std::vector<double> y(x.size());
+                for (int j = 0; j < nj; ++j) {
+                    for (int i = 0; i < ni; ++i) {
+                        const auto index = static_cast<std::size_t>(j * ni + i);
+                        x[index] = length
+                            * static_cast<double>(zone_i * local_i + i)
+                            / static_cast<double>(cells_i);
+                        y[index] = length
+                            * static_cast<double>(zone_j * local_j + j)
+                            / static_cast<double>(cells_j);
+                    }
+                }
+                int coordinate = 0;
+                check_cgns(
+                    cg_coord_write(
+                        file, base, zone, RealDouble,
+                        "CoordinateX", x.data(), &coordinate),
+                    "cg_coord_write periodic square X");
+                check_cgns(
+                    cg_coord_write(
+                        file, base, zone, RealDouble,
+                        "CoordinateY", y.data(), &coordinate),
+                    "cg_coord_write periodic square Y");
+            }
+        }
+
+        for (int zone_j = 0; zone_j < 2; ++zone_j) {
+            for (int zone_i = 0; zone_i < 2; ++zone_i) {
+                const int zone = zone_j * 2 + zone_i + 1;
+                const int other_i = 1 - zone_i;
+                const int other_j = 1 - zone_j;
+                const auto add = [&](
+                    const std::string& name,
+                    const std::string& donor,
+                    const std::vector<cgsize_t>& range,
+                    const std::vector<cgsize_t>& donor_range,
+                    std::array<float, 3> translation) {
+                    const int connection = write_connection(
+                        file, base, zone, name, donor,
+                        range, donor_range, 2);
+                    if (translation[0] != 0.0F || translation[1] != 0.0F) {
+                        std::array<float, 3> center {{0.0F, 0.0F, 0.0F}};
+                        std::array<float, 3> angle {{0.0F, 0.0F, 0.0F}};
+                        check_cgns(
+                            cg_1to1_periodic_write(
+                                file, base, zone, connection,
+                                center.data(), angle.data(), translation.data()),
+                            "cg_1to1_periodic_write periodic square");
+                    }
+                };
+                add(
+                    "imin", square_zone_name(other_i, zone_j),
+                    {1, 1, 1, nj},
+                    {ni, 1, ni, nj},
+                    {{zone_i == 0 ? static_cast<float>(length) : 0.0F, 0.0F, 0.0F}});
+                add(
+                    "imax", square_zone_name(other_i, zone_j),
+                    {ni, 1, ni, nj},
+                    {1, 1, 1, nj},
+                    {{zone_i == 1 ? -static_cast<float>(length) : 0.0F, 0.0F, 0.0F}});
+                add(
+                    "jmin", square_zone_name(zone_i, other_j),
+                    {1, 1, ni, 1},
+                    {1, nj, ni, nj},
+                    {{0.0F, zone_j == 0 ? static_cast<float>(length) : 0.0F, 0.0F}});
+                add(
+                    "jmax", square_zone_name(zone_i, other_j),
+                    {1, nj, ni, nj},
+                    {1, 1, ni, 1},
+                    {{0.0F, zone_j == 1 ? -static_cast<float>(length) : 0.0F, 0.0F}});
+            }
+        }
+        check_cgns(cg_close(file), "cg_close periodic square");
+        file = 0;
+    } catch (...) {
+        if (file != 0) cg_close(file);
+        throw;
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv)
 {
-    if (argc != 9) {
+    if (argc != 9 && argc != 6) {
         std::cerr
             << "usage: wcns_generate_release_cgns <output.cgns> <dimension> "
-               "<cells_i> <cells_j> <cells_k> <zones_i> <warp> <periodic_x>\n";
+               "<cells_i> <cells_j> <cells_k> <zones_i> <warp> <periodic_x>\n"
+               "   or: wcns_generate_release_cgns periodic-square <output.cgns> "
+               "<cells_i> <cells_j> <length>\n";
         return EXIT_FAILURE;
     }
     try {
         check_cgns(cg_set_file_type(CG_FILE_ADF), "cg_set_file_type release grid");
-        generate(
-            argv[1], parse_positive(argv[2], "dimension"),
-            parse_positive(argv[3], "cells_i"),
-            parse_positive(argv[4], "cells_j"),
-            parse_positive(argv[5], "cells_k"),
-            parse_positive(argv[6], "zones_i"),
-            parse_warp(argv[7]), parse_bool(argv[8]));
-        std::cout << "generated release CGNS grid: " << argv[1] << '\n';
+        std::string output;
+        if (argc == 6 && std::string(argv[1]) == "periodic-square") {
+            output = argv[2];
+            generate_periodic_square(
+                output,
+                parse_positive(argv[3], "cells_i"),
+                parse_positive(argv[4], "cells_j"),
+                parse_positive_real(argv[5], "length"));
+        } else if (argc == 9) {
+            output = argv[1];
+            generate(
+                output, parse_positive(argv[2], "dimension"),
+                parse_positive(argv[3], "cells_i"),
+                parse_positive(argv[4], "cells_j"),
+                parse_positive(argv[5], "cells_k"),
+                parse_positive(argv[6], "zones_i"),
+                parse_warp(argv[7]), parse_bool(argv[8]));
+        } else {
+            throw std::invalid_argument("invalid release grid generator mode");
+        }
+        std::cout << "generated release CGNS grid: " << output << '\n';
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {
         std::cerr << "release grid generation failed: " << error.what() << '\n';

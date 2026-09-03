@@ -6,6 +6,7 @@
 #include <cmath>
 #include <limits>
 #include <map>
+#include <set>
 #include <stdexcept>
 #include <tuple>
 #include <utility>
@@ -78,10 +79,10 @@ LineConservationWeights build_uncached_line(
     result.profile = profile.kind();
     result.cell_count = cell_count;
     result.periodic = periodic;
+    if (cell_count <= 0) {
+        throw ConservationWeightError("conservation-weight line must contain cells");
+    }
     if (periodic) {
-        if (cell_count <= 0) {
-            throw ConservationWeightError("periodic line must contain cells");
-        }
         result.cell_weights.assign(static_cast<std::size_t>(cell_count), 1.0);
         return result;
     }
@@ -143,7 +144,9 @@ LineConservationWeights build_uncached_line(
     }
     if (result.maximum_residual > 1.0e-10) {
         throw ConservationWeightError(
-            "conservation-weight residual exceeds the initialization tolerance");
+            "conservation-weight residual exceeds the initialization tolerance: count="
+            + std::to_string(cell_count)
+            + ", residual=" + std::to_string(result.maximum_residual));
     }
     return result;
 }
@@ -197,6 +200,110 @@ Array3D<Real>& boundary_field(BlockConservationWeights& block, Axis axis)
     throw ConservationWeightError("invalid boundary-weight face axis");
 }
 
+bool range_contains(const IndexRange3& range, Index3 index)
+{
+    for (int axis = 0; axis < 3; ++axis) {
+        const auto a = static_cast<std::size_t>(axis);
+        const int lower = std::min(range.begin[a], range.end[a]);
+        const int upper = std::max(range.begin[a], range.end[a]);
+        if (index[a] < lower || index[a] > upper) return false;
+    }
+    return true;
+}
+
+std::vector<const ConnectivityPatch*> side_connections(
+    const StructuredBlock& block,
+    Axis axis,
+    Side side)
+{
+    const auto cells = block.cell_extent();
+    std::vector<const ConnectivityPatch*> result;
+    for (const auto& connection : block.connectivities) {
+        if (connection.receiver_face.axis == axis
+            && connection.receiver_face.side == side) {
+            result.push_back(&connection);
+        }
+    }
+    if (result.empty()) return result;
+    const int normal = side == Side::Lower
+        ? 0 : cells[static_cast<std::size_t>(axis)];
+    for (int k = 0; k < cells.nk; ++k) {
+        for (int j = 0; j < cells.nj; ++j) {
+            for (int i = 0; i < cells.ni; ++i) {
+                Index3 face {i, j, k};
+                face[static_cast<std::size_t>(axis)] = normal;
+                bool connected = false;
+                for (const auto* connection : result) {
+                    if (range_contains(connection->shared_face_range.untyped(), face)) {
+                        connected = true;
+                        break;
+                    }
+                }
+                if (!connected) {
+                    throw ConservationWeightError(
+                        "a partially connected block face does not admit "
+                        "tensor-product conservation weights");
+                }
+            }
+        }
+    }
+    return result;
+}
+
+struct BoundaryTrace {
+    bool cycle = false;
+    int distance = 0;
+};
+
+BoundaryTrace trace_boundary(
+    const StructuredMesh& mesh,
+    BlockId block_id,
+    Axis axis,
+    Side outward_side,
+    std::set<std::tuple<BlockId, int, int>> path)
+{
+    const auto key = std::tuple {block_id, static_cast<int>(axis),
+        static_cast<int>(outward_side)};
+    if (!path.insert(key).second) return {true, 0};
+    const auto& block = mesh.block(block_id);
+    const auto connections = side_connections(block, axis, outward_side);
+    if (connections.empty()) return {false, 0};
+
+    bool first = true;
+    BoundaryTrace merged;
+    for (const auto* connection : connections) {
+        const int donor_axis_index = std::abs(
+            connection->transform.receiver_to_donor[
+                static_cast<std::size_t>(axis)]) - 1;
+        if (donor_axis_index < 0 || donor_axis_index >= block.cell_dimension()) {
+            throw ConservationWeightError(
+                "connection transform maps a normal axis outside the mesh dimension");
+        }
+        const auto donor_axis = static_cast<Axis>(donor_axis_index);
+        const Side next_side = connection->donor_face.side == Side::Lower
+            ? Side::Upper : Side::Lower;
+        auto branch = trace_boundary(mesh, connection->donor_block,
+            donor_axis, next_side, path);
+        if (!branch.cycle) {
+            const int cells = mesh.block(connection->donor_block)
+                .cell_extent()[static_cast<std::size_t>(donor_axis)];
+            if (branch.distance > std::numeric_limits<int>::max() - cells) {
+                throw ConservationWeightError("connected line length exceeds int range");
+            }
+            branch.distance += cells;
+        }
+        if (first) {
+            merged = branch;
+            first = false;
+        } else if (merged.cycle != branch.cycle
+            || (!merged.cycle && merged.distance != branch.distance)) {
+            throw ConservationWeightError(
+                "split connection branches have incompatible normal line lengths");
+        }
+    }
+    return merged;
+}
+
 } // namespace
 
 LineConservationWeights build_line_conservation_weights(
@@ -221,16 +328,44 @@ GlobalConservationWeights GlobalConservationWeights::build(
     const StructuredMesh& mesh,
     const AlgorithmProfile& profile)
 {
-    mesh.validate_connectivities();
+    mesh.validate_connectivities(false);
     GlobalConservationWeights result;
     result.profile_ = profile.kind();
     std::unordered_map<BlockId, std::array<LineConservationWeights, 3>> line_weights;
     for (const auto& block : mesh.blocks()) {
         std::array<LineConservationWeights, 3> lines;
         for (int axis = 0; axis < block.cell_dimension(); ++axis) {
-            lines[static_cast<std::size_t>(axis)] = build_line_conservation_weights(
-                profile,
-                block.cell_extent()[static_cast<std::size_t>(axis)]);
+            const auto direction = static_cast<Axis>(axis);
+            const auto lower = trace_boundary(
+                mesh, block.id(), direction, Side::Lower, {});
+            const auto upper = trace_boundary(
+                mesh, block.id(), direction, Side::Upper, {});
+            if (lower.cycle != upper.cycle) {
+                throw ConservationWeightError(
+                    "connected line reaches a cycle on only one side");
+            }
+            const int local_count
+                = block.cell_extent()[static_cast<std::size_t>(axis)];
+            if (lower.cycle) {
+                lines[static_cast<std::size_t>(axis)]
+                    = build_line_conservation_weights(profile, local_count, true);
+            } else {
+                if (lower.distance > std::numeric_limits<int>::max()
+                        - local_count - upper.distance) {
+                    throw ConservationWeightError("connected line length exceeds int range");
+                }
+                const int global_count
+                    = lower.distance + local_count + upper.distance;
+                const auto global = build_line_conservation_weights(
+                    profile, global_count, false);
+                auto& local = lines[static_cast<std::size_t>(axis)];
+                local.profile = profile.kind();
+                local.cell_count = local_count;
+                local.cell_weights.assign(
+                    global.cell_weights.begin() + lower.distance,
+                    global.cell_weights.begin() + lower.distance + local_count);
+                local.maximum_residual = global.maximum_residual;
+            }
             result.maximum_line_residual_ = std::max(
                 result.maximum_line_residual_,
                 lines[static_cast<std::size_t>(axis)].maximum_residual);

@@ -113,8 +113,15 @@ void test_flow_initializer()
         const auto center = FlowInitializer::evaluate(
             config, {5.0, 5.0, 0.0},
             gas, reference, floors, 2);
-        WCNS_REQUIRE(center[0] > 0.0);
-        WCNS_REQUIRE(center[4] > 0.0);
+        constexpr Real pi = 3.141592653589793238462643383279502884;
+        const Real expected_temperature = 1.0
+            - (gas.gamma() - 1.0) * reference.mach() * reference.mach()
+                * 25.0 * std::exp(1.0) / (8.0 * pi * pi);
+        WCNS_REQUIRE_NEAR(center[4], expected_temperature, 1.0e-14);
+        WCNS_REQUIRE_NEAR(
+            center[0],
+            std::pow(expected_temperature, 1.0 / (gas.gamma() - 1.0)),
+            1.0e-14);
     }
     {
         InitialConditionConfig config;

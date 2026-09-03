@@ -279,6 +279,21 @@ if(WCNS_ENABLE_CGNS)
             --cells-k 8
             --warp 0.05
     )
+    add_test(
+        NAME wcns.release.vortex.smoke.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_vortex_matrix.py
+            --run $<TARGET_FILE:wcns_run>
+            --generator $<TARGET_FILE:wcns_generate_release_cgns>
+            --validator $<TARGET_FILE:wcns_validate_release_case>
+            --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/isentropic_vortex.wcns.in
+            --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-vortex-smoke-serial
+            --ranks 1
+            --resolutions 16
+            --end-time 0.01
+            --cfl 0.1
+            --finest-l1 1e-3
+    )
     foreach(profile IN ITEMS phenglei_wcns scmm6_wcns)
         add_test(
             NAME wcns.release.freestream.${profile}.2d.serial
@@ -602,6 +617,22 @@ if(WCNS_ENABLE_CGNS)
                 --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-matrix-smoke-mpi
                 --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
                 --ranks 1,2
+        )
+        add_test(
+            NAME wcns.release.vortex.smoke.mpi
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_vortex_matrix.py
+                --run $<TARGET_FILE:wcns_run>
+                --generator $<TARGET_FILE:wcns_generate_release_cgns>
+                --validator $<TARGET_FILE:wcns_validate_release_case>
+                --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/isentropic_vortex.wcns.in
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-vortex-smoke-mpi
+                --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
+                --ranks 1,2
+                --resolutions 16
+                --end-time 0.01
+                --cfl 0.1
+                --finest-l1 1e-3
         )
         foreach(profile IN ITEMS phenglei_wcns scmm6_wcns)
             add_test(

@@ -437,6 +437,8 @@ int main(int argc, char** argv)
             wcns::TransportModel(wcns::TransportConfig {}),
             config.output.dimensional,
         };
+        const auto conservation_weights = wcns::GlobalConservationWeights::build(
+            partitioned.global_mesh, profile);
         wcns::CheckpointService checkpoint(
             mpi,
             config,
@@ -484,6 +486,7 @@ int main(int argc, char** argv)
             local_blocks,
             metrics,
             plan,
+            conservation_weights,
             profile,
             quantity_context,
         };
