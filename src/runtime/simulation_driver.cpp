@@ -203,14 +203,28 @@ SimulationState SimulationDriver::run(SimulationInitialState initial)
     StopController controller(config_);
     const auto notify = [&](const std::function<void()>& callback) {
         bool local_observer_success = true;
+        std::string local_error;
         try {
             callback();
-        } catch (const std::exception&) {
+        } catch (const std::exception& error) {
             local_observer_success = false;
+            local_error = error.what();
+        } catch (...) {
+            local_observer_success = false;
+            local_error = "unknown non-standard exception";
         }
         if (!mpi_.all_true(local_observer_success)) {
+            const Real failure_candidate = local_observer_success
+                ? static_cast<Real>(mpi_.size())
+                : static_cast<Real>(mpi_.rank());
+            const auto failure_rank = static_cast<RankId>(
+                mpi_.min(failure_candidate));
+            const std::string collective_error = mpi_.broadcast_string(
+                mpi_.rank() == failure_rank ? std::move(local_error) : std::string {},
+                failure_rank);
             throw std::runtime_error(
-                "simulation output/observer failed on at least one MPI rank");
+                "simulation output/observer failed on MPI rank "
+                + std::to_string(failure_rank) + ": " + collective_error);
         }
     };
     controller.restore_steady_state(std::move(initial.steady));

@@ -3,6 +3,7 @@
 #include <wcns/runtime/simulation_driver.hpp>
 
 #include <cmath>
+#include <string>
 #include <vector>
 
 namespace {
@@ -64,6 +65,14 @@ public:
 
     std::vector<wcns::Real> times;
     int final_count = 0;
+};
+
+class ThrowingInitialObserver final : public wcns::ISimulationObserver {
+public:
+    void on_initial(const wcns::SimulationState&) override
+    {
+        throw std::runtime_error("injected observer failure");
+    }
 };
 
 } // namespace
@@ -155,5 +164,22 @@ void test_simulation_driver()
         wcns::SimulationDriver driver(mpi, solver, config, observer);
         WCNS_REQUIRE(
             driver.run().stop_reason == wcns::StopReason::NumericalFailure);
+    }
+    {
+        FakeSolver solver;
+        ThrowingInitialObserver observer;
+        wcns::CaseRunConfig config;
+        config.mode = wcns::RunMode::Unsteady;
+        config.end_time = 0.1;
+        config.max_steps = 1;
+        wcns::SimulationDriver driver(mpi, solver, config, observer);
+        bool reported_original_error = false;
+        try {
+            static_cast<void>(driver.run());
+        } catch (const std::runtime_error& error) {
+            reported_original_error = std::string(error.what()).find(
+                "MPI rank 0: injected observer failure") != std::string::npos;
+        }
+        WCNS_REQUIRE(reported_original_error);
     }
 }

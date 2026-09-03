@@ -123,7 +123,8 @@ void generate(
     bool periodic_x,
     double length_x,
     double length_y,
-    double length_z)
+    double length_z,
+    bool omit_reciprocal = false)
 {
     if (dimension != 2 && dimension != 3) {
         throw std::invalid_argument("dimension must be 2 or 3");
@@ -245,6 +246,7 @@ void generate(
                 "to-" + zone_name(zone_index + 1), zone_name(zone_index + 1),
                 face_range(dimension, ni, nj, nk),
                 face_range(dimension, 1, nj, nk), dimension);
+            if (omit_reciprocal) continue;
             write_connection(
                 file, base, right,
                 "to-" + zone_name(zone_index), zone_name(zone_index),
@@ -402,7 +404,7 @@ void generate_periodic_square(
 
 int main(int argc, char** argv)
 {
-    if (argc != 9 && argc != 6) {
+    if (argc != 9 && argc != 6 && argc != 5) {
         std::cerr
             << "usage: wcns_generate_release_cgns <output.cgns> <dimension> "
                "<cells_i> <cells_j> <cells_k> <zones_i> <warp> <periodic_x>\n"
@@ -410,13 +412,22 @@ int main(int argc, char** argv)
                "<cells_i> <cells_j> <length>\n"
                "   or: wcns_generate_release_cgns rectangle <output.cgns> "
                "<cells_i> <cells_j> <zones_i> <length_x> <length_y> "
-               "<periodic_x>\n";
+               "<periodic_x>\n"
+               "   or: wcns_generate_release_cgns invalid-one-sided "
+               "<output.cgns> <cells_i> <cells_j>\n";
         return EXIT_FAILURE;
     }
     try {
         check_cgns(cg_set_file_type(CG_FILE_ADF), "cg_set_file_type release grid");
         std::string output;
-        if (argc == 6 && std::string(argv[1]) == "periodic-square") {
+        if (argc == 5 && std::string(argv[1]) == "invalid-one-sided") {
+            output = argv[2];
+            generate(
+                output, 2,
+                parse_positive(argv[3], "cells_i"),
+                parse_positive(argv[4], "cells_j"), 1, 2, 0.0, false,
+                1.0, 1.0, 1.0, true);
+        } else if (argc == 6 && std::string(argv[1]) == "periodic-square") {
             output = argv[2];
             generate_periodic_square(
                 output,

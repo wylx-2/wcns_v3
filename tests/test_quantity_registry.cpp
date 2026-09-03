@@ -5,6 +5,9 @@
 #include <wcns/runtime/quantity_registry.hpp>
 
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -20,6 +23,58 @@ wcns::StructuredBlock cartesian_block()
     }
     return block;
 }
+
+class ConstantFieldQuantity final : public wcns::IFieldQuantity {
+public:
+    ConstantFieldQuantity(
+        std::string name,
+        std::vector<std::string> dependencies,
+        wcns::Real value)
+        : value_(value)
+    {
+        descriptor_.name = std::move(name);
+        descriptor_.dependencies = std::move(dependencies);
+    }
+
+    const wcns::QuantityDescriptor& descriptor() const override
+    {
+        return descriptor_;
+    }
+
+    wcns::Real evaluate_cell(
+        const wcns::StructuredBlock&,
+        const wcns::MetricField&,
+        wcns::Index3,
+        const wcns::QuantityContext&) const override
+    {
+        return value_;
+    }
+
+private:
+    wcns::QuantityDescriptor descriptor_;
+    wcns::Real value_ = 0.0;
+};
+
+class ConstantStatisticQuantity final : public wcns::IStatisticQuantity {
+public:
+    explicit ConstantStatisticQuantity(std::string name)
+    {
+        descriptor_.name = std::move(name);
+    }
+
+    const wcns::QuantityDescriptor& descriptor() const override
+    {
+        return descriptor_;
+    }
+
+    wcns::Real evaluate(const wcns::StatisticContext&) const override
+    {
+        return 7.0;
+    }
+
+private:
+    wcns::QuantityDescriptor descriptor_;
+};
 
 } // namespace
 
@@ -79,4 +134,41 @@ void test_quantity_registry()
     WCNS_REQUIRE_THROWS(
         std::invalid_argument,
         registry.validate_selection({"rho", "rho"}));
+
+    registry.register_quantity(std::make_shared<ConstantFieldQuantity>(
+        "custom_cell", std::vector<std::string> {"rho"}, 7.0));
+    registry.validate_selection({"custom_cell"});
+    const auto custom = registry.evaluate(
+        "custom_cell", block, metric, context);
+    WCNS_REQUIRE(custom.values.size() == 16);
+    WCNS_REQUIRE_NEAR(custom.values.front(), 7.0, 1.0e-15);
+    WCNS_REQUIRE_THROWS(
+        std::invalid_argument,
+        registry.register_quantity(std::make_shared<ConstantFieldQuantity>(
+            "custom_cell", std::vector<std::string> {}, 8.0)));
+
+    wcns::FieldQuantityRegistry unknown_dependency;
+    unknown_dependency.register_quantity(std::make_shared<ConstantFieldQuantity>(
+        "unknown_root", std::vector<std::string> {"missing"}, 1.0));
+    WCNS_REQUIRE_THROWS(
+        std::invalid_argument,
+        unknown_dependency.validate_selection({"unknown_root"}));
+
+    wcns::FieldQuantityRegistry cyclic;
+    cyclic.register_quantity(std::make_shared<ConstantFieldQuantity>(
+        "cycle_a", std::vector<std::string> {"cycle_b"}, 1.0));
+    cyclic.register_quantity(std::make_shared<ConstantFieldQuantity>(
+        "cycle_b", std::vector<std::string> {"cycle_a"}, 1.0));
+    WCNS_REQUIRE_THROWS(
+        std::invalid_argument,
+        cyclic.validate_selection({"cycle_a"}));
+
+    auto statistics = wcns::StatisticRegistry::create_builtin();
+    statistics.register_quantity(
+        std::make_shared<ConstantStatisticQuantity>("custom_statistic"));
+    statistics.validate_selection({"custom_statistic"});
+    WCNS_REQUIRE_THROWS(
+        std::invalid_argument,
+        statistics.register_quantity(
+            std::make_shared<ConstantStatisticQuantity>("custom_statistic")));
 }

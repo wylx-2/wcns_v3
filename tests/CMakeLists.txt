@@ -379,6 +379,20 @@ if(WCNS_ENABLE_CGNS)
             --restart-ranks 1
             --resolution 12
     )
+    add_test(
+        NAME wcns.release.failures.smoke.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_failure_matrix.py
+            --run $<TARGET_FILE:wcns_run>
+            --generator $<TARGET_FILE:wcns_generate_release_cgns>
+            --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/failure_base.wcns.in
+            --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-failures-smoke-serial
+            --ranks 1
+    )
+    set_tests_properties(
+        wcns.release.failures.smoke.serial
+        PROPERTIES TIMEOUT 120
+    )
     foreach(profile IN ITEMS phenglei_wcns scmm6_wcns)
         add_test(
             NAME wcns.release.freestream.${profile}.2d.serial
@@ -813,6 +827,21 @@ if(WCNS_ENABLE_CGNS)
                 --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
                 --restart-ranks 1,2
                 --resolution 12
+        )
+        add_test(
+            NAME wcns.release.failures.smoke.mpi
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_failure_matrix.py
+                --run $<TARGET_FILE:wcns_run>
+                --generator $<TARGET_FILE:wcns_generate_release_cgns>
+                --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/failure_base.wcns.in
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-failures-smoke-mpi
+                --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
+                --ranks 1,2
+        )
+        set_tests_properties(
+            wcns.release.failures.smoke.mpi
+            PROPERTIES TIMEOUT 180
         )
         foreach(profile IN ITEMS phenglei_wcns scmm6_wcns)
             add_test(
