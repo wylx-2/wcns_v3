@@ -9,7 +9,9 @@
 - `wcns_validate_release_case` 独立重读最终 CGNS，可检查有限性/正性、均匀解析值和两个
   串并行结果的逐场最大差；
 - `tools/run_release_matrix.py` 建立隔离工作目录，生成网格和配置，调用正式程序及验证器，
-  最终写出 `matrix-summary.json` 和每条命令的独立日志。
+  最终写出 `matrix-summary.json` 和每条命令的独立日志；每条记录同时包含端到端墙钟和采样到
+  的进程树聚合峰值 RSS。Windows MPI 工作进程可能由服务进程启动，采样器同时追踪本次命令
+  启动后出现的同名求解进程；Linux 使用 `/proc`。不支持的平台把 RSS 记为 `null`，不得伪造。
 
 ## 1. 网格生成器
 

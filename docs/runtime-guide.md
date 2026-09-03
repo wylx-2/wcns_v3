@@ -8,12 +8,17 @@
 
 ## 1. 构建与运行
 
+发布候选已验证的环境为 Windows 10、CMake 3.28.0、MinGW-w64 GCC 8.1.0、Python 3.14.5
+和 Intel MPI 2021.10。CMake 最低声明版本为 3.20；未列出的编译器、操作系统和 MPI 组合
+目前属于未验证环境，而不是已知不兼容。
+
 串行 Release 构建（运行示例前需把目标结构网格放到 `examples/freestream.cgns`，或修改模板
 中的 `mesh.path`）：
 
 ```powershell
 cmake -S . -B build -DWCNS_ENABLE_CGNS=ON -DWCNS_ENABLE_MPI=OFF -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel 4
+cmake --install build --prefix build\install
 build\wcns_run.exe --config examples\freestream.wcns --dry-run
 build\wcns_run.exe --config examples\freestream.wcns
 ```
@@ -25,6 +30,12 @@ cmake -S . -B build-mpi -DWCNS_ENABLE_CGNS=ON -DWCNS_ENABLE_MPI=ON -DCMAKE_BUILD
 cmake --build build-mpi --parallel 4
 mpiexec -n 4 build-mpi\wcns_run.exe --config examples\freestream.wcns
 ```
+
+安装后正式入口位于 `<prefix>\bin`，配置模板和文档位于 `<prefix>\share\wcns`。安装 smoke
+可先用 `wcns_generate_release_cgns` 生成 ADF 网格，再复制并修改 `freestream.wcns.in` 的
+占位符后执行 `wcns_run --config`。MinGW 二进制需要与构建器相容的
+`libgcc_s_sjlj-1.dll`、`libstdc++-6.dll`；MPI 构建另需 Intel MPI 的 `impi.dll` 和启动器
+在 `PATH` 中。安装规则不复制这些编译器/MPI 运行库。
 
 `--dry-run` 完成配置广播、CGNS 元数据/叶块读取、分区、度量、初场或检查点恢复及所有启动
 校验，但不进入时间推进和输出状态机。`mesh.path` 与 `restart.path` 的相对路径以配置文件所在
@@ -257,3 +268,5 @@ wcns::RuntimeOutputManager output(
 - `unknown field/statistic quantity`：名称不在当前 registry；检查拼写或注入自定义实现。
 - 退出码 2：算例没有正常完成，检查 manifest 的 `stop_reason`；它不是数值崩溃。
 - 退出码 3：发生数值失败；检查最后历史记录、回退计数、初场正性、边界条件和 CFL。
+
+完整的实现边界和发布限制集中列在 [`known-limitations.md`](known-limitations.md)。

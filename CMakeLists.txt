@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.20)
 
 project(wcns VERSION 0.1.0 LANGUAGES C CXX)
 
+include(GNUInstallDirs)
+
 execute_process(
     COMMAND git rev-parse --short=12 HEAD
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -216,3 +218,35 @@ if(WCNS_BUILD_TESTS)
     include(CTest)
     add_subdirectory(tests)
 endif()
+
+if(WCNS_ENABLE_CGNS)
+    install(
+        TARGETS
+            wcns_run
+            wcns_generate_release_cgns
+            wcns_validate_release_case
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+endif()
+install(
+    FILES
+        README.md
+        LICENSE.md
+        THIRD_PARTY_NOTICES.md
+        "算法补充.md"
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/wcns
+)
+install(
+    DIRECTORY docs/
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/wcns/docs
+    FILES_MATCHING PATTERN "*.md"
+)
+install(
+    DIRECTORY examples/
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/wcns/examples
+)
+install(
+    DIRECTORY cases/config/
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/wcns/cases/config
+    FILES_MATCHING PATTERN "*.wcns.in"
+)

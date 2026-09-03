@@ -6,10 +6,10 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
-import subprocess
 import sys
-import time
 from pathlib import Path
+
+from process_metrics import run_measured
 
 
 MARKER = ".wcns-release-matrix"
@@ -30,28 +30,20 @@ def clean_work_directory(path: Path) -> None:
 
 
 def run(command: list[str], log_path: Path) -> dict[str, object]:
-    start = time.perf_counter()
-    completed = subprocess.run(
-        command,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        check=False,
-    )
-    elapsed = time.perf_counter() - start
-    log_path.write_text(completed.stdout, encoding="utf-8")
-    if completed.returncode != 0:
+    return_code, output, elapsed, peak_rss = run_measured(command, log_path)
+    if return_code != 0:
         raise RuntimeError(
-            f"command failed ({completed.returncode}): {' '.join(command)}\n"
+            f"command failed ({return_code}): {' '.join(command)}\n"
             f"see {log_path}"
         )
     return {
         "command": command,
-        "return_code": completed.returncode,
+        "return_code": return_code,
         "wall_seconds": elapsed,
+        "peak_process_tree_rss_bytes": peak_rss,
         "log": str(log_path),
-        "last_line": completed.stdout.strip().splitlines()[-1]
-        if completed.stdout.strip()
+        "last_line": output.strip().splitlines()[-1]
+        if output.strip()
         else "",
     }
 
