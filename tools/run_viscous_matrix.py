@@ -28,6 +28,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--profile", default="phenglei_wcns")
     parser.add_argument("--reference-viscosity", type=float, default=0.1)
     parser.add_argument("--velocity-curvature", type=float, default=0.1)
+    parser.add_argument(
+        "--temperature-curvature",
+        type=float,
+        default=0.5 * (1.4 - 1.0) * (1.0 / 1.4) * 0.72,
+    )
     parser.add_argument("--cfl", type=float, default=0.2)
     parser.add_argument("--max-steps", type=int, default=20000)
     parser.add_argument("--min-steps", type=int, default=10)
@@ -80,6 +85,7 @@ def main() -> int:
             "VELOCITY_CURVATURE": str(args.velocity_curvature),
             "LOWER_TEMPERATURE": "1.0",
             "UPPER_TEMPERATURE": "1.0",
+            "TEMPERATURE_CURVATURE": str(args.temperature_curvature),
         }
     else:
         substitutions = {
@@ -89,6 +95,7 @@ def main() -> int:
             "VELOCITY_CURVATURE": "0.0",
             "LOWER_TEMPERATURE": "1.0",
             "UPPER_TEMPERATURE": "2.0",
+            "TEMPERATURE_CURVATURE": "0.0",
         }
     fields: dict[int, Path] = {}
     reynolds = 1.0 / args.reference_viscosity
@@ -159,6 +166,7 @@ def main() -> int:
         "grid": [args.cells_i, args.cells_j],
         "zones_i": args.zones_i,
         "reynolds": reynolds,
+        "temperature_curvature": substitutions["TEMPERATURE_CURVATURE"],
         "ranks": ranks,
         "records": records,
     }

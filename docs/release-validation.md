@@ -91,7 +91,9 @@ Riemann 解的密度/速度/压力 L1、接触与激波位置以及正性；四�
 
 `run_viscous_matrix.py --case couette|conduction` 生成 x 周期、上下壁面的二维通道。Couette
 模式可用 `--velocity-curvature` 在不改变壁面值的前提下加入非平衡速度扰动，要求程序通过
-残差判据停止，再独立检查线性速度、压力和壁面剪切；线性导热检查 `T=1+y`、常压和由状态
+残差判据停止，再独立检查线性速度、压力和壁面剪切。默认温度曲率按
+`0.5*(gamma-1)*Ma^2*Pr*(upper_u-lower_u)^2` 取值，使无速度扰动时的黏性功和 Fourier
+导热严格平衡；`--temperature-curvature` 可覆盖该值。线性导热检查 `T=1+y`、常压和由状态
 方程确定的密度。两种模式均比较多 rank 最终场。
 
 `run_source_matrix.py` 在双向周期网格上检验常守恒源项的逐点解析更新和全局积分随时间的
