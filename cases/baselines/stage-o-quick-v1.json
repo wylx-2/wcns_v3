@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "baseline_name": "stage-o-quick-v1",
+  "classification": "commit-level numerical baseline plus representative performance baseline; not O6 formal release acceptance",
+  "platform": {
+    "operating_system": "Windows 10",
+    "cmake": "3.28.0",
+    "compiler": "MinGW-w64 GCC 8.1.0 x86_64-win32-sjlj",
+    "python": "3.14.5",
+    "mpi": "Intel MPI 2021.10 Build 20230619",
+    "build_type": "Release"
+  },
+  "numerical": {
+    "source_commits": {
+      "geometry_freestream": "ee8a8c0",
+      "vortex_and_shocks": "6353817",
+      "viscous_and_sources": "5b589aa",
+      "output_and_restart": "346c492",
+      "failure_paths": "3fdf6fe"
+    },
+    "geometry_freestream": {
+      "warped_3d_primitive_linf": 4.45e-16,
+      "warped_3d_rank_field_linf": 3.61e-16,
+      "warped_3d_conservation_relative_drift": 2.78e-17,
+      "k_split_rank_field_linf": 2.93e-16,
+      "single_vs_native_multizone_field_linf": 0.0
+    },
+    "isentropic_vortex_quick": {
+      "end_time": 0.1,
+      "resolutions": [16, 32, 64],
+      "minimum_observed_l1_order_32_to_64": 3.49,
+      "maximum_l1_at_64": 5.13e-6,
+      "maximum_conservation_relative_drift": 1.46e-15,
+      "reconstruction_riemann_combinations": 12
+    },
+    "shock_quick": {
+      "sod_cells": [80, 8],
+      "sod_density_l1_range": [5.04e-3, 6.85e-3],
+      "sod_maximum_wave_position_cells": 0.84,
+      "sod_rank_field_linf": 1.14e-14,
+      "quadrant_cells": [64, 64],
+      "quadrant_diagonal_l1": 0.0,
+      "quadrant_diagonal_linf": 0.0,
+      "quadrant_minimum_density": 0.132,
+      "quadrant_minimum_pressure": 0.0254,
+      "quadrant_rank_field_linf": 9.77e-15
+    },
+    "viscous_and_sources": {
+      "conduction_temperature_l2": 1.43e-16,
+      "conduction_temperature_linf": 4.44e-16,
+      "couette_velocity_l2": 9.56e-5,
+      "couette_wall_shear_relative_error": 9.85e-7,
+      "couette_rank_field_linf": 5.33e-15,
+      "uniform_source_field_linf": 6.22e-15,
+      "uniform_source_statistic_linf": 1.55e-14,
+      "manufactured_3d_rank_field_linf": 3.11e-15
+    },
+    "output_and_restart": {
+      "output_events": 30,
+      "checkpoint_events": 5,
+      "format_samples_2d": 4608,
+      "format_field_linf": 0.0,
+      "derived_quantity_linf": 8.88e-16,
+      "restart_field_linf_2d": 0.0,
+      "restart_field_linf_3d_1_to_4": 1.33e-14,
+      "restart_residual_linf_3d": 7.35e-14,
+      "restart_statistic_linf_3d": 7.99e-15
+    },
+    "failure_matrix": {
+      "case_classes": 16,
+      "ranks": [1, 2, 4],
+      "status": "passed",
+      "timeout_seconds_per_command": 60.0
+    }
+  },
+  "performance": {
+    "measurement_commit": "03c4fed2afa2",
+    "method": "end-to-end command wall clock and 0.01 s sampled aggregate RSS of launcher plus solver processes",
+    "hard_acceptance_threshold": false,
+    "two_dimensional": {
+      "cells": [128, 64, 1],
+      "steps": 10,
+      "profile": "phenglei_wcns",
+      "records": [
+        {"ranks": 1, "wall_seconds": 2.899053199973423, "peak_rss_bytes": 64962560},
+        {"ranks": 2, "wall_seconds": 1.5027361999964342, "peak_rss_bytes": 134672384},
+        {"ranks": 4, "wall_seconds": 0.9026578000048175, "peak_rss_bytes": 232304640},
+        {"ranks": 8, "wall_seconds": 0.8643121999921277, "peak_rss_bytes": 449470464}
+      ]
+    },
+    "warped_three_dimensional": {
+      "cells": [64, 32, 24],
+      "warp": 0.05,
+      "steps": 10,
+      "profile": "phenglei_wcns",
+      "records": [
+        {"ranks": 1, "wall_seconds": 49.453140300000086, "peak_rss_bytes": 166572032},
+        {"ranks": 2, "wall_seconds": 25.05446529999608, "peak_rss_bytes": 236748800},
+        {"ranks": 4, "wall_seconds": 15.29656149999937, "peak_rss_bytes": 363446272},
+        {"ranks": 8, "wall_seconds": 14.197239000000991, "peak_rss_bytes": 637022208}
+      ]
+    }
+  }
+}
