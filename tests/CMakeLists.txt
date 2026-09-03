@@ -367,6 +367,18 @@ if(WCNS_ENABLE_CGNS)
             --cells-j 12
             --end-time 0.02
     )
+    add_test(
+        NAME wcns.release.output_restart.smoke.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_output_restart_matrix.py
+            --run $<TARGET_FILE:wcns_run>
+            --generator $<TARGET_FILE:wcns_generate_release_cgns>
+            --validator $<TARGET_FILE:wcns_validate_release_case>
+            --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/output_restart.wcns.in
+            --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-output-restart-smoke-serial
+            --restart-ranks 1
+            --resolution 12
+    )
     foreach(profile IN ITEMS phenglei_wcns scmm6_wcns)
         add_test(
             NAME wcns.release.freestream.${profile}.2d.serial
@@ -788,6 +800,19 @@ if(WCNS_ENABLE_CGNS)
                 --cells-k 8
                 --warp 0.05
                 --end-time 0.02
+        )
+        add_test(
+            NAME wcns.release.output_restart.smoke.mpi
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_output_restart_matrix.py
+                --run $<TARGET_FILE:wcns_run>
+                --generator $<TARGET_FILE:wcns_generate_release_cgns>
+                --validator $<TARGET_FILE:wcns_validate_release_case>
+                --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/output_restart.wcns.in
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-output-restart-smoke-mpi
+                --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
+                --restart-ranks 1,2
+                --resolution 12
         )
         foreach(profile IN ITEMS phenglei_wcns scmm6_wcns)
             add_test(

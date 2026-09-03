@@ -165,6 +165,107 @@ FieldFile read_fields(const std::string& path)
     }
 }
 
+struct TecplotZone {
+    int dimension = 0;
+    std::vector<std::string> variables;
+    std::vector<std::vector<double>> rows;
+};
+
+using TecplotFile = std::map<std::string, TecplotZone>;
+
+std::vector<std::string> quoted_values(const std::string& line)
+{
+    std::vector<std::string> result;
+    std::size_t begin = 0;
+    while ((begin = line.find('"', begin)) != std::string::npos) {
+        const auto end = line.find('"', begin + 1);
+        if (end == std::string::npos) {
+            throw std::runtime_error("unterminated quoted Tecplot value");
+        }
+        result.push_back(line.substr(begin + 1, end - begin - 1));
+        begin = end + 1;
+    }
+    return result;
+}
+
+std::size_t tecplot_extent(
+    const std::string& line,
+    const std::string& label,
+    bool required)
+{
+    const auto position = line.find(label);
+    if (position == std::string::npos) {
+        if (!required) return 1;
+        throw std::runtime_error("Tecplot zone is missing " + label);
+    }
+    const auto begin = position + label.size();
+    auto end = begin;
+    while (end < line.size() && line[end] >= '0' && line[end] <= '9') ++end;
+    if (end == begin) throw std::runtime_error("invalid Tecplot zone extent");
+    return static_cast<std::size_t>(std::stoull(line.substr(begin, end - begin)));
+}
+
+TecplotFile read_tecplot(const std::string& path)
+{
+    std::ifstream input(path);
+    if (!input) throw std::runtime_error("cannot open Tecplot field " + path);
+    std::string line;
+    std::vector<std::string> variables;
+    TecplotFile result;
+    while (std::getline(input, line)) {
+        if (line.rfind("VARIABLES=", 0) == 0) {
+            variables = quoted_values(line);
+            continue;
+        }
+        if (line.rfind("ZONE ", 0) != 0) continue;
+        if (variables.size() < 3) {
+            throw std::runtime_error("Tecplot field has no valid variable list");
+        }
+        const auto names = quoted_values(line);
+        if (names.empty()) throw std::runtime_error("Tecplot zone has no name");
+        TecplotZone zone;
+        zone.dimension = variables.size() >= 3 && variables[2] == "Z" ? 3 : 2;
+        zone.variables = variables;
+        const auto count = tecplot_extent(line, "I=", true)
+            * tecplot_extent(line, "J=", true)
+            * tecplot_extent(line, "K=", false);
+        zone.rows.reserve(count);
+        for (std::size_t row = 0; row < count; ++row) {
+            if (!std::getline(input, line)) {
+                throw std::runtime_error("Tecplot zone data are truncated");
+            }
+            std::istringstream values(line);
+            std::vector<double> record;
+            double value = 0.0;
+            while (values >> value) record.push_back(value);
+            if (record.size() != variables.size()) {
+                throw std::runtime_error("Tecplot row has the wrong column count");
+            }
+            zone.rows.push_back(std::move(record));
+        }
+        if (!result.emplace(names.front(), std::move(zone)).second) {
+            throw std::runtime_error("duplicate Tecplot zone name");
+        }
+    }
+    if (variables.empty() || result.empty()) {
+        throw std::runtime_error("Tecplot field is empty");
+    }
+    return result;
+}
+
+std::string tecplot_cgns_field(const std::string& name)
+{
+    static const std::map<std::string, std::string> names {
+        {"rho", "Density"}, {"u", "VelocityX"}, {"v", "VelocityY"},
+        {"w", "VelocityZ"}, {"p", "Pressure"}, {"T", "Temperature"},
+        {"rho_u", "MomentumX"}, {"rho_v", "MomentumY"},
+        {"rho_w", "MomentumZ"}, {"rho_E", "EnergyStagnationDensity"},
+        {"mach", "Mach"}, {"jacobian", "Jacobian"},
+    };
+    const auto iterator = names.find(name);
+    return iterator == names.end() ? name : iterator->second;
+}
+
 const std::vector<double>& require_field(
     const ZoneFields& zone,
     const std::string& name)
@@ -181,6 +282,158 @@ void require_tolerance(double tolerance)
     if (!(tolerance >= 0.0) || !std::isfinite(tolerance)) {
         throw std::invalid_argument("tolerance must be finite and nonnegative");
     }
+}
+
+void validate_tecplot_consistency(
+    const std::string& cgns_path,
+    const std::string& tecplot_path,
+    double tolerance)
+{
+    require_tolerance(tolerance);
+    const auto cgns = read_fields(cgns_path);
+    const auto tecplot = read_tecplot(tecplot_path);
+    if (cgns.size() != tecplot.size()) {
+        throw std::runtime_error("CGNS/Tecplot zone counts differ");
+    }
+    double maximum = 0.0;
+    std::size_t samples = 0;
+    for (const auto& [name, cgns_zone] : cgns) {
+        const auto zone_iterator = tecplot.find(name);
+        if (zone_iterator == tecplot.end()) {
+            throw std::runtime_error("Tecplot field is missing zone " + name);
+        }
+        const auto& zone = zone_iterator->second;
+        if (zone.dimension != cgns_zone.dimension
+            || zone.rows.size() != cgns_zone.cell_centers.size()) {
+            throw std::runtime_error("CGNS/Tecplot zone dimensions differ");
+        }
+        const auto coordinate_columns = static_cast<std::size_t>(zone.dimension);
+        if (zone.variables.size() - coordinate_columns != cgns_zone.fields.size()) {
+            throw std::runtime_error("CGNS/Tecplot field counts differ");
+        }
+        for (std::size_t cell = 0; cell < zone.rows.size(); ++cell) {
+            for (int axis = 0; axis < zone.dimension; ++axis) {
+                maximum = std::max(
+                    maximum,
+                    std::abs(zone.rows[cell][static_cast<std::size_t>(axis)]
+                        - cgns_zone.cell_centers[cell][static_cast<std::size_t>(axis)]));
+                ++samples;
+            }
+            for (std::size_t column = coordinate_columns;
+                 column < zone.variables.size(); ++column) {
+                const auto field_name = tecplot_cgns_field(zone.variables[column]);
+                const auto& field = require_field(cgns_zone, field_name);
+                maximum = std::max(
+                    maximum, std::abs(zone.rows[cell][column] - field[cell]));
+                ++samples;
+            }
+        }
+    }
+    if (maximum > tolerance) {
+        throw std::runtime_error("CGNS/Tecplot values differ beyond tolerance");
+    }
+    std::cout << std::setprecision(17)
+              << "check=tecplot_consistency samples=" << samples
+              << " max_abs=" << maximum
+              << " tolerance=" << tolerance << '\n';
+}
+
+void validate_derived_fields(
+    const std::string& path,
+    double gamma,
+    double expected_viscosity,
+    double expected_jacobian,
+    double tolerance)
+{
+    if (!(gamma > 1.0) || !(expected_viscosity > 0.0)
+        || !(expected_jacobian > 0.0)) {
+        throw std::invalid_argument("derived-field references must be positive");
+    }
+    require_tolerance(tolerance);
+    const auto file = read_fields(path);
+    double maximum = 0.0;
+    std::size_t samples = 0;
+    const auto check = [&](double actual, double exact) {
+        if (!std::isfinite(actual) || !std::isfinite(exact)) {
+            throw std::runtime_error("derived-field comparison is non-finite");
+        }
+        maximum = std::max(maximum, std::abs(actual - exact));
+        ++samples;
+    };
+    for (const auto& [zone_name, zone] : file) {
+        static_cast<void>(zone_name);
+        const auto& rho = require_field(zone, "Density");
+        const auto& u = require_field(zone, "VelocityX");
+        const auto& v = require_field(zone, "VelocityY");
+        const auto& w = require_field(zone, "VelocityZ");
+        const auto& pressure = require_field(zone, "Pressure");
+        const auto& temperature = require_field(zone, "Temperature");
+        const auto& rho_u = require_field(zone, "MomentumX");
+        const auto& rho_v = require_field(zone, "MomentumY");
+        const auto& rho_w = require_field(zone, "MomentumZ");
+        const auto& energy = require_field(zone, "EnergyStagnationDensity");
+        const auto& sound_speed = require_field(zone, "sound_speed");
+        const auto& mach = require_field(zone, "Mach");
+        const auto& enthalpy = require_field(zone, "total_enthalpy");
+        const auto& entropy = require_field(zone, "entropy_proxy");
+        const auto& viscosity = require_field(zone, "viscosity");
+        const auto& jacobian = require_field(zone, "Jacobian");
+        for (std::size_t cell = 0; cell < rho.size(); ++cell) {
+            const double speed_squared = u[cell] * u[cell]
+                + v[cell] * v[cell] + w[cell] * w[cell];
+            const double expected_energy = pressure[cell] / (gamma - 1.0)
+                + 0.5 * rho[cell] * speed_squared;
+            const double expected_sound = std::sqrt(
+                gamma * pressure[cell] / rho[cell]);
+            check(rho_u[cell], rho[cell] * u[cell]);
+            check(rho_v[cell], rho[cell] * v[cell]);
+            check(rho_w[cell], rho[cell] * w[cell]);
+            check(energy[cell], expected_energy);
+            check(temperature[cell], pressure[cell] / rho[cell]);
+            check(sound_speed[cell], expected_sound);
+            check(mach[cell], std::sqrt(speed_squared) / expected_sound);
+            check(enthalpy[cell], (energy[cell] + pressure[cell]) / rho[cell]);
+            check(entropy[cell], pressure[cell] / std::pow(rho[cell], gamma));
+            check(viscosity[cell], expected_viscosity);
+            check(jacobian[cell], expected_jacobian);
+        }
+    }
+    if (maximum > tolerance) {
+        throw std::runtime_error("derived field exceeds tolerance");
+    }
+    std::cout << std::setprecision(17)
+              << "check=derived_fields samples=" << samples
+              << " max_abs=" << maximum
+              << " tolerance=" << tolerance << '\n';
+}
+
+void validate_nonzero_field(
+    const std::string& path,
+    const std::string& field_name,
+    double threshold)
+{
+    require_tolerance(threshold);
+    const auto file = read_fields(path);
+    double maximum = 0.0;
+    std::size_t samples = 0;
+    for (const auto& [zone_name, zone] : file) {
+        static_cast<void>(zone_name);
+        for (const double value : require_field(zone, field_name)) {
+            if (!std::isfinite(value)) {
+                throw std::runtime_error("nonzero-field check encountered non-finite data");
+            }
+            maximum = std::max(maximum, std::abs(value));
+            ++samples;
+        }
+    }
+    if (samples == 0 || maximum < threshold) {
+        throw std::runtime_error("field does not reach the required nonzero magnitude");
+    }
+    std::cout << std::setprecision(17)
+              << "check=nonzero field=" << field_name
+              << " samples=" << samples
+              << " max_abs=" << maximum
+              << " threshold=" << threshold << '\n';
 }
 
 double validate_uniform(
@@ -1026,6 +1279,18 @@ int main(int argc, char** argv)
             validate_uniform_source(
                 argv[2], parse_real(argv[3], "time"), initial, source,
                 parse_real(argv[14], "tolerance"));
+        } else if (argc == 5 && std::string(argv[1]) == "tecplot-consistency") {
+            validate_tecplot_consistency(
+                argv[2], argv[3], parse_real(argv[4], "tolerance"));
+        } else if (argc == 5 && std::string(argv[1]) == "nonzero") {
+            validate_nonzero_field(
+                argv[2], argv[3], parse_real(argv[4], "threshold"));
+        } else if (argc == 7 && std::string(argv[1]) == "derived") {
+            validate_derived_fields(
+                argv[2], parse_real(argv[3], "gamma"),
+                parse_real(argv[4], "expected viscosity"),
+                parse_real(argv[5], "expected Jacobian"),
+                parse_real(argv[6], "tolerance"));
         } else {
             std::cerr
                 << "usage:\n"
@@ -1046,7 +1311,13 @@ int main(int argc, char** argv)
                    "  wcns_validate_release_case viscous-profile <field.cgns> "
                    "<couette|conduction> <Re> <L2-tol> <pressure-tol>\n"
                    "  wcns_validate_release_case uniform-source <field.cgns> "
-                   "<time> <U0[5]> <S[5]> <tol>\n";
+                   "<time> <U0[5]> <S[5]> <tol>\n"
+                   "  wcns_validate_release_case tecplot-consistency "
+                   "<field.cgns> <field.dat> <tol>\n"
+                   "  wcns_validate_release_case derived <field.cgns> "
+                   "<gamma> <viscosity> <Jacobian> <tol>\n"
+                   "  wcns_validate_release_case nonzero <field.cgns> "
+                   "<field-name> <minimum-maximum-absolute-value>\n";
             return EXIT_FAILURE;
         }
         return EXIT_SUCCESS;

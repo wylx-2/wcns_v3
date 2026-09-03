@@ -449,8 +449,10 @@ std::vector<std::string> CheckpointService::write(
         safe_name(config_.case_name) + ".checkpoint.latest.cgns");
     const auto latest_temporary = latest + ".tmp";
     copy_file(path, latest_temporary);
-    commit_file(
-        latest_temporary, latest, config_.output.allow_existing);
+    // The latest file is a rolling alias owned by this run. The output root
+    // policy has already rejected a pre-existing directory when replacement
+    // is disabled, so later checkpoint events must be allowed to refresh it.
+    commit_file(latest_temporary, latest, true);
     return {path, latest};
 }
 

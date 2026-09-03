@@ -37,6 +37,9 @@ wcns_validate_release_case sod field.cgns time x0 gamma rho-L1-tolerance positio
 wcns_validate_release_case diagonal-symmetry field.cgns L1-tolerance
 wcns_validate_release_case viscous-profile field.cgns couette|conduction Reynolds L2-tolerance pressure-tolerance
 wcns_validate_release_case uniform-source field.cgns time U0[5] source[5] tolerance
+wcns_validate_release_case tecplot-consistency field.cgns field.dat tolerance
+wcns_validate_release_case derived field.cgns gamma viscosity Jacobian tolerance
+wcns_validate_release_case nonzero field.cgns field-name minimum-maximum-absolute-value
 ```
 
 验证器只使用 CGNS API 重读输出，不链接求解器或其内存对象。`compare` 要求 zone 名、尺寸、
@@ -87,3 +90,13 @@ Riemann 解的密度/速度/压力 L1、接触与激波位置以及正性；四�
 线性变化，默认绝对误差阈值为 `2e-12`。`run_manufactured_matrix.py` 驱动二维或三维非均匀
 制造初场及制造源项，至少推进指定步数，检查最终场有限性、正性和多 rank 等价性；三维模式
 同时启用非零 z 动量源、扭曲网格以及 CGNS/Tecplot 双格式流场输出。
+
+`run_output_restart_matrix.py` 固定执行非平凡周期场的 100 步连续计算、40+60 步检查点续算、
+1/2/4 rank 异分区恢复及仅最终场/全监测对照。事件组同时启用 `every_steps=10`、
+`every_time=0.01`、重合显式时刻和初末输出，要求 CGNS/Tecplot 事件成对且无重复；检查点每
+20 步更新滚动 `latest`。验证器逐值比较两种场格式，并从基本场独立重算动量、总能、温度、
+声速、Mach、总焓、熵代理、黏度和 Jacobian。残差历史与全局统计只比较可复现数值列，明确
+排除 wall time 及重启初始行没有物理意义的前一步 `dt`。
+驱动器的 `--dimension 3 --cells-k ...` 模式改用三维双 zone、x 周期网格，启用非零 z 动量
+源，并额外确认最终 `VelocityZ` 确实非零；用于证明三维状态、格式和异 rank 重启路径被实际
+执行，而不是二维零分量的形式覆盖。

@@ -206,7 +206,9 @@ Tecplot 写数值 `stop_reason_code` 并在 `AUXDATA STOP_REASON_CODES` 中给�
 
 检查点只能是项目内部 CGNS 布局，始终无损保存原 zone 上五个无量纲守恒场，以及格式版本、
 step/time/dt、网格签名、数值重启签名、定常参考残差和连续计数。除带 step/time 的文件外，
-还更新 `<case>.checkpoint.latest.cgns`。
+还更新 `<case>.checkpoint.latest.cgns`。`latest` 是本次运行拥有的滚动别名，因此即使
+`output.allow_existing=false`，后续检查点事件也会安全替换它；运行前既有输出目录以及带
+step/time 的不可变文件仍按覆盖策略严格拒绝。
 
 重启配置加入：
 
