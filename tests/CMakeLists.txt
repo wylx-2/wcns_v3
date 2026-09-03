@@ -324,6 +324,49 @@ if(WCNS_ENABLE_CGNS)
             --cells-j 64
             --end-time 0.05
     )
+    add_test(
+        NAME wcns.release.viscous.conduction.smoke.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_viscous_matrix.py
+            --case conduction
+            --run $<TARGET_FILE:wcns_run>
+            --generator $<TARGET_FILE:wcns_generate_release_cgns>
+            --validator $<TARGET_FILE:wcns_validate_release_case>
+            --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/viscous_channel.wcns.in
+            --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-viscous-conduction-smoke-serial
+            --ranks 1
+            --cells-i 8
+            --cells-j 12
+            --min-cells 4
+    )
+    add_test(
+        NAME wcns.release.source.uniform.smoke.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_source_matrix.py
+            --run $<TARGET_FILE:wcns_run>
+            --generator $<TARGET_FILE:wcns_generate_release_cgns>
+            --validator $<TARGET_FILE:wcns_validate_release_case>
+            --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/uniform_source.wcns.in
+            --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-source-uniform-smoke-serial
+            --ranks 1
+            --resolution 12
+            --end-time 0.02
+    )
+    add_test(
+        NAME wcns.release.source.manufactured_2d.smoke.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_manufactured_matrix.py
+            --run $<TARGET_FILE:wcns_run>
+            --generator $<TARGET_FILE:wcns_generate_release_cgns>
+            --validator $<TARGET_FILE:wcns_validate_release_case>
+            --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/manufactured_source.wcns.in
+            --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-source-manufactured-2d-smoke-serial
+            --ranks 1
+            --dimension 2
+            --cells-i 12
+            --cells-j 12
+            --end-time 0.02
+    )
     foreach(profile IN ITEMS phenglei_wcns scmm6_wcns)
         add_test(
             NAME wcns.release.freestream.${profile}.2d.serial
@@ -697,6 +740,54 @@ if(WCNS_ENABLE_CGNS)
                 --cells-j 64
                 --zones-i 2
                 --end-time 0.05
+        )
+        add_test(
+            NAME wcns.release.viscous.conduction.smoke.mpi
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_viscous_matrix.py
+                --case conduction
+                --run $<TARGET_FILE:wcns_run>
+                --generator $<TARGET_FILE:wcns_generate_release_cgns>
+                --validator $<TARGET_FILE:wcns_validate_release_case>
+                --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/viscous_channel.wcns.in
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-viscous-conduction-smoke-mpi
+                --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
+                --ranks 1,2
+                --cells-i 8
+                --cells-j 12
+                --min-cells 4
+        )
+        add_test(
+            NAME wcns.release.source.uniform.smoke.mpi
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_source_matrix.py
+                --run $<TARGET_FILE:wcns_run>
+                --generator $<TARGET_FILE:wcns_generate_release_cgns>
+                --validator $<TARGET_FILE:wcns_validate_release_case>
+                --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/uniform_source.wcns.in
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-source-uniform-smoke-mpi
+                --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
+                --ranks 1,2
+                --resolution 12
+                --end-time 0.02
+        )
+        add_test(
+            NAME wcns.release.source.manufactured_3d.smoke.mpi
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_manufactured_matrix.py
+                --run $<TARGET_FILE:wcns_run>
+                --generator $<TARGET_FILE:wcns_generate_release_cgns>
+                --validator $<TARGET_FILE:wcns_validate_release_case>
+                --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/manufactured_source.wcns.in
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-source-manufactured-3d-smoke-mpi
+                --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
+                --ranks 1,2
+                --dimension 3
+                --cells-i 8
+                --cells-j 8
+                --cells-k 8
+                --warp 0.05
+                --end-time 0.02
         )
         foreach(profile IN ITEMS phenglei_wcns scmm6_wcns)
             add_test(

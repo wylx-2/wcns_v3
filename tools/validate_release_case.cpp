@@ -835,6 +835,129 @@ void validate_diagonal_symmetry(
               << " tolerance=" << l1_tolerance << '\n';
 }
 
+void validate_viscous_profile(
+    const std::string& path,
+    const std::string& mode,
+    double reynolds,
+    double l2_tolerance,
+    double pressure_tolerance)
+{
+    if (mode != "couette" && mode != "conduction") {
+        throw std::invalid_argument("viscous profile mode must be couette or conduction");
+    }
+    if (!(reynolds > 0.0)) {
+        throw std::invalid_argument("viscous profile Reynolds number must be positive");
+    }
+    require_tolerance(l2_tolerance);
+    require_tolerance(pressure_tolerance);
+    const auto file = read_fields(path);
+    double squared = 0.0;
+    double maximum = 0.0;
+    double pressure_maximum = 0.0;
+    double density_maximum = 0.0;
+    double sum_y = 0.0;
+    double sum_q = 0.0;
+    double sum_yy = 0.0;
+    double sum_yq = 0.0;
+    std::size_t cells = 0;
+    for (const auto& [zone_name, zone] : file) {
+        static_cast<void>(zone_name);
+        const auto& density = require_field(zone, "Density");
+        const auto& velocity_x = require_field(zone, "VelocityX");
+        const auto& velocity_y = require_field(zone, "VelocityY");
+        const auto& pressure = require_field(zone, "Pressure");
+        const auto& temperature = require_field(zone, "Temperature");
+        for (std::size_t cell = 0; cell < zone.cell_centers.size(); ++cell) {
+            const double y = zone.cell_centers[cell][1];
+            const double value = mode == "couette" ? velocity_x[cell] : temperature[cell];
+            const double exact = mode == "couette" ? y : 1.0 + y;
+            const double error = std::abs(value - exact);
+            squared += error * error;
+            maximum = std::max(maximum, error);
+            pressure_maximum = std::max(
+                pressure_maximum, std::abs(pressure[cell] - 1.0));
+            if (mode == "conduction") {
+                density_maximum = std::max(
+                    density_maximum,
+                    std::abs(density[cell] - 1.0 / (1.0 + y)));
+            }
+            maximum = std::max(maximum, std::abs(velocity_y[cell]));
+            if (mode == "conduction") {
+                maximum = std::max(maximum, std::abs(velocity_x[cell]));
+            }
+            sum_y += y;
+            sum_q += value;
+            sum_yy += y * y;
+            sum_yq += y * value;
+            ++cells;
+        }
+    }
+    if (cells == 0) throw std::runtime_error("viscous profile contains no cells");
+    const double count = static_cast<double>(cells);
+    const double denominator = count * sum_yy - sum_y * sum_y;
+    if (!(denominator > 0.0)) {
+        throw std::runtime_error("viscous profile has no wall-normal extent");
+    }
+    const double slope = (count * sum_yq - sum_y * sum_q) / denominator;
+    const double l2 = std::sqrt(squared / count);
+    if (l2 > l2_tolerance || maximum > 10.0 * l2_tolerance
+        || pressure_maximum > pressure_tolerance
+        || density_maximum > 10.0 * std::max(l2_tolerance, pressure_tolerance)) {
+        throw std::runtime_error("viscous analytic profile exceeds tolerance");
+    }
+    std::cout << std::setprecision(17)
+              << "check=viscous_profile mode=" << mode
+              << " cells=" << cells << " l2=" << l2
+              << " linf=" << maximum
+              << " pressure_linf=" << pressure_maximum
+              << " density_linf=" << density_maximum
+              << " slope=" << slope;
+    if (mode == "couette") {
+        std::cout << " wall_shear=" << slope / reynolds
+                  << " exact_wall_shear=" << 1.0 / reynolds
+                  << " wall_shear_relative_error=" << std::abs(slope - 1.0);
+    }
+    std::cout << '\n';
+}
+
+void validate_uniform_source(
+    const std::string& path,
+    double time,
+    const std::array<double, 5>& initial,
+    const std::array<double, 5>& source,
+    double tolerance)
+{
+    require_tolerance(tolerance);
+    const std::array<const char*, 5> names {{
+        "Density", "MomentumX", "MomentumY", "MomentumZ",
+        "EnergyStagnationDensity",
+    }};
+    std::array<double, 5> exact {};
+    for (std::size_t component = 0; component < exact.size(); ++component) {
+        exact[component] = initial[component] + time * source[component];
+    }
+    const auto file = read_fields(path);
+    double maximum = 0.0;
+    std::size_t samples = 0;
+    for (const auto& [zone_name, zone] : file) {
+        static_cast<void>(zone_name);
+        for (std::size_t component = 0; component < names.size(); ++component) {
+            const auto& values = require_field(zone, names[component]);
+            for (const double value : values) {
+                maximum = std::max(maximum, std::abs(value - exact[component]));
+                ++samples;
+            }
+        }
+    }
+    if (samples == 0 || maximum > tolerance) {
+        throw std::runtime_error("uniform-source response exceeds tolerance");
+    }
+    std::cout << std::setprecision(17)
+              << "check=uniform_source samples=" << samples
+              << " max_abs=" << maximum
+              << " tolerance=" << tolerance << '\n';
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -885,6 +1008,24 @@ int main(int argc, char** argv)
         } else if (argc == 4 && std::string(argv[1]) == "diagonal-symmetry") {
             validate_diagonal_symmetry(
                 argv[2], parse_real(argv[3], "L1 tolerance"));
+        } else if (argc == 7 && std::string(argv[1]) == "viscous-profile") {
+            validate_viscous_profile(
+                argv[2], argv[3],
+                parse_real(argv[4], "Reynolds number"),
+                parse_real(argv[5], "L2 tolerance"),
+                parse_real(argv[6], "pressure tolerance"));
+        } else if (argc == 15 && std::string(argv[1]) == "uniform-source") {
+            std::array<double, 5> initial {};
+            std::array<double, 5> source {};
+            for (std::size_t component = 0; component < 5; ++component) {
+                initial[component] = parse_real(
+                    argv[4 + component], "initial conservative value");
+                source[component] = parse_real(
+                    argv[9 + component], "uniform source value");
+            }
+            validate_uniform_source(
+                argv[2], parse_real(argv[3], "time"), initial, source,
+                parse_real(argv[14], "tolerance"));
         } else {
             std::cerr
                 << "usage:\n"
@@ -901,7 +1042,11 @@ int main(int argc, char** argv)
                    "  wcns_validate_release_case sod <field.cgns> <time> "
                    "<x0> <gamma> <rho-L1-tol> <position-cell-tol>\n"
                    "  wcns_validate_release_case diagonal-symmetry "
-                   "<field.cgns> <L1-tol>\n";
+                   "<field.cgns> <L1-tol>\n"
+                   "  wcns_validate_release_case viscous-profile <field.cgns> "
+                   "<couette|conduction> <Re> <L2-tol> <pressure-tol>\n"
+                   "  wcns_validate_release_case uniform-source <field.cgns> "
+                   "<time> <U0[5]> <S[5]> <tol>\n";
             return EXIT_FAILURE;
         }
         return EXIT_SUCCESS;

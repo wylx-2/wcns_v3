@@ -88,8 +88,10 @@ Riemann 求解器；发生非法中间状态时按冻结的确定性回退链处
 - `quadrant_riemann`：`x0,y0` 和 `ne_/nw_/sw_/se_` 前缀的 `rho,u,v,p`；
 - `isentropic_vortex`：`x0,y0,beta,background_u,background_v`；
 - `couette`：`y0,y1,lower_velocity,upper_velocity,lower_temperature,`
-  `upper_temperature,temperature_curvature,pressure`；速度按 y 线性变化，温度为线性项加
-  `temperature_curvature*eta*(1-eta)`，密度由常压状态方程得到；
+  `upper_temperature,velocity_curvature,temperature_curvature,pressure`；速度和温度分别为
+  端点线性插值加 `velocity_curvature*eta*(1-eta)` 与
+  `temperature_curvature*eta*(1-eta)`，密度由常压状态方程得到；曲率项仅用于从非平衡初场
+  验证定常收敛，边界端点值不变；
 - `linear_conduction`：`y0,y1,lower_temperature,upper_temperature,pressure`；速度为零、
   温度按 y 线性变化，密度由常压状态方程得到；
 - `manufactured_periodic`：`beta,background_u,background_v`。

@@ -99,9 +99,11 @@ TemperaturePrimitiveState couette_state(
     const Real temperature = lower_temperature
         + (upper_temperature - lower_temperature) * eta
         + config.parameter("temperature_curvature", 0.0) * eta * (1.0 - eta);
+    const Real velocity = lower_u + (upper_u - lower_u) * eta
+        + config.parameter("velocity_curvature", 0.0) * eta * (1.0 - eta);
     return constant_pressure_temperature(
         analytic_pressure(config, gas, reference),
-        lower_u + (upper_u - lower_u) * eta,
+        velocity,
         0.0,
         0.0,
         temperature,

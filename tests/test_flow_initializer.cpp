@@ -130,11 +130,12 @@ void test_flow_initializer()
             {"y0", 0.0}, {"y1", 2.0},
             {"lower_velocity", -0.25}, {"upper_velocity", 0.75},
             {"lower_temperature", 1.0}, {"upper_temperature", 1.4},
-            {"temperature_curvature", 0.2}, {"pressure", 0.8},
+            {"temperature_curvature", 0.2}, {"velocity_curvature", 0.4},
+            {"pressure", 0.8},
         };
         const auto middle = FlowInitializer::evaluate(
             config, {0.0, 1.0, 0.0}, gas, reference, floors, 2);
-        WCNS_REQUIRE_NEAR(middle[1], 0.25, 1.0e-14);
+        WCNS_REQUIRE_NEAR(middle[1], 0.35, 1.0e-14);
         WCNS_REQUIRE_NEAR(middle[4], 1.25, 1.0e-14);
         WCNS_REQUIRE_NEAR(
             pressure_primitive(middle, gas, reference, floors, 2)[4],

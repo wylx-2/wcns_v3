@@ -227,7 +227,7 @@ const std::set<std::string>& fixed_keys()
         "initial.pressure", "initial.temperature", "initial.x0", "initial.y0",
         "initial.y1", "initial.lower_velocity", "initial.upper_velocity",
         "initial.lower_temperature", "initial.upper_temperature",
-        "initial.temperature_curvature",
+        "initial.temperature_curvature", "initial.velocity_curvature",
         "initial.beta", "initial.background_u", "initial.background_v",
         "initial.left_rho", "initial.left_u", "initial.left_v", "initial.left_p",
         "initial.right_rho", "initial.right_u", "initial.right_v", "initial.right_p",

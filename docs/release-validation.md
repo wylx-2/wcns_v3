@@ -35,6 +35,8 @@ wcns_validate_release_case compare lhs.cgns rhs.cgns tolerance
 wcns_validate_release_case vortex field.cgns time length x0 y0 beta u0 v0 gamma Mach L1-tolerance
 wcns_validate_release_case sod field.cgns time x0 gamma rho-L1-tolerance position-cell-tolerance
 wcns_validate_release_case diagonal-symmetry field.cgns L1-tolerance
+wcns_validate_release_case viscous-profile field.cgns couette|conduction Reynolds L2-tolerance pressure-tolerance
+wcns_validate_release_case uniform-source field.cgns time U0[5] source[5] tolerance
 ```
 
 验证器只使用 CGNS API 重读输出，不链接求解器或其内存对象。`compare` 要求 zone 名、尺寸、
@@ -75,3 +77,13 @@ CTest 中固定三条串行 smoke（二维、二维原生多区周期、三维�
 Riemann 解的密度/速度/压力 L1、接触与激波位置以及正性；四象限算例检查 x-y 对角交换下
 的密度、压力和速度分量对称性。两种模式均可用 `--ranks` 和 `--mpi-exec` 比较串并行最终场，
 所有工作目录继续遵守标记文件清理协议。
+
+`run_viscous_matrix.py --case couette|conduction` 生成 x 周期、上下壁面的二维通道。Couette
+模式可用 `--velocity-curvature` 在不改变壁面值的前提下加入非平衡速度扰动，要求程序通过
+残差判据停止，再独立检查线性速度、压力和壁面剪切；线性导热检查 `T=1+y`、常压和由状态
+方程确定的密度。两种模式均比较多 rank 最终场。
+
+`run_source_matrix.py` 在双向周期网格上检验常守恒源项的逐点解析更新和全局积分随时间的
+线性变化，默认绝对误差阈值为 `2e-12`。`run_manufactured_matrix.py` 驱动二维或三维非均匀
+制造初场及制造源项，至少推进指定步数，检查最终场有限性、正性和多 rank 等价性；三维模式
+同时启用非零 z 动量源、扭曲网格以及 CGNS/Tecplot 双格式流场输出。
