@@ -527,6 +527,314 @@ void validate_isentropic_vortex(
               << " tolerance=" << l1_tolerance << '\n';
 }
 
+struct SodState {
+    double density = 0.0;
+    double velocity = 0.0;
+    double pressure = 0.0;
+};
+
+std::pair<double, double> pressure_wave(
+    double pressure,
+    const SodState& state,
+    double gamma)
+{
+    const double sound = std::sqrt(gamma * state.pressure / state.density);
+    if (pressure > state.pressure) {
+        const double a = 2.0 / ((gamma + 1.0) * state.density);
+        const double b = (gamma - 1.0) * state.pressure / (gamma + 1.0);
+        const double root = std::sqrt(a / (pressure + b));
+        return {
+            (pressure - state.pressure) * root,
+            root * (1.0 - 0.5 * (pressure - state.pressure)
+                / (pressure + b)),
+        };
+    }
+    const double exponent = (gamma - 1.0) / (2.0 * gamma);
+    const double ratio = pressure / state.pressure;
+    return {
+        2.0 * sound / (gamma - 1.0) * (std::pow(ratio, exponent) - 1.0),
+        std::pow(ratio, -(gamma + 1.0) / (2.0 * gamma))
+            / (state.density * sound),
+    };
+}
+
+std::pair<double, double> sod_star(
+    const SodState& left,
+    const SodState& right,
+    double gamma)
+{
+    const double left_sound = std::sqrt(gamma * left.pressure / left.density);
+    const double right_sound = std::sqrt(gamma * right.pressure / right.density);
+    double pressure = std::max(
+        1.0e-14,
+        0.5 * (left.pressure + right.pressure)
+            - 0.125 * (right.velocity - left.velocity)
+                * (left.density + right.density)
+                * (left_sound + right_sound));
+    for (int iteration = 0; iteration < 50; ++iteration) {
+        const auto left_wave = pressure_wave(pressure, left, gamma);
+        const auto right_wave = pressure_wave(pressure, right, gamma);
+        const double update = (left_wave.first + right_wave.first
+            + right.velocity - left.velocity)
+            / (left_wave.second + right_wave.second);
+        const double next = std::max(1.0e-14, pressure - update);
+        if (std::abs(next - pressure)
+            <= 1.0e-13 * std::max(1.0, pressure)) {
+            pressure = next;
+            break;
+        }
+        pressure = next;
+    }
+    const auto left_wave = pressure_wave(pressure, left, gamma);
+    const auto right_wave = pressure_wave(pressure, right, gamma);
+    const double velocity = 0.5 * (left.velocity + right.velocity
+        + right_wave.first - left_wave.first);
+    return {pressure, velocity};
+}
+
+SodState sample_sod(
+    double similarity,
+    const SodState& left,
+    const SodState& right,
+    double gamma,
+    double star_pressure,
+    double star_velocity)
+{
+    const double left_sound = std::sqrt(gamma * left.pressure / left.density);
+    const double right_sound = std::sqrt(gamma * right.pressure / right.density);
+    const auto star_density = [&](const SodState& state) {
+        const double ratio = star_pressure / state.pressure;
+        if (ratio > 1.0) {
+            const double g = (gamma - 1.0) / (gamma + 1.0);
+            return state.density * (ratio + g) / (g * ratio + 1.0);
+        }
+        return state.density * std::pow(ratio, 1.0 / gamma);
+    };
+
+    if (similarity <= star_velocity) {
+        const double density = star_density(left);
+        if (star_pressure > left.pressure) {
+            const double speed = left.velocity - left_sound * std::sqrt(
+                (gamma + 1.0) * star_pressure / (2.0 * gamma * left.pressure)
+                + (gamma - 1.0) / (2.0 * gamma));
+            return similarity <= speed ? left
+                                       : SodState {density, star_velocity, star_pressure};
+        }
+        const double head = left.velocity - left_sound;
+        const double star_sound = left_sound * std::pow(
+            star_pressure / left.pressure,
+            (gamma - 1.0) / (2.0 * gamma));
+        const double tail = star_velocity - star_sound;
+        if (similarity <= head) return left;
+        if (similarity >= tail) return {density, star_velocity, star_pressure};
+        const double velocity = 2.0 / (gamma + 1.0)
+            * (left_sound + 0.5 * (gamma - 1.0) * left.velocity + similarity);
+        const double sound = 2.0 / (gamma + 1.0)
+            * (left_sound + 0.5 * (gamma - 1.0)
+                * (left.velocity - similarity));
+        return {
+            left.density * std::pow(sound / left_sound, 2.0 / (gamma - 1.0)),
+            velocity,
+            left.pressure * std::pow(
+                sound / left_sound, 2.0 * gamma / (gamma - 1.0)),
+        };
+    }
+
+    const double density = star_density(right);
+    if (star_pressure > right.pressure) {
+        const double speed = right.velocity + right_sound * std::sqrt(
+            (gamma + 1.0) * star_pressure / (2.0 * gamma * right.pressure)
+            + (gamma - 1.0) / (2.0 * gamma));
+        return similarity >= speed ? right
+                                   : SodState {density, star_velocity, star_pressure};
+    }
+    const double head = right.velocity + right_sound;
+    const double star_sound = right_sound * std::pow(
+        star_pressure / right.pressure,
+        (gamma - 1.0) / (2.0 * gamma));
+    const double tail = star_velocity + star_sound;
+    if (similarity >= head) return right;
+    if (similarity <= tail) return {density, star_velocity, star_pressure};
+    const double velocity = 2.0 / (gamma + 1.0)
+        * (-right_sound + 0.5 * (gamma - 1.0) * right.velocity + similarity);
+    const double sound = 2.0 / (gamma + 1.0)
+        * (right_sound - 0.5 * (gamma - 1.0)
+            * (right.velocity - similarity));
+    return {
+        right.density * std::pow(sound / right_sound, 2.0 / (gamma - 1.0)),
+        velocity,
+        right.pressure * std::pow(
+            sound / right_sound, 2.0 * gamma / (gamma - 1.0)),
+    };
+}
+
+void validate_sod(
+    const std::string& path,
+    double time,
+    double discontinuity,
+    double gamma,
+    double density_l1_tolerance,
+    double position_cell_tolerance)
+{
+    if (!(time > 0.0) || !(gamma > 1.0)
+        || !(position_cell_tolerance > 0.0)) {
+        throw std::invalid_argument("Sod validation parameters are invalid");
+    }
+    require_tolerance(density_l1_tolerance);
+    const SodState left {1.0, 0.0, 1.0};
+    const SodState right {0.125, 0.0, 0.1};
+    const auto [star_pressure, star_velocity] = sod_star(left, right, gamma);
+    const double right_sound = std::sqrt(gamma * right.pressure / right.density);
+    const double shock_speed = right.velocity + right_sound * std::sqrt(
+        (gamma + 1.0) * star_pressure / (2.0 * gamma * right.pressure)
+        + (gamma - 1.0) / (2.0 * gamma));
+    const double exact_contact = discontinuity + star_velocity * time;
+    const double exact_shock = discontinuity + shock_speed * time;
+
+    std::map<double, std::pair<double, std::size_t>> density_by_x;
+    double density_l1 = 0.0;
+    double velocity_l1 = 0.0;
+    double pressure_l1 = 0.0;
+    double minimum_density = std::numeric_limits<double>::infinity();
+    double minimum_pressure = std::numeric_limits<double>::infinity();
+    std::size_t cells = 0;
+    const auto file = read_fields(path);
+    for (const auto& [zone_name, zone] : file) {
+        static_cast<void>(zone_name);
+        const auto& density = require_field(zone, "Density");
+        const auto& velocity = require_field(zone, "VelocityX");
+        const auto& pressure = require_field(zone, "Pressure");
+        for (std::size_t cell = 0; cell < zone.cell_centers.size(); ++cell) {
+            const auto exact = sample_sod(
+                (zone.cell_centers[cell][0] - discontinuity) / time,
+                left, right, gamma, star_pressure, star_velocity);
+            density_l1 += std::abs(density[cell] - exact.density);
+            velocity_l1 += std::abs(velocity[cell] - exact.velocity);
+            pressure_l1 += std::abs(pressure[cell] - exact.pressure);
+            minimum_density = std::min(minimum_density, density[cell]);
+            minimum_pressure = std::min(minimum_pressure, pressure[cell]);
+            auto& average = density_by_x[zone.cell_centers[cell][0]];
+            average.first += density[cell];
+            ++average.second;
+            ++cells;
+        }
+    }
+    if (cells == 0 || density_by_x.size() < 4) {
+        throw std::runtime_error("Sod output does not contain a valid section");
+    }
+    density_l1 /= static_cast<double>(cells);
+    velocity_l1 /= static_cast<double>(cells);
+    pressure_l1 /= static_cast<double>(cells);
+    if (minimum_density <= 0.0 || minimum_pressure <= 0.0) {
+        throw std::runtime_error("Sod output contains a non-positive state");
+    }
+
+    std::vector<std::pair<double, double>> section;
+    for (const auto& [x, sum_count] : density_by_x) {
+        section.push_back({x, sum_count.first / static_cast<double>(sum_count.second)});
+    }
+    const double split = 0.5 * (exact_contact + exact_shock);
+    double contact_gradient = -1.0;
+    double shock_gradient = -1.0;
+    double observed_contact = 0.0;
+    double observed_shock = 0.0;
+    double minimum_spacing = std::numeric_limits<double>::infinity();
+    for (std::size_t index = 1; index < section.size(); ++index) {
+        const double midpoint = 0.5 * (section[index - 1].first + section[index].first);
+        const double spacing = section[index].first - section[index - 1].first;
+        const double gradient = std::abs(section[index].second - section[index - 1].second);
+        minimum_spacing = std::min(minimum_spacing, spacing);
+        if (midpoint > discontinuity && midpoint < split && gradient > contact_gradient) {
+            contact_gradient = gradient;
+            observed_contact = midpoint;
+        }
+        if (midpoint >= split && gradient > shock_gradient) {
+            shock_gradient = gradient;
+            observed_shock = midpoint;
+        }
+    }
+    const double position_error_cells = std::max(
+        std::abs(observed_contact - exact_contact),
+        std::abs(observed_shock - exact_shock)) / minimum_spacing;
+    if (density_l1 > density_l1_tolerance
+        || position_error_cells > position_cell_tolerance) {
+        throw std::runtime_error(
+            "Sod error exceeds the density or wave-position tolerance");
+    }
+    std::cout << std::setprecision(17)
+              << "check=sod cells=" << cells
+              << " rho_l1=" << density_l1
+              << " u_l1=" << velocity_l1
+              << " p_l1=" << pressure_l1
+              << " contact=" << observed_contact
+              << " exact_contact=" << exact_contact
+              << " shock=" << observed_shock
+              << " exact_shock=" << exact_shock
+              << " position_error_cells=" << position_error_cells
+              << " min_rho=" << minimum_density
+              << " min_p=" << minimum_pressure << '\n';
+}
+
+void validate_diagonal_symmetry(
+    const std::string& path,
+    double l1_tolerance)
+{
+    require_tolerance(l1_tolerance);
+    struct Sample {
+        double density = 0.0;
+        double velocity_x = 0.0;
+        double velocity_y = 0.0;
+        double pressure = 0.0;
+    };
+    using Key = std::pair<long long, long long>;
+    std::map<Key, Sample> samples;
+    const auto key = [](double x, double y) {
+        constexpr double scale = 1.0e12;
+        return Key {std::llround(x * scale), std::llround(y * scale)};
+    };
+    const auto file = read_fields(path);
+    for (const auto& [zone_name, zone] : file) {
+        static_cast<void>(zone_name);
+        const auto& density = require_field(zone, "Density");
+        const auto& velocity_x = require_field(zone, "VelocityX");
+        const auto& velocity_y = require_field(zone, "VelocityY");
+        const auto& pressure = require_field(zone, "Pressure");
+        for (std::size_t cell = 0; cell < zone.cell_centers.size(); ++cell) {
+            if (!samples.emplace(
+                    key(zone.cell_centers[cell][0], zone.cell_centers[cell][1]),
+                    Sample {density[cell], velocity_x[cell], velocity_y[cell], pressure[cell]})
+                     .second) {
+                throw std::runtime_error("diagonal symmetry found duplicate cell centers");
+            }
+        }
+    }
+    double l1 = 0.0;
+    double linf = 0.0;
+    for (const auto& [location, sample] : samples) {
+        const auto iterator = samples.find({location.second, location.first});
+        if (iterator == samples.end()) {
+            throw std::runtime_error("diagonal symmetry cannot find reflected cell");
+        }
+        const auto& reflected = iterator->second;
+        const double error = std::max({
+            std::abs(sample.density - reflected.density),
+            std::abs(sample.pressure - reflected.pressure),
+            std::abs(sample.velocity_x - reflected.velocity_y),
+            std::abs(sample.velocity_y - reflected.velocity_x),
+        });
+        l1 += error;
+        linf = std::max(linf, error);
+    }
+    l1 /= static_cast<double>(samples.size());
+    if (l1 > l1_tolerance) {
+        throw std::runtime_error("diagonal symmetry L1 error exceeds tolerance");
+    }
+    std::cout << std::setprecision(17)
+              << "check=diagonal_symmetry cells=" << samples.size()
+              << " l1=" << l1 << " linf=" << linf
+              << " tolerance=" << l1_tolerance << '\n';
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -566,6 +874,17 @@ int main(int argc, char** argv)
                 parse_real(argv[10], "gamma"),
                 parse_real(argv[11], "Mach"),
                 parse_real(argv[12], "tolerance"));
+        } else if (argc == 8 && std::string(argv[1]) == "sod") {
+            validate_sod(
+                argv[2],
+                parse_real(argv[3], "time"),
+                parse_real(argv[4], "discontinuity"),
+                parse_real(argv[5], "gamma"),
+                parse_real(argv[6], "density L1 tolerance"),
+                parse_real(argv[7], "position cell tolerance"));
+        } else if (argc == 4 && std::string(argv[1]) == "diagonal-symmetry") {
+            validate_diagonal_symmetry(
+                argv[2], parse_real(argv[3], "L1 tolerance"));
         } else {
             std::cerr
                 << "usage:\n"
@@ -578,7 +897,11 @@ int main(int argc, char** argv)
                    "<rho> <u> <v> <w> <T> <tol>\n"
                    "  wcns_validate_release_case vortex <field.cgns> <time> "
                    "<length> <x0> <y0> <beta> <u0> <v0> <gamma> <Mach> "
-                   "<L1-tol>\n";
+                   "<L1-tol>\n"
+                   "  wcns_validate_release_case sod <field.cgns> <time> "
+                   "<x0> <gamma> <rho-L1-tol> <position-cell-tol>\n"
+                   "  wcns_validate_release_case diagonal-symmetry "
+                   "<field.cgns> <L1-tol>\n";
             return EXIT_FAILURE;
         }
         return EXIT_SUCCESS;

@@ -294,6 +294,36 @@ if(WCNS_ENABLE_CGNS)
             --cfl 0.1
             --finest-l1 1e-3
     )
+    add_test(
+        NAME wcns.release.sod.smoke.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_shock_matrix.py
+            --case sod
+            --run $<TARGET_FILE:wcns_run>
+            --generator $<TARGET_FILE:wcns_generate_release_cgns>
+            --validator $<TARGET_FILE:wcns_validate_release_case>
+            --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/sod.wcns.in
+            --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-sod-smoke-serial
+            --ranks 1
+            --cells-i 80
+            --cells-j 8
+            --end-time 0.2
+    )
+    add_test(
+        NAME wcns.release.quadrant.smoke.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_shock_matrix.py
+            --case quadrant
+            --run $<TARGET_FILE:wcns_run>
+            --generator $<TARGET_FILE:wcns_generate_release_cgns>
+            --validator $<TARGET_FILE:wcns_validate_release_case>
+            --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/quadrant_riemann.wcns.in
+            --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-quadrant-smoke-serial
+            --ranks 1
+            --cells-i 64
+            --cells-j 64
+            --end-time 0.05
+    )
     foreach(profile IN ITEMS phenglei_wcns scmm6_wcns)
         add_test(
             NAME wcns.release.freestream.${profile}.2d.serial
@@ -633,6 +663,40 @@ if(WCNS_ENABLE_CGNS)
                 --end-time 0.01
                 --cfl 0.1
                 --finest-l1 1e-3
+        )
+        add_test(
+            NAME wcns.release.sod.smoke.mpi
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_shock_matrix.py
+                --case sod
+                --run $<TARGET_FILE:wcns_run>
+                --generator $<TARGET_FILE:wcns_generate_release_cgns>
+                --validator $<TARGET_FILE:wcns_validate_release_case>
+                --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/sod.wcns.in
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-sod-smoke-mpi
+                --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
+                --ranks 1,2
+                --cells-i 80
+                --cells-j 8
+                --zones-i 2
+                --end-time 0.2
+        )
+        add_test(
+            NAME wcns.release.quadrant.smoke.mpi
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/../tools/run_shock_matrix.py
+                --case quadrant
+                --run $<TARGET_FILE:wcns_run>
+                --generator $<TARGET_FILE:wcns_generate_release_cgns>
+                --validator $<TARGET_FILE:wcns_validate_release_case>
+                --template ${CMAKE_CURRENT_SOURCE_DIR}/../cases/config/quadrant_riemann.wcns.in
+                --work-dir ${CMAKE_CURRENT_BINARY_DIR}/release-quadrant-smoke-mpi
+                --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
+                --ranks 1,2
+                --cells-i 64
+                --cells-j 64
+                --zones-i 2
+                --end-time 0.05
         )
         foreach(profile IN ITEMS phenglei_wcns scmm6_wcns)
             add_test(

@@ -15,12 +15,16 @@
 
 ```text
 wcns_generate_release_cgns output.cgns dimension cells_i cells_j cells_k zones_i warp periodic_x
+wcns_generate_release_cgns periodic-square output.cgns cells_i cells_j length
+wcns_generate_release_cgns rectangle output.cgns cells_i cells_j zones_i length_x length_y periodic_x
 ```
 
 `dimension` 为 2 或 3；二维要求 `cells_k=1`；`cells_i` 必须能被 `zones_i` 整除；
 `abs(warp)<0.2`。非周期网格的 x 外边界名为 `left/right`，其余物理边界为
 `bottom/top[/front/back]`；原生多区连接及周期连接均成对写入。扭曲使用跨 zone 连续的
 解析坐标映射，因而同一参数总是产生逐位相同的网格。
+`periodic-square` 生成 2×2 原生多 zone 且 x/y 双向平移周期的方形网格；`rectangle` 用于
+Sod 薄域和四象限问题，可指定二维物理长度及 x 向原生 zone 数。
 
 ## 2. 独立验证器
 
@@ -28,6 +32,9 @@ wcns_generate_release_cgns output.cgns dimension cells_i cells_j cells_k zones_i
 wcns_validate_release_case finite field.cgns
 wcns_validate_release_case uniform field.cgns rho u v w T tolerance
 wcns_validate_release_case compare lhs.cgns rhs.cgns tolerance
+wcns_validate_release_case vortex field.cgns time length x0 y0 beta u0 v0 gamma Mach L1-tolerance
+wcns_validate_release_case sod field.cgns time x0 gamma rho-L1-tolerance position-cell-tolerance
+wcns_validate_release_case diagonal-symmetry field.cgns L1-tolerance
 ```
 
 验证器只使用 CGNS API 重读输出，不链接求解器或其内存对象。`compare` 要求 zone 名、尺寸、
@@ -59,3 +66,12 @@ zone 布局相同。统计文件同时通过 `series-constant` 检查全程守�
 
 CTest 中固定三条串行 smoke（二维、二维原生多区周期、三维扭曲），MPI 构建另执行
 1/2 rank 等价性 smoke。它们验证基础设施可用，不替代 O2--O6 冻结的中等网格发布矩阵。
+
+`run_vortex_matrix.py` 生成 2×2 原生多 zone 双向周期方形网格，执行等熵涡解析误差、全局
+守恒和多 rank 最终场比较。解析式显式使用由模板参考量导出的 Mach 数；`--resolutions`
+给出逗号分隔网格序列，`--minimum-order` 和 `--finest-l1` 分别约束观测阶与最细网格误差。
+
+`run_shock_matrix.py --case sod|quadrant` 生成矩形 CGNS 网格并运行间断算例。Sod 检查精确
+Riemann 解的密度/速度/压力 L1、接触与激波位置以及正性；四象限算例检查 x-y 对角交换下
+的密度、压力和速度分量对称性。两种模式均可用 `--ranks` 和 `--mpi-exec` 比较串并行最终场，
+所有工作目录继续遵守标记文件清理协议。

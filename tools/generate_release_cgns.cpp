@@ -120,13 +120,19 @@ void generate(
     int cells_k,
     int zones_i,
     double warp,
-    bool periodic_x)
+    bool periodic_x,
+    double length_x,
+    double length_y,
+    double length_z)
 {
     if (dimension != 2 && dimension != 3) {
         throw std::invalid_argument("dimension must be 2 or 3");
     }
     if (dimension == 2 && cells_k != 1) {
         throw std::invalid_argument("two-dimensional grids require cells_k=1");
+    }
+    if (!(length_x > 0.0) || !(length_y > 0.0) || !(length_z > 0.0)) {
+        throw std::invalid_argument("release grid lengths must be positive");
     }
     if (cells_i % zones_i != 0) {
         throw std::invalid_argument("cells_i must be divisible by zones_i");
@@ -184,10 +190,10 @@ void generate(
                         const double envelope = dimension == 3
                             ? std::sin(pi * zeta) : 1.0;
                         const auto index = static_cast<std::size_t>((k * nj + j) * ni + i);
-                        x[index] = xi + warp * std::sin(pi * xi)
-                            * std::sin(pi * eta) * envelope;
-                        y[index] = eta;
-                        z[index] = zeta;
+                        x[index] = length_x * (xi + warp * std::sin(pi * xi)
+                            * std::sin(pi * eta) * envelope);
+                        y[index] = length_y * eta;
+                        z[index] = length_z * zeta;
                     }
                 }
             }
@@ -401,7 +407,10 @@ int main(int argc, char** argv)
             << "usage: wcns_generate_release_cgns <output.cgns> <dimension> "
                "<cells_i> <cells_j> <cells_k> <zones_i> <warp> <periodic_x>\n"
                "   or: wcns_generate_release_cgns periodic-square <output.cgns> "
-               "<cells_i> <cells_j> <length>\n";
+               "<cells_i> <cells_j> <length>\n"
+               "   or: wcns_generate_release_cgns rectangle <output.cgns> "
+               "<cells_i> <cells_j> <zones_i> <length_x> <length_y> "
+               "<periodic_x>\n";
         return EXIT_FAILURE;
     }
     try {
@@ -414,6 +423,16 @@ int main(int argc, char** argv)
                 parse_positive(argv[3], "cells_i"),
                 parse_positive(argv[4], "cells_j"),
                 parse_positive_real(argv[5], "length"));
+        } else if (argc == 9 && std::string(argv[1]) == "rectangle") {
+            output = argv[2];
+            generate(
+                output, 2,
+                parse_positive(argv[3], "cells_i"),
+                parse_positive(argv[4], "cells_j"), 1,
+                parse_positive(argv[5], "zones_i"), 0.0,
+                parse_bool(argv[8]),
+                parse_positive_real(argv[6], "length_x"),
+                parse_positive_real(argv[7], "length_y"), 1.0);
         } else if (argc == 9) {
             output = argv[1];
             generate(
@@ -422,7 +441,8 @@ int main(int argc, char** argv)
                 parse_positive(argv[4], "cells_j"),
                 parse_positive(argv[5], "cells_k"),
                 parse_positive(argv[6], "zones_i"),
-                parse_warp(argv[7]), parse_bool(argv[8]));
+                parse_warp(argv[7]), parse_bool(argv[8]),
+                1.0, 1.0, 1.0);
         } else {
             throw std::invalid_argument("invalid release grid generator mode");
         }
