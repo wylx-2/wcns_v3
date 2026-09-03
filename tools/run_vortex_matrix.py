@@ -29,6 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--end-time", type=float, default=0.1)
     parser.add_argument("--cfl", type=float, default=0.1)
     parser.add_argument("--minimum-order", type=float, default=0.0)
+    parser.add_argument("--minimum-finest-order", type=float, default=0.0)
     parser.add_argument("--finest-l1", type=float, default=1.0)
     parser.add_argument("--min-cells", type=int, default=8)
     parser.add_argument("--reference-velocity", type=float, default=340.0)
@@ -54,6 +55,8 @@ def main() -> int:
         raise RuntimeError("MPI vortex ranks require --mpi-exec")
     if args.end_time <= 0.0 or args.cfl <= 0.0 or args.finest_l1 <= 0.0:
         raise RuntimeError("vortex time, CFL and finest tolerance must be positive")
+    if args.minimum_order < 0.0 or args.minimum_finest_order < 0.0:
+        raise RuntimeError("vortex order tolerances must be non-negative")
     if min(args.reference_velocity, args.reference_temperature, args.molar_mass) <= 0.0:
         raise RuntimeError("vortex reference scales must be positive")
     gamma = 1.4
@@ -170,6 +173,17 @@ def main() -> int:
             raise RuntimeError(
                 f"vortex order {order} for {coarse}->{fine} is below {args.minimum_order}"
             )
+    if args.minimum_finest_order > 0.0:
+        if not orders:
+            raise RuntimeError(
+                "minimum finest-grid order requires at least two resolutions"
+            )
+        finest_order = orders[-1]["rho_l1_order"]
+        if finest_order < args.minimum_finest_order:
+            raise RuntimeError(
+                "vortex finest-pair order "
+                f"{finest_order} is below {args.minimum_finest_order}"
+            )
     if errors[ordered[-1]] > args.finest_l1:
         raise RuntimeError("vortex finest-grid L1 exceeds tolerance")
     summary = {
@@ -184,6 +198,9 @@ def main() -> int:
         "ranks": ranks,
         "rho_l1": errors,
         "orders": orders,
+        "minimum_all_pair_order": args.minimum_order,
+        "minimum_finest_pair_order": args.minimum_finest_order,
+        "finest_l1_tolerance": args.finest_l1,
         "records": records,
     }
     summary_path = root / "matrix-summary.json"

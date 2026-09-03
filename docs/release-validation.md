@@ -79,7 +79,10 @@ CTest 中固定三条串行 smoke（二维、二维原生多区周期、三维�
 
 `run_vortex_matrix.py` 生成 2×2 原生多 zone 双向周期方形网格，执行等熵涡解析误差、全局
 守恒和多 rank 最终场比较。解析式显式使用由模板参考量导出的 Mach 数；`--resolutions`
-给出逗号分隔网格序列，`--minimum-order` 和 `--finest-l1` 分别约束观测阶与最细网格误差。
+给出逗号分隔网格序列，`--minimum-order` 约束每一对相邻网格的观测阶，
+`--minimum-finest-order` 只约束最细两级网格的观测阶，`--finest-l1` 约束最细网格误差。
+阶段 O6 按设计卡口使用后两项检查 64²→128² 和 128²；保留 `--minimum-order` 供要求
+所有加密区间均进入渐近区的专项测试使用。
 
 `run_shock_matrix.py --case sod|quadrant` 生成矩形 CGNS 网格并运行间断算例。Sod 检查精确
 Riemann 解的密度/速度/压力 L1、接触与激波位置以及正性；四象限算例检查 x-y 对角交换下
