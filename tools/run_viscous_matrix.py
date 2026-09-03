@@ -26,6 +26,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cells-j", type=int, default=24)
     parser.add_argument("--zones-i", type=int, default=2)
     parser.add_argument("--profile", default="phenglei_wcns")
+    parser.add_argument("--riemann", default="hllc")
     parser.add_argument("--reference-viscosity", type=float, default=0.1)
     parser.add_argument("--velocity-curvature", type=float, default=0.1)
     parser.add_argument(
@@ -108,6 +109,7 @@ def main() -> int:
             "CASE_NAME": case_name,
             "MESH_PATH": mesh.as_posix(),
             "ALGORITHM_PROFILE": args.profile,
+            "RIEMANN": args.riemann,
             "REFERENCE_VISCOSITY": str(args.reference_viscosity),
             "MIN_CELLS": str(args.min_cells),
             "CFL": str(args.cfl),
@@ -163,6 +165,7 @@ def main() -> int:
         "status": "passed",
         "case": args.case,
         "profile": args.profile,
+        "riemann": args.riemann,
         "grid": [args.cells_i, args.cells_j],
         "zones_i": args.zones_i,
         "reynolds": reynolds,
