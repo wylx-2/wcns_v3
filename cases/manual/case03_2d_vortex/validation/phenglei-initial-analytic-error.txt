@@ -1,0 +1,1 @@
+check=isentropic_vortex cells=10000 rho_l1=0 rho_l2=0 rho_linf=0 primitive_linf=7.7715611723760958e-16 tolerance=0.001
