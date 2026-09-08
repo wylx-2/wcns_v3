@@ -18,6 +18,7 @@
 ```text
 wcns_generate_release_cgns output.cgns dimension cells_i cells_j cells_k zones_i warp periodic_x
 wcns_generate_release_cgns periodic-square output.cgns cells_i cells_j length
+wcns_generate_release_cgns warped-periodic-square output.cgns cells_i cells_j length x_warp_amplitude y_warp_amplitude
 wcns_generate_release_cgns rectangle output.cgns cells_i cells_j zones_i length_x length_y periodic_x
 wcns_generate_release_cgns clustered-rectangle output.cgns cells_i cells_j zones_i length_x length_y cluster_x cluster_y strength periodic_x
 wcns_generate_release_cgns periodic-channel output.cgns cells_i cells_j cells_k zones_i zones_k length_x length_y length_z wall_cluster_strength
@@ -30,6 +31,9 @@ wcns_generate_release_cgns invalid-one-sided output.cgns cells_i cells_j
 解析坐标映射，因而同一参数总是产生逐位相同的网格。
 `periodic-square` 生成 2×2 原生多 zone 且 x/y 双向平移周期的方形网格；`rectangle` 用于
 Sod 薄域和四象限问题，可指定二维物理长度及 x 向原生 zone 数。
+`warped-periodic-square` 保留相同 2×2 周期拓扑，使用
+$x=\xi+A_x\sin(2\pi\eta/L)$、$y=\eta+A_y\sin(4\pi\xi/L)$；生成器要求
+$8\pi^2A_xA_y/L^2<1$，从输入阶段排除会翻转网格的参数。
 `clustered-rectangle` 保持相同拓扑，但在 x/y 方向分别向给定内部点光滑加密；`strength`
 越大，中心附近单元越小。映射在加密点两侧一阶连续，端点和加密点位置保持精确，适合比较
 均匀网格与局部加密结构网格，而不是自适应网格。
@@ -44,6 +48,7 @@ self-connectivity，并实际覆盖 i/k 两类跨块 halo 与共享面通量通�
 
 ```text
 wcns_validate_release_case finite field.cgns
+wcns_validate_release_case field-error reference.cgns value.cgns
 wcns_validate_release_case uniform field.cgns rho u v w T tolerance
 wcns_validate_release_case compare lhs.cgns rhs.cgns tolerance
 wcns_validate_release_case vortex field.cgns time length x0 y0 beta u0 v0 gamma Mach L1-tolerance
@@ -56,6 +61,20 @@ wcns_validate_release_case tecplot-consistency field.cgns field.dat tolerance
 wcns_validate_release_case derived field.cgns gamma viscosity Jacobian tolerance
 wcns_validate_release_case nonzero field.cgns field-name minimum-maximum-absolute-value
 ```
+
+`field-error` 要求两份 CGNS 的 zone、单元排列、字段集合和坐标一致，对每个字段输出 L1、L2、
+L∞ 和相对 L2；若文件含 `Jacobian`，L1/L2 使用参考文件的 J 做体积加权。它只报告误差，不在
+工具内部隐藏验收阈值。
+
+两套高阶几何路径可用下列命令直接比较：
+
+```text
+wcns_compare_metric_profiles mesh.cgns
+```
+
+该工具对同一个原生 CGNS zone 分别独立构造 `phenglei_wcns` 和 `scmm6_wcns` 度量，不混用
+两套 profile 的线性算子；输出单元坐标、J、i/j 面面积向量的逐分量差异，以及每套路径的
+总体积、相对有限体积参考差异、回退数和离散几何守恒闭合残差。
 
 验证器只使用 CGNS API 重读输出，不链接求解器或其内存对象。`compare` 要求 zone 名、尺寸、
 字段集合完全一致；所有比较同时拒绝非有限值。后续 O2--O4 在这个可执行程序中增加光滑误差、

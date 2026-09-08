@@ -212,6 +212,12 @@ if(WCNS_ENABLE_CGNS)
         tools/validate_release_case.cpp
     )
     target_link_libraries(wcns_validate_release_case PRIVATE wcns::core wcns::cgns)
+
+    add_executable(
+        wcns_compare_metric_profiles
+        tools/compare_metric_profiles.cpp
+    )
+    target_link_libraries(wcns_compare_metric_profiles PRIVATE wcns::io)
 endif()
 
 if(WCNS_BUILD_TESTS)
@@ -225,6 +231,7 @@ if(WCNS_ENABLE_CGNS)
             wcns_run
             wcns_generate_release_cgns
             wcns_validate_release_case
+            wcns_compare_metric_profiles
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
 endif()

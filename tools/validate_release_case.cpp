@@ -505,6 +505,108 @@ void validate_finite(const std::string& path)
               << " min_T=" << minimum_temperature << '\n';
 }
 
+struct FieldErrorStatistics {
+    double weighted_absolute = 0.0;
+    double weighted_squared = 0.0;
+    double weighted_reference_squared = 0.0;
+    double weight_sum = 0.0;
+    double maximum = 0.0;
+    std::size_t samples = 0;
+
+    void add(double reference, double value, double weight)
+    {
+        if (!std::isfinite(reference) || !std::isfinite(value)
+            || !std::isfinite(weight) || !(weight > 0.0)) {
+            throw std::runtime_error("field-error comparison is non-finite");
+        }
+        const double error = std::abs(value - reference);
+        weighted_absolute += weight * error;
+        weighted_squared += weight * error * error;
+        weighted_reference_squared += weight * reference * reference;
+        weight_sum += weight;
+        maximum = std::max(maximum, error);
+        ++samples;
+    }
+
+    void print(const std::string& field_name) const
+    {
+        if (samples == 0 || !(weight_sum > 0.0)) {
+            throw std::runtime_error("field-error comparison has no samples");
+        }
+        const double l2 = std::sqrt(weighted_squared / weight_sum);
+        const double reference_l2
+            = std::sqrt(weighted_reference_squared / weight_sum);
+        std::cout << "check=field_error field=" << field_name
+                  << " samples=" << samples
+                  << " l1=" << weighted_absolute / weight_sum
+                  << " l2=" << l2
+                  << " linf=" << maximum
+                  << " relative_l2="
+                  << l2 / std::max(reference_l2, std::numeric_limits<double>::min())
+                  << '\n';
+    }
+};
+
+void report_field_errors(
+    const std::string& reference_path,
+    const std::string& value_path)
+{
+    const auto reference = read_fields(reference_path);
+    const auto value = read_fields(value_path);
+    if (reference.size() != value.size() || reference.empty()) {
+        throw std::runtime_error("field-error comparison zone counts differ");
+    }
+    std::map<std::string, FieldErrorStatistics> statistics;
+    double maximum_coordinate_difference = 0.0;
+    for (const auto& [zone_name, reference_zone] : reference) {
+        const auto value_iterator = value.find(zone_name);
+        if (value_iterator == value.end()) {
+            throw std::runtime_error("field-error comparison zone names differ");
+        }
+        const auto& value_zone = value_iterator->second;
+        if (reference_zone.dimension != value_zone.dimension
+            || reference_zone.cells != value_zone.cells
+            || reference_zone.cell_centers.size() != value_zone.cell_centers.size()
+            || reference_zone.fields.size() != value_zone.fields.size()) {
+            throw std::runtime_error("field-error comparison metadata differs");
+        }
+        const auto jacobian = reference_zone.fields.find("Jacobian");
+        for (const auto& [field_name, reference_values] : reference_zone.fields) {
+            const auto& values = require_field(value_zone, field_name);
+            if (reference_values.size() != values.size()) {
+                throw std::runtime_error("field-error comparison array sizes differ");
+            }
+            for (std::size_t cell = 0; cell < values.size(); ++cell) {
+                const double weight = jacobian == reference_zone.fields.end()
+                    ? 1.0 : jacobian->second[cell];
+                statistics[field_name].add(
+                    reference_values[cell], values[cell], weight);
+            }
+        }
+        for (std::size_t cell = 0; cell < reference_zone.cell_centers.size(); ++cell) {
+            for (int axis = 0; axis < reference_zone.dimension; ++axis) {
+                maximum_coordinate_difference = std::max(
+                    maximum_coordinate_difference,
+                    std::abs(reference_zone.cell_centers[cell][static_cast<std::size_t>(axis)]
+                        - value_zone.cell_centers[cell][static_cast<std::size_t>(axis)]));
+            }
+        }
+    }
+    if (maximum_coordinate_difference > 1.0e-12) {
+        throw std::runtime_error("field-error comparison coordinates differ");
+    }
+    std::cout << std::setprecision(17)
+              << "check=field_error_header zones=" << reference.size()
+              << " max_coordinate_difference=" << maximum_coordinate_difference
+              << " weighting="
+              << (statistics.find("Jacobian") == statistics.end()
+                      ? "uniform" : "reference_jacobian")
+              << '\n';
+    for (const auto& [field_name, field_statistics] : statistics) {
+        field_statistics.print(field_name);
+    }
+}
+
 void compare_fields(
     const std::string& lhs_path,
     const std::string& rhs_path,
@@ -1347,6 +1449,8 @@ int main(int argc, char** argv)
     try {
         if (argc == 3 && std::string(argv[1]) == "finite") {
             validate_finite(argv[2]);
+        } else if (argc == 4 && std::string(argv[1]) == "field-error") {
+            report_field_errors(argv[2], argv[3]);
         } else if (argc == 4 && std::string(argv[1]) == "series-constant") {
             validate_constant_series(
                 argv[2], parse_real(argv[3], "tolerance"));
@@ -1434,6 +1538,8 @@ int main(int argc, char** argv)
             std::cerr
                 << "usage:\n"
                    "  wcns_validate_release_case finite <field.cgns>\n"
+                   "  wcns_validate_release_case field-error "
+                   "<reference.cgns> <value.cgns>\n"
                    "  wcns_validate_release_case series-constant <series.txt> <tol>\n"
                    "  wcns_validate_release_case compare <lhs.cgns> <rhs.cgns> <tol>\n"
                    "  wcns_validate_release_case compare-spatial <lhs.cgns> "

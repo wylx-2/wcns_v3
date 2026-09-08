@@ -538,3 +538,15 @@ results/clustered/case01-clustered-256x256.field.step00001625.time3p000000000eM0
 
 每个派生试验都应使用新的 `case.name` 和 `output.directory`，保留独立 manifest，并在记录中
 明确它已不再是本 README 的 case01 基线。
+
+## 9. 本算例引入的程序修改审计
+
+为避免把验收所需功能伪装成“原程序已有”，这里按 Git 记录补充说明。提交 `6ca6e6e` 为
+case01 增加了 `wcns_generate_release_cgns clustered-rectangle` 模式，实现向指定 x/y 内点
+光滑加密的 CGNS 多块网格；同时增加两份配置、驱动脚本和发布验收文档。该提交没有修改
+`src/`、`include/` 下的求解器、度量、边界、MPI 或时间推进实现。提交 `9472350` 仅写入实际
+网格、初终场、日志、验证结果、摘要、散列清单并扩充本报告，没有更改主程序算法。
+
+因此 case01 对 WCNS 可执行程序的唯一配套代码变化是**网格生成工具的新模式**，不是为了让
+既有求解结果通过而修改无粘离散或验收容差。后续如复算得到不同结论，应首先核对可执行文件
+manifest 中的 Git 提交，而不能默认本算例从未影响仓库代码。

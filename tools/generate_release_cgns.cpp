@@ -345,12 +345,27 @@ void generate_periodic_square(
     const std::string& path,
     int cells_i,
     int cells_j,
-    double length)
+    double length,
+    double x_warp_amplitude = 0.0,
+    double y_warp_amplitude = 0.0)
 {
     if (cells_i % 2 != 0 || cells_j % 2 != 0
         || !std::isfinite(length) || length <= 0.0) {
         throw std::invalid_argument(
             "periodic-square requires even cell counts and positive finite length");
+    }
+    if (!std::isfinite(x_warp_amplitude)
+        || !std::isfinite(y_warp_amplitude)
+        || x_warp_amplitude < 0.0 || y_warp_amplitude < 0.0) {
+        throw std::invalid_argument(
+            "periodic-square warp amplitudes must be finite and nonnegative");
+    }
+    constexpr double pi = 3.141592653589793238462643383279502884;
+    const double maximum_cross_product = 8.0 * pi * pi
+        * x_warp_amplitude * y_warp_amplitude / (length * length);
+    if (!(maximum_cross_product < 1.0)) {
+        throw std::invalid_argument(
+            "periodic-square warp can produce a non-positive mapping Jacobian");
     }
     const int local_i = cells_i / 2;
     const int local_j = cells_j / 2;
@@ -380,12 +395,19 @@ void generate_periodic_square(
                 for (int j = 0; j < nj; ++j) {
                     for (int i = 0; i < ni; ++i) {
                         const auto index = static_cast<std::size_t>(j * ni + i);
-                        x[index] = length
+                        const double xi = length
                             * static_cast<double>(zone_i * local_i + i)
                             / static_cast<double>(cells_i);
-                        y[index] = length
+                        const double eta = length
                             * static_cast<double>(zone_j * local_j + j)
                             / static_cast<double>(cells_j);
+                        // This is the x/y mapping used by the case03 reference
+                        // Isentropic_curl.cpp.  Its periodicity also makes the
+                        // existing translational CGNS 1-to-1 links exact.
+                        x[index] = xi + x_warp_amplitude
+                            * std::sin(2.0 * pi * eta / length);
+                        y[index] = eta + y_warp_amplitude
+                            * std::sin(4.0 * pi * xi / length);
                     }
                 }
                 int coordinate = 0;
@@ -614,12 +636,15 @@ void generate_periodic_channel(
 
 int main(int argc, char** argv)
 {
-    if (argc != 12 && argc != 9 && argc != 6 && argc != 5) {
+    if (argc != 12 && argc != 9 && argc != 8 && argc != 6 && argc != 5) {
         std::cerr
             << "usage: wcns_generate_release_cgns <output.cgns> <dimension> "
                "<cells_i> <cells_j> <cells_k> <zones_i> <warp> <periodic_x>\n"
                "   or: wcns_generate_release_cgns periodic-square <output.cgns> "
                "<cells_i> <cells_j> <length>\n"
+               "   or: wcns_generate_release_cgns warped-periodic-square "
+               "<output.cgns> <cells_i> <cells_j> <length> "
+               "<x_warp_amplitude> <y_warp_amplitude>\n"
                "   or: wcns_generate_release_cgns rectangle <output.cgns> "
                "<cells_i> <cells_j> <zones_i> <length_x> <length_y> "
                "<periodic_x>\n"
@@ -652,6 +677,16 @@ int main(int argc, char** argv)
                 parse_positive(argv[3], "cells_i"),
                 parse_positive(argv[4], "cells_j"),
                 parse_positive_real(argv[5], "length"));
+        } else if (argc == 8
+                   && std::string(argv[1]) == "warped-periodic-square") {
+            output = argv[2];
+            generate_periodic_square(
+                output,
+                parse_positive(argv[3], "cells_i"),
+                parse_positive(argv[4], "cells_j"),
+                parse_positive_real(argv[5], "length"),
+                parse_nonnegative_real(argv[6], "x_warp_amplitude"),
+                parse_nonnegative_real(argv[7], "y_warp_amplitude"));
         } else if (argc == 12 && std::string(argv[1]) == "periodic-channel") {
             output = argv[2];
             generate_periodic_channel(
