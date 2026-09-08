@@ -253,8 +253,10 @@ TemperaturePrimitiveState isentropic_vortex_state(
     const Real x0 = config.parameter("x0", 5.0);
     const Real y0 = config.parameter("y0", 5.0);
     const Real beta = config.parameter("beta", 5.0);
-    const Real dx = x - x0;
-    const Real dy = y - y0;
+    const Real period_x = config.parameter("period_x", 0.0);
+    const Real period_y = config.parameter("period_y", 0.0);
+    const Real dx = period_x > 0.0 ? std::remainder(x - x0, period_x) : x - x0;
+    const Real dy = period_y > 0.0 ? std::remainder(y - y0, period_y) : y - y0;
     const Real radius_squared = dx * dx + dy * dy;
     const Real exponential = std::exp(0.5 * (1.0 - radius_squared));
     const Real u = config.parameter("background_u", 1.0)

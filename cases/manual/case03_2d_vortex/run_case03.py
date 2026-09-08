@@ -89,6 +89,8 @@ def sha256(path: Path) -> str:
 
 
 def parse_value(value: str) -> object:
+    if re.fullmatch(r"[-+]?\d+", value):
+        return int(value)
     try:
         numeric = float(value)
     except ValueError:
@@ -193,14 +195,22 @@ def main() -> int:
                     [str(validator), "finite", str(field)],
                     CASE_DIR / f"validation/{name}-{label}-finite.txt",
                 ))
-            records.append(execute(
-                [
-                    str(validator), "vortex", str(final), "10.0", "10.0",
-                    "5.0", "5.0", "5.0", "1.0", "1.0", "1.4",
-                    str(mach), str(args.vortex_density_l1_tolerance),
-                ],
-                CASE_DIR / f"validation/{name}-analytic-error.txt",
-            ))
+            analytic_errors: dict[str, object] = {}
+            for label, field, time in (
+                ("initial", initial, 0.0),
+                ("final", final, 10.0),
+            ):
+                analytic_log = CASE_DIR / f"validation/{name}-{label}-analytic-error.txt"
+                records.append(execute(
+                    [
+                        str(validator), "vortex", str(field), str(time), "10.0",
+                        "5.0", "5.0", "5.0", "1.0", "1.0", "1.4",
+                        str(mach), str(args.vortex_density_l1_tolerance),
+                    ],
+                    analytic_log,
+                ))
+                parsed = parse_records(analytic_log, "check=isentropic_vortex")
+                analytic_errors[label] = parsed[0] if len(parsed) == 1 else parsed
             field_error_log = CASE_DIR / f"validation/{name}-initial-final-error.txt"
             records.append(execute(
                 [str(validator), "field-error", str(initial), str(final)],
@@ -214,15 +224,11 @@ def main() -> int:
                 ],
                 conservation_log,
             ))
-            analytic = parse_records(
-                CASE_DIR / f"validation/{name}-analytic-error.txt",
-                "check=isentropic_vortex",
-            )
             profiles[name] = {
                 "manifest": run_manifest,
                 "initial_field": str(initial.relative_to(CASE_DIR)),
                 "final_field": str(final.relative_to(CASE_DIR)),
-                "analytic_error": analytic[0] if len(analytic) == 1 else analytic,
+                "analytic_errors": analytic_errors,
                 "initial_final_errors": parse_records(
                     field_error_log, "check=field_error field="
                 ),
@@ -236,6 +242,24 @@ def main() -> int:
             return 0
 
         metric_log = CASE_DIR / "validation/metric-profile-comparison.txt"
+        metric_profiles = parse_records(metric_log, "profile=")
+        metric_differences = parse_records(metric_log, "comparison=")
+        if len(metric_profiles) != 2:
+            raise RuntimeError("metric comparison did not report both profiles")
+        for metric in metric_profiles:
+            if metric["fallback_cells"] != 0:
+                raise RuntimeError("metric construction used a forbidden fallback")
+            if abs(float(metric["volume_sum"]) - 100.0) > 1.0e-10:
+                raise RuntimeError("metric volume sum is inconsistent with the domain area")
+            if float(metric["max_reference_relative_difference"]) > 1.0e-3:
+                raise RuntimeError("high-order Jacobian differs excessively from cell volume")
+            if float(metric["gcl_closure_linf"]) > 1.0e-10:
+                raise RuntimeError("metric geometric-conservation closure exceeds tolerance")
+        for metric in metric_differences:
+            if metric["comparison"] == "jacobian" \
+                    and float(metric["relative_linf"]) > 1.0e-3:
+                raise RuntimeError("profile Jacobians differ beyond the case03 tolerance")
+
         summary = {
             "case": "case03_2d_isentropic_vortex_warped_grid",
             "status": "passed",
@@ -269,8 +293,14 @@ def main() -> int:
                 "time_integrator": "ssprk3",
                 "cfl": 0.5,
             },
-            "metric_profiles": parse_records(metric_log, "profile="),
-            "metric_differences": parse_records(metric_log, "comparison="),
+            "metric_acceptance": {
+                "maximum_volume_sum_error": 1.0e-10,
+                "maximum_reference_relative_difference": 1.0e-3,
+                "maximum_gcl_closure_linf": 1.0e-10,
+                "maximum_cross_profile_jacobian_relative_linf": 1.0e-3,
+            },
+            "metric_profiles": metric_profiles,
+            "metric_differences": metric_differences,
             "profiles": profiles,
             "records": records,
         }

@@ -231,6 +231,7 @@ const std::set<std::string>& fixed_keys()
         "initial.lower_temperature", "initial.upper_temperature",
         "initial.temperature_curvature", "initial.velocity_curvature",
         "initial.beta", "initial.background_u", "initial.background_v",
+        "initial.period_x", "initial.period_y",
         "initial.left_rho", "initial.left_u", "initial.left_v", "initial.left_p",
         "initial.right_rho", "initial.right_u", "initial.right_v", "initial.right_p",
         "initial.ne_rho", "initial.ne_u", "initial.ne_v", "initial.ne_p",
@@ -506,6 +507,12 @@ void InitialConditionConfig::validate(int dimension) const
             && parameter("pressure", 0.0) <= 0.0)) {
         throw CaseConfigurationError(
             "initial density, temperature and pressure must be positive");
+    }
+    if (type == "isentropic_vortex"
+        && (parameter("period_x", 0.0) < 0.0
+            || parameter("period_y", 0.0) < 0.0)) {
+        throw CaseConfigurationError(
+            "isentropic-vortex periods must be zero or positive");
     }
     if (type == "couette" || type == "poiseuille"
         || type == "linear_conduction") {

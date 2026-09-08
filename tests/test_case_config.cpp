@@ -148,6 +148,16 @@ void test_case_config()
                 valid_config()
                 + "boundary.bad.type = farfield\n"
                   "boundary.bad.wall_temperature = 1\n"));
+
+        auto invalid_vortex_period = valid_config();
+        const auto initial_type = invalid_vortex_period.find("initial.type = uniform");
+        invalid_vortex_period.replace(
+            initial_type,
+            std::string("initial.type = uniform").size(),
+            "initial.type = isentropic_vortex\ninitial.period_x = -10");
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(invalid_vortex_period));
     }
     {
         auto two_gas_inputs = valid_config()

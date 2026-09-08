@@ -97,7 +97,9 @@ Riemann 求解器；发生非法中间状态时按冻结的确定性回退链处
 - `uniform`：`rho,u,v,w`，以及 `temperature` 或 `pressure`；
 - `sod_x`：`x0` 和 `left_/right_` 前缀的 `rho,u,v,p`；
 - `quadrant_riemann`：`x0,y0` 和 `ne_/nw_/sw_/se_` 前缀的 `rho,u,v,p`；
-- `isentropic_vortex`：`x0,y0,beta,background_u,background_v`；
+- `isentropic_vortex`：`x0,y0,beta,background_u,background_v,period_x,period_y`；
+  `period_x/period_y` 缺省或为零时使用普通距离，正值时分别使用该周期内的最短有符号距离。
+  双向周期扭曲网格必须显式给出周期，避免超出坐标包围盒的周期映像破坏初场连续性；
 - `couette`：`y0,y1,lower_velocity,upper_velocity,lower_temperature,`
   `upper_temperature,velocity_curvature,temperature_curvature,pressure`；速度和温度分别为
   端点线性插值加 `velocity_curvature*eta*(1-eta)` 与

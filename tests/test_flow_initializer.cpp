@@ -122,6 +122,19 @@ void test_flow_initializer()
             center[0],
             std::pow(expected_temperature, 1.0 / (gas.gamma() - 1.0)),
             1.0e-14);
+
+        config.parameters["period_x"] = 10.0;
+        config.parameters["period_y"] = 10.0;
+        const auto lower_periodic = FlowInitializer::evaluate(
+            config, {-0.25, 5.1, 0.0},
+            gas, reference, floors, 2);
+        const auto upper_periodic = FlowInitializer::evaluate(
+            config, {9.75, 5.1, 0.0},
+            gas, reference, floors, 2);
+        for (std::size_t component = 0; component < lower_periodic.size(); ++component) {
+            WCNS_REQUIRE_NEAR(
+                lower_periodic[component], upper_periodic[component], 1.0e-14);
+        }
     }
     {
         InitialConditionConfig config;

@@ -26,6 +26,8 @@ initial.y0 = 5.0
 initial.beta = 5.0
 initial.background_u = 1.0
 initial.background_v = 1.0
+initial.period_x = 10.0
+initial.period_y = 10.0
 
 boundary.default = farfield
 source.enabled = false
