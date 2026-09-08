@@ -159,4 +159,25 @@ void test_flow_initializer()
             0.6,
             1.0e-14);
     }
+    {
+        InitialConditionConfig config;
+        config.type = "poiseuille";
+        config.parameters = {
+            {"y0", 0.0}, {"y1", 2.0}, {"centerline_velocity", 0.75},
+            {"temperature", 1.0}, {"temperature_curvature", 0.048},
+            {"pressure", 0.8},
+        };
+        const auto wall = FlowInitializer::evaluate(
+            config, {0.0, 0.0, 0.0}, gas, reference, floors, 3);
+        const auto center = FlowInitializer::evaluate(
+            config, {0.0, 1.0, 0.0}, gas, reference, floors, 3);
+        WCNS_REQUIRE_NEAR(wall[1], 0.0, 1.0e-14);
+        WCNS_REQUIRE_NEAR(wall[4], 1.0, 1.0e-14);
+        WCNS_REQUIRE_NEAR(center[1], 0.75, 1.0e-14);
+        WCNS_REQUIRE_NEAR(center[4], 1.001, 1.0e-14);
+        WCNS_REQUIRE_NEAR(
+            pressure_primitive(center, gas, reference, floors, 3)[4],
+            0.8,
+            1.0e-14);
+    }
 }

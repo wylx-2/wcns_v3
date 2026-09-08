@@ -186,6 +186,7 @@ SourceModelKind parse_source_model(const std::string& value)
 {
     if (value == "uniform_conservative") return SourceModelKind::UniformConservative;
     if (value == "body_force") return SourceModelKind::BodyForce;
+    if (value == "pressure_gradient") return SourceModelKind::PressureGradient;
     if (value == "manufactured") return SourceModelKind::ManufacturedSolution;
     throw CaseConfigurationError("unknown source model: " + value);
 }
@@ -226,6 +227,7 @@ const std::set<std::string>& fixed_keys()
         "initial.type", "initial.rho", "initial.u", "initial.v", "initial.w",
         "initial.pressure", "initial.temperature", "initial.x0", "initial.y0",
         "initial.y1", "initial.lower_velocity", "initial.upper_velocity",
+        "initial.centerline_velocity",
         "initial.lower_temperature", "initial.upper_temperature",
         "initial.temperature_curvature", "initial.velocity_curvature",
         "initial.beta", "initial.background_u", "initial.background_v",
@@ -239,7 +241,9 @@ const std::set<std::string>& fixed_keys()
         "source.uniform.rho", "source.uniform.momentum_x",
         "source.uniform.momentum_y", "source.uniform.momentum_z",
         "source.uniform.energy", "source.body.ax", "source.body.ay",
-        "source.body.az", "source.manufactured.rho",
+        "source.body.az", "source.pressure_gradient.x",
+        "source.pressure_gradient.y", "source.pressure_gradient.z",
+        "source.manufactured.rho",
         "source.manufactured.momentum_x", "source.manufactured.momentum_y",
         "source.manufactured.momentum_z", "source.manufactured.energy",
         "run.mode", "run.viscous", "run.cfl", "run.max_steps",
@@ -481,7 +485,7 @@ void InitialConditionConfig::validate(int dimension) const
 {
     static const std::set<std::string> valid_types {
         "uniform", "quadrant_riemann", "sod_x", "isentropic_vortex",
-        "couette", "linear_conduction", "manufactured_periodic",
+        "couette", "poiseuille", "linear_conduction", "manufactured_periodic",
     };
     if (valid_types.find(type) == valid_types.end()) {
         throw CaseConfigurationError("unknown initial condition type: " + type);
@@ -503,18 +507,32 @@ void InitialConditionConfig::validate(int dimension) const
         throw CaseConfigurationError(
             "initial density, temperature and pressure must be positive");
     }
-    if (type == "couette" || type == "linear_conduction") {
+    if (type == "couette" || type == "poiseuille"
+        || type == "linear_conduction") {
         const Real y0 = parameter("y0", 0.0);
         const Real y1 = parameter("y1", 1.0);
+        if (!(y1 > y0) || parameter("pressure", 1.0) <= 0.0) {
+            throw CaseConfigurationError(
+                "analytic viscous initial bounds and pressure are invalid");
+        }
+        if (type == "poiseuille") {
+            const Real wall_temperature = parameter("temperature", 1.0);
+            const Real thermal_amplitude = parameter("temperature_curvature", 0.0);
+            if (wall_temperature <= 0.0
+                || wall_temperature + std::min(Real {0.0}, thermal_amplitude) / 48.0
+                    <= 0.0) {
+                throw CaseConfigurationError(
+                    "Poiseuille initial temperature profile is not positive");
+            }
+            return;
+        }
         const Real lower_temperature = parameter(
             "lower_temperature", parameter("temperature", 1.0));
         const Real upper_temperature = parameter(
             "upper_temperature", parameter("temperature", 1.0));
-        if (!(y1 > y0) || lower_temperature <= 0.0
-            || upper_temperature <= 0.0
-            || parameter("pressure", 1.0) <= 0.0) {
+        if (lower_temperature <= 0.0 || upper_temperature <= 0.0) {
             throw CaseConfigurationError(
-                "analytic viscous initial bounds, pressure and temperatures are invalid");
+                "analytic viscous initial temperatures are invalid");
         }
         if (type == "couette") {
             const Real curvature = parameter("temperature_curvature", 0.0);
@@ -928,6 +946,11 @@ CaseConfig CaseConfig::from_text(const std::string& text)
         optional_real(entries, "source.body.ax", 0.0),
         optional_real(entries, "source.body.ay", 0.0),
         optional_real(entries, "source.body.az", 0.0),
+    }};
+    result.source_terms.pressure_gradient = {{
+        optional_real(entries, "source.pressure_gradient.x", 0.0),
+        optional_real(entries, "source.pressure_gradient.y", 0.0),
+        optional_real(entries, "source.pressure_gradient.z", 0.0),
     }};
 
     result.run.mode = parse_run_mode(require(entries, "run.mode"));

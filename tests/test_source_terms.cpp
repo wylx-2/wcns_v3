@@ -19,7 +19,7 @@ void test_source_terms()
     WCNS_REQUIRE(disabled.summary() == "enable_source_terms=false;models=");
     WCNS_REQUIRE(
         disabled.restart_signature()
-        == "source_terms_v2;enable_source_terms=false;models=");
+        == "source_terms_v3;enable_source_terms=false;models=");
 
     WCNS_REQUIRE_THROWS(
         std::invalid_argument,
@@ -47,6 +47,20 @@ void test_source_terms()
     WCNS_REQUIRE_THROWS(
         std::logic_error,
         SourceTermRegistry::create_stage_h(valid_but_unavailable));
+
+    SourceTermConfig pressure_gradient;
+    pressure_gradient.enable_source_terms = true;
+    pressure_gradient.models = {SourceModelKind::PressureGradient};
+    pressure_gradient.pressure_gradient = {{0.8, -0.1, 0.2}};
+    const auto pressure_registry
+        = SourceTermRegistry::create_stage_j(pressure_gradient);
+    const auto pressure_source = pressure_registry.evaluate(
+        {{2.0, 1.0, 4.0, -2.0, 10.0}}, {{0.0, 0.0, 0.0}}, 0.0, 3);
+    WCNS_REQUIRE_NEAR(pressure_source[0], 0.0, 0.0);
+    WCNS_REQUIRE_NEAR(pressure_source[1], 0.8, 0.0);
+    WCNS_REQUIRE_NEAR(pressure_source[2], -0.1, 0.0);
+    WCNS_REQUIRE_NEAR(pressure_source[3], 0.2, 0.0);
+    WCNS_REQUIRE_NEAR(pressure_source[4], 0.0, 1.0e-15);
 
     SpatialParameters parameters;
     parameters.validate();

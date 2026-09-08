@@ -50,11 +50,16 @@ bool is_reciprocal(
         && candidate.periodic == connection.periodic.inverse();
 }
 
-bool coordinates_match(Real receiver, Real donor)
+bool coordinates_match(Real receiver, Real donor, bool cgns_periodic_transform)
 {
     const Real scale = std::max({Real {1}, std::abs(receiver), std::abs(donor)});
+    const Real transform_tolerance = cgns_periodic_transform
+        ? Real {8} * std::numeric_limits<float>::epsilon() * scale
+        : Real {0};
     return std::abs(receiver - donor)
-        <= Real {256} * std::numeric_limits<Real>::epsilon() * scale;
+        <= std::max(
+            Real {256} * std::numeric_limits<Real>::epsilon() * scale,
+            transform_tolerance);
 }
 
 void validate_interface_coordinates(
@@ -63,6 +68,8 @@ void validate_interface_coordinates(
     const ConnectivityPatch& connection)
 {
     const auto counts = connection.receiver_vertex_range.counts();
+    const bool cgns_periodic_transform
+        = !(connection.periodic == PeriodicTransform {});
     for (int k = 0; k < counts.nk; ++k) {
         for (int j = 0; j < counts.nj; ++j) {
             for (int i = 0; i < counts.ni; ++i) {
@@ -76,9 +83,12 @@ void validate_interface_coordinates(
                 const auto expected_donor
                     = connection.periodic.apply_point(coordinate(receiver, receiver_index));
                 const auto actual_donor = coordinate(donor, donor_index);
-                if (!coordinates_match(expected_donor[0], actual_donor[0])
-                    || !coordinates_match(expected_donor[1], actual_donor[1])
-                    || !coordinates_match(expected_donor[2], actual_donor[2])) {
+                if (!coordinates_match(
+                        expected_donor[0], actual_donor[0], cgns_periodic_transform)
+                    || !coordinates_match(
+                        expected_donor[1], actual_donor[1], cgns_periodic_transform)
+                    || !coordinates_match(
+                        expected_donor[2], actual_donor[2], cgns_periodic_transform)) {
                     throw TopologyError(
                         "connectivity " + connection.name
                         + " maps vertices with different physical coordinates");

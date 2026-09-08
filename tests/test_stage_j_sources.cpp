@@ -56,7 +56,7 @@ void test_stage_j_source_models()
     WCNS_REQUIRE_NEAR(source[2], 3.0 - 0.5 + 0.3 * shape, 1.0e-14);
     WCNS_REQUIRE(source[3] == 0.0);
     WCNS_REQUIRE_NEAR(source[4], 4.0 + 1.5 + 0.4 * shape, 1.0e-14);
-    WCNS_REQUIRE(config.restart_signature().find("source_terms_v2;") == 0);
+    WCNS_REQUIRE(config.restart_signature().find("source_terms_v3;") == 0);
 
     auto invalid = config;
     invalid.body_acceleration[2] = 1.0;

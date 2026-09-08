@@ -50,6 +50,17 @@ double parse_positive_real(const char* text, const char* name)
     return value;
 }
 
+double parse_nonnegative_real(const char* text, const char* name)
+{
+    std::size_t consumed = 0;
+    const double value = std::stod(text, &consumed);
+    if (consumed != std::string(text).size() || !std::isfinite(value)
+        || value < 0.0) {
+        throw std::invalid_argument(std::string(name) + " must be finite and nonnegative");
+    }
+    return value;
+}
+
 double clustered_unit_coordinate(double logical, double center, double strength)
 {
     if (!(center > 0.0 && center < 1.0) || !(strength > 0.0)) {
@@ -64,6 +75,16 @@ double clustered_unit_coordinate(double logical, double center, double strength)
     return center + (1.0 - center)
         * std::sinh(strength * (logical - center) / (1.0 - center))
         / denominator;
+}
+
+double wall_clustered_unit_coordinate(double logical, double strength)
+{
+    if (strength == 0.0) return logical;
+    if (!(strength > 0.0) || !std::isfinite(strength)) {
+        throw std::invalid_argument("wall-cluster strength must be finite and nonnegative");
+    }
+    return 0.5 * (1.0
+        + std::tanh(strength * (2.0 * logical - 1.0)) / std::tanh(strength));
 }
 
 bool parse_bool(const char* text)
@@ -435,6 +456,160 @@ void generate_periodic_square(
     }
 }
 
+void generate_periodic_channel(
+    const std::string& path,
+    int cells_i,
+    int cells_j,
+    int cells_k,
+    int zones_i,
+    int zones_k,
+    double length_x,
+    double length_y,
+    double length_z,
+    double wall_cluster_strength)
+{
+    if (cells_i % zones_i != 0 || cells_k % zones_k != 0
+        || zones_i < 2 || zones_k < 2
+        || !(length_x > 0.0) || !(length_y > 0.0) || !(length_z > 0.0)
+        || !std::isfinite(wall_cluster_strength) || wall_cluster_strength < 0.0) {
+        throw std::invalid_argument(
+            "periodic-channel requires divisible cell counts, at least two zones "
+            "in each periodic direction, positive lengths and nonnegative clustering");
+    }
+    const int local_i = cells_i / zones_i;
+    const int local_k = cells_k / zones_k;
+    const int ni = local_i + 1;
+    const int nj = cells_j + 1;
+    const int nk = local_k + 1;
+    const auto channel_zone_name = [zones_i](int zone_i, int zone_k) {
+        return "Zone" + std::to_string(zone_k * zones_i + zone_i + 1);
+    };
+
+    int file = 0;
+    check_cgns(cg_open(path.c_str(), CG_MODE_WRITE, &file), "cg_open periodic channel");
+    try {
+        int base = 0;
+        check_cgns(
+            cg_base_write(file, "WCNSPeriodicChannel", 3, 3, &base),
+            "cg_base_write periodic channel");
+        for (int zone_k = 0; zone_k < zones_k; ++zone_k) {
+            for (int zone_i = 0; zone_i < zones_i; ++zone_i) {
+                const auto name = channel_zone_name(zone_i, zone_k);
+                cgsize_t size[9] = {
+                    ni, nj, nk, local_i, cells_j, local_k, 0, 0, 0,
+                };
+                int zone = 0;
+                check_cgns(
+                    cg_zone_write(
+                        file, base, name.c_str(), size, Structured, &zone),
+                    "cg_zone_write periodic channel");
+                const std::size_t count = static_cast<std::size_t>(ni)
+                    * static_cast<std::size_t>(nj) * static_cast<std::size_t>(nk);
+                std::vector<double> x(count);
+                std::vector<double> y(count);
+                std::vector<double> z(count);
+                for (int k = 0; k < nk; ++k) {
+                    const int global_k = zone_k * local_k + k;
+                    const double zeta
+                        = static_cast<double>(global_k) / static_cast<double>(cells_k);
+                    for (int j = 0; j < nj; ++j) {
+                        const double eta
+                            = static_cast<double>(j) / static_cast<double>(cells_j);
+                        for (int i = 0; i < ni; ++i) {
+                            const int global_i = zone_i * local_i + i;
+                            const double xi
+                                = static_cast<double>(global_i) / static_cast<double>(cells_i);
+                            const auto index
+                                = static_cast<std::size_t>((k * nj + j) * ni + i);
+                            x[index] = length_x * xi;
+                            y[index] = length_y
+                                * wall_clustered_unit_coordinate(eta, wall_cluster_strength);
+                            z[index] = length_z * zeta;
+                        }
+                    }
+                }
+                int coordinate = 0;
+                check_cgns(
+                    cg_coord_write(
+                        file, base, zone, RealDouble,
+                        "CoordinateX", x.data(), &coordinate),
+                    "cg_coord_write periodic channel X");
+                check_cgns(
+                    cg_coord_write(
+                        file, base, zone, RealDouble,
+                        "CoordinateY", y.data(), &coordinate),
+                    "cg_coord_write periodic channel Y");
+                check_cgns(
+                    cg_coord_write(
+                        file, base, zone, RealDouble,
+                        "CoordinateZ", z.data(), &coordinate),
+                    "cg_coord_write periodic channel Z");
+                write_boundary(
+                    file, base, zone, "bottom", {1, 1, 1, ni, 1, nk});
+                write_boundary(
+                    file, base, zone, "top", {1, nj, 1, ni, nj, nk});
+            }
+        }
+
+        for (int zone_k = 0; zone_k < zones_k; ++zone_k) {
+            for (int zone_i = 0; zone_i < zones_i; ++zone_i) {
+                const int zone = zone_k * zones_i + zone_i + 1;
+                const int previous_i = (zone_i + zones_i - 1) % zones_i;
+                const int next_i = (zone_i + 1) % zones_i;
+                const int previous_k = (zone_k + zones_k - 1) % zones_k;
+                const int next_k = (zone_k + 1) % zones_k;
+                const auto add = [&] (
+                    const std::string& name,
+                    const std::string& donor,
+                    const std::vector<cgsize_t>& range,
+                    const std::vector<cgsize_t>& donor_range,
+                    std::array<float, 3> translation) {
+                    const int connection = write_connection(
+                        file, base, zone, name, donor,
+                        range, donor_range, 3);
+                    if (translation[0] != 0.0F || translation[2] != 0.0F) {
+                        std::array<float, 3> center {{0.0F, 0.0F, 0.0F}};
+                        std::array<float, 3> angle {{0.0F, 0.0F, 0.0F}};
+                        check_cgns(
+                            cg_1to1_periodic_write(
+                                file, base, zone, connection,
+                                center.data(), angle.data(), translation.data()),
+                            "cg_1to1_periodic_write periodic channel");
+                    }
+                };
+                add(
+                    "imin", channel_zone_name(previous_i, zone_k),
+                    {1, 1, 1, 1, nj, nk},
+                    {ni, 1, 1, ni, nj, nk},
+                    {{zone_i == 0 ? static_cast<float>(length_x) : 0.0F, 0.0F, 0.0F}});
+                add(
+                    "imax", channel_zone_name(next_i, zone_k),
+                    {ni, 1, 1, ni, nj, nk},
+                    {1, 1, 1, 1, nj, nk},
+                    {{zone_i + 1 == zones_i ? -static_cast<float>(length_x) : 0.0F,
+                      0.0F, 0.0F}});
+                add(
+                    "kmin", channel_zone_name(zone_i, previous_k),
+                    {1, 1, 1, ni, nj, 1},
+                    {1, 1, nk, ni, nj, nk},
+                    {{0.0F, 0.0F,
+                      zone_k == 0 ? static_cast<float>(length_z) : 0.0F}});
+                add(
+                    "kmax", channel_zone_name(zone_i, next_k),
+                    {1, 1, nk, ni, nj, nk},
+                    {1, 1, 1, ni, nj, 1},
+                    {{0.0F, 0.0F,
+                      zone_k + 1 == zones_k ? -static_cast<float>(length_z) : 0.0F}});
+            }
+        }
+        check_cgns(cg_close(file), "cg_close periodic channel");
+        file = 0;
+    } catch (...) {
+        if (file != 0) cg_close(file);
+        throw;
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -452,6 +627,10 @@ int main(int argc, char** argv)
                "<output.cgns> <cells_i> <cells_j> <zones_i> "
                "<length_x> <length_y> <cluster_x> <cluster_y> "
                "<strength> <periodic_x>\n"
+               "   or: wcns_generate_release_cgns periodic-channel "
+               "<output.cgns> <cells_i> <cells_j> <cells_k> "
+               "<zones_i> <zones_k> <length_x> <length_y> <length_z> "
+               "<wall_cluster_strength>\n"
                "   or: wcns_generate_release_cgns invalid-one-sided "
                "<output.cgns> <cells_i> <cells_j>\n";
         return EXIT_FAILURE;
@@ -473,6 +652,19 @@ int main(int argc, char** argv)
                 parse_positive(argv[3], "cells_i"),
                 parse_positive(argv[4], "cells_j"),
                 parse_positive_real(argv[5], "length"));
+        } else if (argc == 12 && std::string(argv[1]) == "periodic-channel") {
+            output = argv[2];
+            generate_periodic_channel(
+                output,
+                parse_positive(argv[3], "cells_i"),
+                parse_positive(argv[4], "cells_j"),
+                parse_positive(argv[5], "cells_k"),
+                parse_positive(argv[6], "zones_i"),
+                parse_positive(argv[7], "zones_k"),
+                parse_positive_real(argv[8], "length_x"),
+                parse_positive_real(argv[9], "length_y"),
+                parse_positive_real(argv[10], "length_z"),
+                parse_nonnegative_real(argv[11], "wall_cluster_strength"));
         } else if (argc == 12 && std::string(argv[1]) == "clustered-rectangle") {
             output = argv[2];
             const double length_x = parse_positive_real(argv[6], "length_x");

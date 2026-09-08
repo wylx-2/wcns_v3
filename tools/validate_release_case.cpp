@@ -1173,6 +1173,135 @@ void validate_viscous_profile(
     std::cout << '\n';
 }
 
+void validate_poiseuille_profile(
+    const std::string& path,
+    double y0,
+    double y1,
+    double centerline_velocity,
+    double velocity_l2_tolerance,
+    double crossflow_tolerance,
+    double pressure_span_tolerance,
+    double homogeneity_tolerance)
+{
+    if (!(y1 > y0) || !std::isfinite(centerline_velocity)) {
+        throw std::invalid_argument("Poiseuille profile bounds and velocity are invalid");
+    }
+    require_tolerance(velocity_l2_tolerance);
+    require_tolerance(crossflow_tolerance);
+    require_tolerance(pressure_span_tolerance);
+    require_tolerance(homogeneity_tolerance);
+    struct LayerRange {
+        std::array<double, 6> minimum;
+        std::array<double, 6> maximum;
+        LayerRange()
+        {
+            minimum.fill(std::numeric_limits<double>::infinity());
+            maximum.fill(-std::numeric_limits<double>::infinity());
+        }
+    };
+    std::map<long long, LayerRange> layers;
+    const auto file = read_fields(path);
+    double weighted_squared_error = 0.0;
+    double weighted_velocity = 0.0;
+    double total_volume = 0.0;
+    double maximum_velocity_error = 0.0;
+    double maximum_crossflow = 0.0;
+    double minimum_pressure = std::numeric_limits<double>::infinity();
+    double maximum_pressure = -std::numeric_limits<double>::infinity();
+    double minimum_density = std::numeric_limits<double>::infinity();
+    double maximum_density = -std::numeric_limits<double>::infinity();
+    double minimum_temperature = std::numeric_limits<double>::infinity();
+    double maximum_temperature = -std::numeric_limits<double>::infinity();
+    std::size_t cells = 0;
+    for (const auto& [zone_name, zone] : file) {
+        static_cast<void>(zone_name);
+        if (zone.dimension != 3) {
+            throw std::runtime_error("Poiseuille profile requires a three-dimensional field");
+        }
+        const auto& density = require_field(zone, "Density");
+        const auto& velocity_x = require_field(zone, "VelocityX");
+        const auto& velocity_y = require_field(zone, "VelocityY");
+        const auto& velocity_z = require_field(zone, "VelocityZ");
+        const auto& pressure = require_field(zone, "Pressure");
+        const auto& temperature = require_field(zone, "Temperature");
+        const auto& jacobian = require_field(zone, "Jacobian");
+        for (std::size_t cell = 0; cell < zone.cell_centers.size(); ++cell) {
+            const double eta = (zone.cell_centers[cell][1] - y0) / (y1 - y0);
+            if (!(eta > 0.0 && eta < 1.0) || !(jacobian[cell] > 0.0)) {
+                throw std::runtime_error("Poiseuille cell center or Jacobian is invalid");
+            }
+            const double exact_velocity
+                = 4.0 * centerline_velocity * eta * (1.0 - eta);
+            const double error = velocity_x[cell] - exact_velocity;
+            weighted_squared_error += error * error * jacobian[cell];
+            weighted_velocity += velocity_x[cell] * jacobian[cell];
+            total_volume += jacobian[cell];
+            maximum_velocity_error = std::max(maximum_velocity_error, std::abs(error));
+            maximum_crossflow = std::max({
+                maximum_crossflow,
+                std::abs(velocity_y[cell]),
+                std::abs(velocity_z[cell]),
+            });
+            minimum_pressure = std::min(minimum_pressure, pressure[cell]);
+            maximum_pressure = std::max(maximum_pressure, pressure[cell]);
+            minimum_density = std::min(minimum_density, density[cell]);
+            maximum_density = std::max(maximum_density, density[cell]);
+            minimum_temperature = std::min(minimum_temperature, temperature[cell]);
+            maximum_temperature = std::max(maximum_temperature, temperature[cell]);
+            auto& layer = layers[std::llround(zone.cell_centers[cell][1] * 1.0e12)];
+            const std::array<double, 6> values {{
+                density[cell], velocity_x[cell], velocity_y[cell], velocity_z[cell],
+                pressure[cell], temperature[cell],
+            }};
+            for (std::size_t component = 0; component < values.size(); ++component) {
+                if (!std::isfinite(values[component])) {
+                    throw std::runtime_error("Poiseuille field contains a non-finite value");
+                }
+                layer.minimum[component]
+                    = std::min(layer.minimum[component], values[component]);
+                layer.maximum[component]
+                    = std::max(layer.maximum[component], values[component]);
+            }
+            ++cells;
+        }
+    }
+    if (cells == 0 || !(total_volume > 0.0)) {
+        throw std::runtime_error("Poiseuille profile contains no cells");
+    }
+    double maximum_homogeneity_span = 0.0;
+    for (const auto& [y, layer] : layers) {
+        static_cast<void>(y);
+        for (std::size_t component = 0; component < layer.minimum.size(); ++component) {
+            maximum_homogeneity_span = std::max(
+                maximum_homogeneity_span,
+                layer.maximum[component] - layer.minimum[component]);
+        }
+    }
+    const double velocity_l2 = std::sqrt(weighted_squared_error / total_volume);
+    const double bulk_velocity = weighted_velocity / total_volume;
+    const double exact_bulk_velocity = (2.0 / 3.0) * centerline_velocity;
+    const double pressure_span = maximum_pressure - minimum_pressure;
+    if (velocity_l2 > velocity_l2_tolerance
+        || maximum_crossflow > crossflow_tolerance
+        || pressure_span > pressure_span_tolerance
+        || maximum_homogeneity_span > homogeneity_tolerance) {
+        throw std::runtime_error("Poiseuille analytic profile exceeds tolerance");
+    }
+    std::cout << std::setprecision(17)
+              << "check=poiseuille_profile cells=" << cells
+              << " layers=" << layers.size()
+              << " velocity_l2=" << velocity_l2
+              << " velocity_linf=" << maximum_velocity_error
+              << " bulk_velocity=" << bulk_velocity
+              << " exact_bulk_velocity=" << exact_bulk_velocity
+              << " crossflow_linf=" << maximum_crossflow
+              << " pressure_span=" << pressure_span
+              << " homogeneity_linf=" << maximum_homogeneity_span
+              << " rho_range=" << minimum_density << ',' << maximum_density
+              << " T_range=" << minimum_temperature << ',' << maximum_temperature
+              << '\n';
+}
+
 void validate_uniform_source(
     const std::string& path,
     double time,
@@ -1267,6 +1396,16 @@ int main(int argc, char** argv)
                 parse_real(argv[4], "Reynolds number"),
                 parse_real(argv[5], "L2 tolerance"),
                 parse_real(argv[6], "pressure tolerance"));
+        } else if (argc == 10 && std::string(argv[1]) == "poiseuille-profile") {
+            validate_poiseuille_profile(
+                argv[2],
+                parse_real(argv[3], "lower wall coordinate"),
+                parse_real(argv[4], "upper wall coordinate"),
+                parse_real(argv[5], "centerline velocity"),
+                parse_real(argv[6], "velocity L2 tolerance"),
+                parse_real(argv[7], "crossflow tolerance"),
+                parse_real(argv[8], "pressure span tolerance"),
+                parse_real(argv[9], "homogeneity tolerance"));
         } else if (argc == 15 && std::string(argv[1]) == "uniform-source") {
             std::array<double, 5> initial {};
             std::array<double, 5> source {};
@@ -1310,6 +1449,9 @@ int main(int argc, char** argv)
                    "<field.cgns> <L1-tol>\n"
                    "  wcns_validate_release_case viscous-profile <field.cgns> "
                    "<couette|conduction> <Re> <L2-tol> <pressure-tol>\n"
+                   "  wcns_validate_release_case poiseuille-profile <field.cgns> "
+                   "<y0> <y1> <centerline-u> <velocity-L2-tol> "
+                   "<crossflow-tol> <pressure-span-tol> <homogeneity-tol>\n"
                    "  wcns_validate_release_case uniform-source <field.cgns> "
                    "<time> <U0[5]> <S[5]> <tol>\n"
                    "  wcns_validate_release_case tecplot-consistency "

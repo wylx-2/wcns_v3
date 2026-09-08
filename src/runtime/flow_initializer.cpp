@@ -113,6 +113,32 @@ TemperaturePrimitiveState couette_state(
         dimension);
 }
 
+TemperaturePrimitiveState poiseuille_state(
+    const InitialConditionConfig& config,
+    Real y,
+    const GasModel& gas,
+    const ReferenceScales& reference,
+    const NumericalFloors& floors,
+    int dimension)
+{
+    const Real eta = normalized_wall_coordinate(config, y);
+    const Real centerline_velocity = config.parameter("centerline_velocity", 1.0);
+    const Real velocity = 4.0 * centerline_velocity * eta * (1.0 - eta);
+    // For u=A*eta*(1-eta), the polynomial below solves
+    // T''=-(gamma-1)*Ma^2*Pr*(du/deta)^2 when its configured amplitude is
+    // (gamma-1)*Ma^2*Pr*A^2.  A zero amplitude gives the usual isothermal
+    // incompressible/low-Mach analytic initial profile.
+    const Real thermal_shape = eta / 6.0 - eta * eta / 2.0
+        + 2.0 * eta * eta * eta / 3.0
+        - eta * eta * eta * eta / 3.0;
+    const Real temperature = config.parameter("temperature", 1.0)
+        + config.parameter("temperature_curvature", 0.0) * thermal_shape;
+    return constant_pressure_temperature(
+        analytic_pressure(config, gas, reference),
+        velocity, 0.0, 0.0, temperature,
+        gas, reference, floors, dimension);
+}
+
 TemperaturePrimitiveState linear_conduction_state(
     const InitialConditionConfig& config,
     Real y,
@@ -310,6 +336,11 @@ TemperaturePrimitiveState FlowInitializer::evaluate(
     }
     if (config.type == "couette") {
         return couette_state(
+            config, coordinates[1],
+            gas, reference, floors, dimension);
+    }
+    if (config.type == "poiseuille") {
+        return poiseuille_state(
             config, coordinates[1],
             gas, reference, floors, dimension);
     }

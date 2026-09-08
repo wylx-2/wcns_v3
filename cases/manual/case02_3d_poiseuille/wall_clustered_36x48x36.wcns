@@ -1,0 +1,90 @@
+schema_version = 1
+case.name = case02-poiseuille-wall-clustered-36x48x36
+mesh.path = grids/wall_clustered_36x48x36.cgns
+
+algorithm.profile = phenglei_wcns
+algorithm.reconstruction = mdcd_linear
+algorithm.reconstruction_variables = primitive
+algorithm.riemann = hllc
+
+gas.gamma = 1.4
+gas.specific_gas_constant = 17.857142857142858
+reference.velocity = 1.0
+reference.density = 1.0
+reference.temperature = 1.0
+reference.length = 1.0
+reference.viscosity = 0.1
+
+partition.mode = auto_split
+partition.allow_idle_ranks = false
+partition.max_load_ratio = 1.2
+partition.min_cells_per_active_direction = 8
+
+initial.type = poiseuille
+initial.y0 = 0.0
+initial.y1 = 1.0
+initial.centerline_velocity = 1.0
+initial.temperature = 1.0
+initial.temperature_curvature = 0.18432
+initial.pressure = 17.857142857142858
+
+boundary.default = no_slip_isothermal_wall
+boundary.bottom.type = no_slip_isothermal_wall
+boundary.bottom.wall_velocity_x = 0.0
+boundary.bottom.wall_velocity_y = 0.0
+boundary.bottom.wall_velocity_z = 0.0
+boundary.bottom.wall_temperature = 1.0
+boundary.top.type = no_slip_isothermal_wall
+boundary.top.wall_velocity_x = 0.0
+boundary.top.wall_velocity_y = 0.0
+boundary.top.wall_velocity_z = 0.0
+boundary.top.wall_temperature = 1.0
+
+source.enabled = true
+source.models = pressure_gradient
+source.pressure_gradient.x = 0.8
+source.pressure_gradient.y = 0.0
+source.pressure_gradient.z = 0.0
+
+run.mode = steady
+run.viscous = true
+run.cfl = 0.2
+run.max_steps = 20000
+run.max_wall_time = 0
+
+steady.min_steps = 20
+steady.check_interval_steps = 20
+steady.consecutive_checks = 3
+steady.reference_floor = 1e-30
+steady.l2_absolute = 1e-7
+steady.l2_relative = 1e-6
+steady.linf_enabled = true
+steady.linf_absolute = 1e-6
+steady.linf_relative = 1e-5
+
+output.directory = results/wall_clustered
+output.allow_existing = false
+output.dimensional = false
+
+output.field.enabled = true
+output.field.format = cgns
+output.field.every_steps = 0
+output.field.every_time = 0
+output.field.write_initial = true
+output.field.write_final = true
+output.field.quantities = rho,u,v,w,p,T,rho_u,rho_v,rho_w,rho_E,sound_speed,mach,total_enthalpy,entropy_proxy,viscosity,jacobian
+
+output.history.enabled = true
+output.history.format = txt
+output.history.every_steps = 20
+output.history.write_initial = true
+output.history.write_final = true
+
+output.statistics.enabled = true
+output.statistics.format = txt
+output.statistics.every_steps = 20
+output.statistics.write_initial = true
+output.statistics.write_final = true
+output.statistics.quantities = total_mass,total_momentum_x,total_momentum_y,total_momentum_z,total_energy
+
+output.checkpoint.enabled = false

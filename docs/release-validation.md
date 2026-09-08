@@ -20,6 +20,7 @@ wcns_generate_release_cgns output.cgns dimension cells_i cells_j cells_k zones_i
 wcns_generate_release_cgns periodic-square output.cgns cells_i cells_j length
 wcns_generate_release_cgns rectangle output.cgns cells_i cells_j zones_i length_x length_y periodic_x
 wcns_generate_release_cgns clustered-rectangle output.cgns cells_i cells_j zones_i length_x length_y cluster_x cluster_y strength periodic_x
+wcns_generate_release_cgns periodic-channel output.cgns cells_i cells_j cells_k zones_i zones_k length_x length_y length_z wall_cluster_strength
 wcns_generate_release_cgns invalid-one-sided output.cgns cells_i cells_j
 ```
 
@@ -32,6 +33,10 @@ Sod 薄域和四象限问题，可指定二维物理长度及 x 向原生 zone �
 `clustered-rectangle` 保持相同拓扑，但在 x/y 方向分别向给定内部点光滑加密；`strength`
 越大，中心附近单元越小。映射在加密点两侧一阶连续，端点和加密点位置保持精确，适合比较
 均匀网格与局部加密结构网格，而不是自适应网格。
+`periodic-channel` 生成三维 x/z 双向平移周期、y 向上下物理壁面的 `zones_i*zones_k`
+原生多块通道。`wall_cluster_strength=0` 给出均匀 y 网格；正值采用对称 tanh 映射向
+`y=0,length_y` 两壁加密，值越大壁面首层越薄。两个周期方向都至少使用两个 zone，避免
+self-connectivity，并实际覆盖 i/k 两类跨块 halo 与共享面通量通信。
 `invalid-one-sided` 仅用于失败路径验收：它生成两个 zone，但故意省略右区指回左区的互逆
 连接；不得作为物理解算网格使用。
 
@@ -45,6 +50,7 @@ wcns_validate_release_case vortex field.cgns time length x0 y0 beta u0 v0 gamma 
 wcns_validate_release_case sod field.cgns time x0 gamma rho-L1-tolerance position-cell-tolerance
 wcns_validate_release_case diagonal-symmetry field.cgns L1-tolerance
 wcns_validate_release_case viscous-profile field.cgns couette|conduction Reynolds L2-tolerance pressure-tolerance
+wcns_validate_release_case poiseuille-profile field.cgns y0 y1 centerline-u velocity-L2-tolerance crossflow-tolerance pressure-span-tolerance homogeneity-tolerance
 wcns_validate_release_case uniform-source field.cgns time U0[5] source[5] tolerance
 wcns_validate_release_case tecplot-consistency field.cgns field.dat tolerance
 wcns_validate_release_case derived field.cgns gamma viscosity Jacobian tolerance

@@ -103,6 +103,11 @@ Riemann 求解器；发生非法中间状态时按冻结的确定性回退链处
   端点线性插值加 `velocity_curvature*eta*(1-eta)` 与
   `temperature_curvature*eta*(1-eta)`，密度由常压状态方程得到；曲率项仅用于从非平衡初场
   验证定常收敛，边界端点值不变；
+- `poiseuille`：`y0,y1,centerline_velocity,temperature,temperature_curvature,pressure`；
+  速度为 `4*centerline_velocity*eta*(1-eta)`。温度为壁温 `temperature` 加
+  `temperature_curvature*(eta/6-eta^2/2+2*eta^3/3-eta^4/3)`；常黏度 Poiseuille
+  能量平衡可取该系数为
+  `(gamma-1)*Ma^2*Pr*(4*centerline_velocity)^2`，零值则是等温低 Mach 解析初场；
 - `linear_conduction`：`y0,y1,lower_temperature,upper_temperature,pressure`；速度为零、
   温度按 y 线性变化，密度由常压状态方程得到；
 - `manufactured_periodic`：`beta,background_u,background_v`。
@@ -130,6 +135,9 @@ halo/物理边界路径填充所需 ghost。物理边界 ghost 只保证边界�
 
 - `uniform_conservative`：五个 `source.uniform.*` 守恒源；
 - `body_force`：`source.body.ax/ay/az`；
+- `pressure_gradient`：`source.pressure_gradient.x/y/z` 保存常量体积力
+  $\boldsymbol G=-\nabla p$，动量源为 $\boldsymbol G$、总能量源为
+  $\boldsymbol u\cdot\boldsymbol G$，适合周期 Poiseuille 通道；
 - `manufactured`：五个 `source.manufactured.*` 幅值。
 
 多个模型在每个 SSPRK 子步同址求值并相加。二维算例的 z 动量源必须为零。
