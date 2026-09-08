@@ -50,6 +50,22 @@ double parse_positive_real(const char* text, const char* name)
     return value;
 }
 
+double clustered_unit_coordinate(double logical, double center, double strength)
+{
+    if (!(center > 0.0 && center < 1.0) || !(strength > 0.0)) {
+        throw std::invalid_argument(
+            "cluster center must be inside the interval and strength positive");
+    }
+    const double denominator = std::sinh(strength);
+    if (logical <= center) {
+        return center * (1.0
+            - std::sinh(strength * (center - logical) / center) / denominator);
+    }
+    return center + (1.0 - center)
+        * std::sinh(strength * (logical - center) / (1.0 - center))
+        / denominator;
+}
+
 bool parse_bool(const char* text)
 {
     const std::string value(text);
@@ -124,7 +140,10 @@ void generate(
     double length_x,
     double length_y,
     double length_z,
-    bool omit_reciprocal = false)
+    bool omit_reciprocal = false,
+    double cluster_x = 0.0,
+    double cluster_y = 0.0,
+    double cluster_strength = 0.0)
 {
     if (dimension != 2 && dimension != 3) {
         throw std::invalid_argument("dimension must be 2 or 3");
@@ -134,6 +153,14 @@ void generate(
     }
     if (!(length_x > 0.0) || !(length_y > 0.0) || !(length_z > 0.0)) {
         throw std::invalid_argument("release grid lengths must be positive");
+    }
+    const bool clustered = cluster_strength > 0.0;
+    if (clustered
+        && (!(cluster_x > 0.0 && cluster_x < length_x)
+            || !(cluster_y > 0.0 && cluster_y < length_y)
+            || !std::isfinite(cluster_strength))) {
+        throw std::invalid_argument(
+            "clustered rectangle centers must be interior and strength finite");
     }
     if (cells_i % zones_i != 0) {
         throw std::invalid_argument("cells_i must be divisible by zones_i");
@@ -191,9 +218,17 @@ void generate(
                         const double envelope = dimension == 3
                             ? std::sin(pi * zeta) : 1.0;
                         const auto index = static_cast<std::size_t>((k * nj + j) * ni + i);
-                        x[index] = length_x * (xi + warp * std::sin(pi * xi)
-                            * std::sin(pi * eta) * envelope);
-                        y[index] = length_y * eta;
+                        const double base_x = clustered
+                            ? length_x * clustered_unit_coordinate(
+                                xi, cluster_x / length_x, cluster_strength)
+                            : length_x * xi;
+                        const double base_y = clustered
+                            ? length_y * clustered_unit_coordinate(
+                                eta, cluster_y / length_y, cluster_strength)
+                            : length_y * eta;
+                        x[index] = base_x + length_x * warp * std::sin(pi * xi)
+                            * std::sin(pi * eta) * envelope;
+                        y[index] = base_y;
                         z[index] = length_z * zeta;
                     }
                 }
@@ -404,7 +439,7 @@ void generate_periodic_square(
 
 int main(int argc, char** argv)
 {
-    if (argc != 9 && argc != 6 && argc != 5) {
+    if (argc != 12 && argc != 9 && argc != 6 && argc != 5) {
         std::cerr
             << "usage: wcns_generate_release_cgns <output.cgns> <dimension> "
                "<cells_i> <cells_j> <cells_k> <zones_i> <warp> <periodic_x>\n"
@@ -413,6 +448,10 @@ int main(int argc, char** argv)
                "   or: wcns_generate_release_cgns rectangle <output.cgns> "
                "<cells_i> <cells_j> <zones_i> <length_x> <length_y> "
                "<periodic_x>\n"
+               "   or: wcns_generate_release_cgns clustered-rectangle "
+               "<output.cgns> <cells_i> <cells_j> <zones_i> "
+               "<length_x> <length_y> <cluster_x> <cluster_y> "
+               "<strength> <periodic_x>\n"
                "   or: wcns_generate_release_cgns invalid-one-sided "
                "<output.cgns> <cells_i> <cells_j>\n";
         return EXIT_FAILURE;
@@ -434,6 +473,19 @@ int main(int argc, char** argv)
                 parse_positive(argv[3], "cells_i"),
                 parse_positive(argv[4], "cells_j"),
                 parse_positive_real(argv[5], "length"));
+        } else if (argc == 12 && std::string(argv[1]) == "clustered-rectangle") {
+            output = argv[2];
+            const double length_x = parse_positive_real(argv[6], "length_x");
+            const double length_y = parse_positive_real(argv[7], "length_y");
+            generate(
+                output, 2,
+                parse_positive(argv[3], "cells_i"),
+                parse_positive(argv[4], "cells_j"), 1,
+                parse_positive(argv[5], "zones_i"), 0.0,
+                parse_bool(argv[11]), length_x, length_y, 1.0, false,
+                parse_positive_real(argv[8], "cluster_x"),
+                parse_positive_real(argv[9], "cluster_y"),
+                parse_positive_real(argv[10], "strength"));
         } else if (argc == 9 && std::string(argv[1]) == "rectangle") {
             output = argv[2];
             generate(

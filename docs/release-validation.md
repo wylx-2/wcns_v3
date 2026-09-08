@@ -19,6 +19,7 @@
 wcns_generate_release_cgns output.cgns dimension cells_i cells_j cells_k zones_i warp periodic_x
 wcns_generate_release_cgns periodic-square output.cgns cells_i cells_j length
 wcns_generate_release_cgns rectangle output.cgns cells_i cells_j zones_i length_x length_y periodic_x
+wcns_generate_release_cgns clustered-rectangle output.cgns cells_i cells_j zones_i length_x length_y cluster_x cluster_y strength periodic_x
 wcns_generate_release_cgns invalid-one-sided output.cgns cells_i cells_j
 ```
 
@@ -28,6 +29,9 @@ wcns_generate_release_cgns invalid-one-sided output.cgns cells_i cells_j
 解析坐标映射，因而同一参数总是产生逐位相同的网格。
 `periodic-square` 生成 2×2 原生多 zone 且 x/y 双向平移周期的方形网格；`rectangle` 用于
 Sod 薄域和四象限问题，可指定二维物理长度及 x 向原生 zone 数。
+`clustered-rectangle` 保持相同拓扑，但在 x/y 方向分别向给定内部点光滑加密；`strength`
+越大，中心附近单元越小。映射在加密点两侧一阶连续，端点和加密点位置保持精确，适合比较
+均匀网格与局部加密结构网格，而不是自适应网格。
 `invalid-one-sided` 仅用于失败路径验收：它生成两个 zone，但故意省略右区指回左区的互逆
 连接；不得作为物理解算网格使用。
 

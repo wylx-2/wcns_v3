@@ -1,0 +1,78 @@
+schema_version = 1
+case.name = case01-clustered-256x256
+mesh.path = grids/clustered_256x256_x0p5_y0p5.cgns
+
+algorithm.profile = phenglei_wcns
+algorithm.reconstruction = weno_z
+algorithm.reconstruction_variables = characteristic
+algorithm.riemann = hllc
+
+gas.gamma = 1.4
+gas.specific_gas_constant = 1.0
+reference.velocity = 1.0
+reference.density = 1.0
+reference.temperature = 1.0
+reference.length = 1.0
+reference.viscosity = 1.0
+
+partition.mode = auto_split
+partition.allow_idle_ranks = false
+partition.max_load_ratio = 1.2
+partition.min_cells_per_active_direction = 8
+
+initial.type = quadrant_riemann
+initial.x0 = 0.8
+initial.y0 = 0.8
+initial.ne_rho = 1.5
+initial.ne_u = 0.0
+initial.ne_v = 0.0
+initial.ne_p = 1.5
+initial.nw_rho = 0.5323
+initial.nw_u = 1.206
+initial.nw_v = 0.0
+initial.nw_p = 0.3
+initial.sw_rho = 0.138
+initial.sw_u = 1.206
+initial.sw_v = 1.206
+initial.sw_p = 0.029
+initial.se_rho = 0.5323
+initial.se_u = 0.0
+initial.se_v = 1.206
+initial.se_p = 0.3
+
+boundary.default = outflow
+source.enabled = false
+
+run.mode = unsteady
+run.viscous = false
+run.cfl = 0.4
+run.max_steps = 1000000
+run.t_end = 0.3
+run.max_wall_time = 0
+
+output.directory = results/clustered
+output.allow_existing = false
+output.dimensional = false
+
+output.field.enabled = true
+output.field.format = cgns
+output.field.every_steps = 0
+output.field.every_time = 0
+output.field.write_initial = true
+output.field.write_final = true
+output.field.quantities = rho,u,v,p,T,rho_u,rho_v,rho_w,rho_E,sound_speed,mach,total_enthalpy,entropy_proxy,jacobian
+
+output.history.enabled = true
+output.history.format = txt
+output.history.every_steps = 100
+output.history.write_initial = true
+output.history.write_final = true
+
+output.statistics.enabled = true
+output.statistics.format = txt
+output.statistics.every_steps = 100
+output.statistics.write_initial = true
+output.statistics.write_final = true
+output.statistics.quantities = total_mass,total_momentum_x,total_momentum_y,total_energy
+
+output.checkpoint.enabled = false
