@@ -1,0 +1,131 @@
+{
+  "case": "case02_3d_poiseuille",
+  "status": "forced_stop_not_fully_accepted",
+  "overall_acceptance": false,
+  "git_commit_in_executable": "51b2820fb39d",
+  "ranks": 8,
+  "domain": [6.283185307179586, 1.0, 3.141592653589793],
+  "cells": [36, 48, 36],
+  "native_zones": [2, 1, 2],
+  "runtime_leaf_blocks": 8,
+  "physics": {
+    "equations": "compressible Navier-Stokes",
+    "reynolds": 10.0,
+    "mach": 0.2,
+    "prandtl": 0.72,
+    "centerline_velocity": 1.0,
+    "pressure_gradient_force": [0.8, 0.0, 0.0],
+    "wall_temperature": 1.0
+  },
+  "algorithm": {
+    "profile": "phenglei_wcns",
+    "reconstruction": "mdcd_linear",
+    "reconstruction_variables": "primitive",
+    "riemann": "hllc",
+    "time_integrator": "ssprk3",
+    "cfl": 0.5
+  },
+  "steady_convergence": {
+    "check_interval_steps": 20,
+    "consecutive_checks": 3,
+    "l2_absolute": 0.00005,
+    "l2_relative": 0.000001,
+    "linf_absolute": 0.0002,
+    "linf_relative": 0.00001
+  },
+  "grids": {
+    "uniform": {
+      "wall_cluster_strength": 0.0,
+      "minimum_dy": 0.02083333333333333,
+      "maximum_dy": 0.02083333333333333,
+      "mesh_signature": "11936517813990972397"
+    },
+    "wall_clustered": {
+      "wall_cluster_strength": 1.0,
+      "minimum_dy": 0.0118577795007742,
+      "maximum_dy": 0.0273390823838626,
+      "maximum_to_minimum_dy": 2.30558194998293,
+      "mesh_signature": "15472241633829854185"
+    }
+  },
+  "uniform": {
+    "status": "passed",
+    "stop_reason": "steady_converged",
+    "step": 680,
+    "time": 0.19897579806505086,
+    "time_step": 0.00029261147527331785,
+    "solver_wall_seconds": 2233.353254,
+    "config_digest": "0xe6b998156e40704e",
+    "residual": {
+      "total_l2": 0.000019975894768272385,
+      "l2": [0.00000106520960213937, 0.0000314585972952092, 0.000004716215226819417, 6.456918399617692e-14, 0.00003133945049966803],
+      "linf": [0.0000019875268701646237, 0.00005162397588187595, 0.000006826381594344875, 2.9143216131146196e-13, 0.000059559050834601113],
+      "consecutive_passes": 3,
+      "reconstruction_fallbacks": 0,
+      "riemann_fallbacks": 0
+    },
+    "profile": {
+      "velocity_l2": 0.000026489298732079018,
+      "velocity_linf": 0.00005657704318043355,
+      "bulk_velocity": 0.666807386476045,
+      "exact_bulk_velocity": 0.6666666666666666,
+      "crossflow_linf": 2.1065726740137182e-7,
+      "pressure_span": 0.0000019512811100241834,
+      "homogeneity_linf": 4.618527782440651e-14,
+      "rho_range": [0.9961746257965168, 0.9996893082968966],
+      "temperature_range": [1.0003105677328625, 1.0038399521569257]
+    },
+    "integrals": {
+      "initial": [19.678773469844437, 13.113564570837951, 0.0, 0.0, 886.4590593417959],
+      "final": [19.678773469842795, 13.113486464523355, -2.894761567021173e-17, -1.1904256878386271e-15, 886.4588624804005],
+      "delta": [-1.6413537196058314e-12, -0.00007810631459648221, -2.894761567021173e-17, -1.1904256878386271e-15, -0.00019686139535224356]
+    },
+    "initial_field": "results/uniform/case02-poiseuille-uniform-36x48x36.field.step00000000.time0p000000000eP00.cgns",
+    "final_field": "results/uniform/case02-poiseuille-uniform-36x48x36.field.step00000680.time1p989757981eM01.cgns",
+    "manifest": "results/uniform/case02-poiseuille-uniform-36x48x36.manifest.r8.txt"
+  },
+  "wall_clustered": {
+    "status": "forced_stop_not_converged",
+    "requested_stop_step": 3600,
+    "observed_partial_history_step": 3600,
+    "last_complete_history_step": 3580,
+    "last_complete_statistics_step": 3560,
+    "time_at_last_complete_history": 0.39333542008419314,
+    "time_step_at_last_complete_history": 0.00010987023617565823,
+    "solver_wall_seconds_at_last_complete_history": 11244.79784,
+    "config_digest": "0x63d999e3986e2636",
+    "stop_reason_at_last_complete_history": "running",
+    "residual": {
+      "total_l2": 0.00006216386481908132,
+      "l2": [0.0000015569936981674718, 0.00007560688102889389, 0.0000011503469104630015, 8.255570540723447e-14, 0.00011662582244047509],
+      "linf": [0.0000030382491028281873, 0.00013157867745849927, 0.0000016436565352783844, 3.8519868756122814e-13, 0.00018142623880346154],
+      "normalized_l2": [0.061856789081248774, 0.008476833958534968, 0.012197792407381423, 2.1769461390396008, 0.027722203970062503],
+      "consecutive_passes": 0,
+      "failed_l2_components": ["rho_u", "rho_E"],
+      "reconstruction_fallbacks": 0,
+      "riemann_fallbacks": 0
+    },
+    "initial_profile": {
+      "velocity_l2": 0.0,
+      "velocity_linf": 0.0,
+      "bulk_velocity": 0.6668571620810334,
+      "exact_bulk_velocity": 0.6666666666666666,
+      "crossflow_linf": 0.0,
+      "pressure_span": 3.552713678800501e-15,
+      "homogeneity_linf": 0.0,
+      "rho_range": [0.9961746913223122, 0.999821110564204],
+      "temperature_range": [1.000178921442952, 1.003839997854804]
+    },
+    "integrals_at_last_complete_statistics": {
+      "step": 3560,
+      "initial": [19.678761677315133, 13.116988549454383, 0.0, 0.0, 886.4609478348411],
+      "value": [19.678761677310156, 13.115188021586249, 1.6155035886507643e-18, -1.624147685107633e-15, 886.4601290432424],
+      "delta": [-4.977351863999502e-12, -0.0018005278681343384, 1.6155035886507643e-18, -1.624147685107633e-15, -0.0008187915987036831]
+    },
+    "initial_field": "results/wall_clustered/case02-poiseuille-wall-clustered-36x48x36.field.step00000000.time0p000000000eP00.cgns",
+    "final_field": null,
+    "manifest": null,
+    "field_level_final_validation": null,
+    "data_integrity_note": "The interrupt arrived while step 3600 history/statistics rows were being written. Step 3580 is the last complete residual row and step 3560 the last complete statistics row."
+  }
+}

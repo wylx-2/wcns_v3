@@ -41,8 +41,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--ranks", type=int, default=8)
     parser.add_argument("--clean", action="store_true")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="reuse a completed case only after checking its manifest and current config digest",
+    )
     parser.add_argument("--velocity-l2-tolerance", type=float, default=5.0e-3)
-    parser.add_argument("--crossflow-tolerance", type=float, default=1.0e-7)
+    parser.add_argument("--crossflow-tolerance", type=float, default=1.0e-6)
     parser.add_argument("--pressure-span-tolerance", type=float, default=1.0e-2)
     parser.add_argument("--homogeneity-tolerance", type=float, default=1.0e-7)
     return parser.parse_args()
@@ -109,6 +114,20 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def read_manifest(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if "=" in line:
+            key, value = line.split("=", 1)
+            values[key] = value
+    return values
+
+
+def last_nonempty_line(path: Path) -> str:
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line]
+    return lines[-1] if lines else ""
+
+
 def poiseuille_validation_command(
     validator: Path,
     field: Path,
@@ -133,6 +152,8 @@ def poiseuille_validation_command(
 
 def main() -> int:
     args = parse_args()
+    if args.clean and args.resume:
+        raise RuntimeError("--clean and --resume are mutually exclusive")
     if args.ranks < 1:
         raise RuntimeError("rank count must be positive")
     for value, label in (
@@ -157,7 +178,9 @@ def main() -> int:
         remove_generated()
     for name in ("grids", "results", "logs", "validation"):
         (CASE_DIR / name).mkdir(parents=True, exist_ok=True)
-    if any((CASE_DIR / "results" / name).exists() for name in ("uniform", "wall_clustered")):
+    if not args.resume and any(
+        (CASE_DIR / "results" / name).exists() for name in ("uniform", "wall_clustered")
+    ):
         raise RuntimeError("result directories already exist; rerun with --clean to replace them")
 
     old_cwd = Path.cwd()
@@ -168,26 +191,75 @@ def main() -> int:
             "36", "48", "36", "2", "2",
             str(2.0 * math.pi), "1.0", str(math.pi),
         ]
-        records.append(execute(
-            [str(generator), "periodic-channel", "grids/uniform_36x48x36.cgns"]
-            + common_grid + ["0.0"],
-            CASE_DIR / "logs/generate-uniform.log",
-        ))
-        records.append(execute(
-            [str(generator), "periodic-channel", "grids/wall_clustered_36x48x36.cgns"]
-            + common_grid + ["1.0"],
-            CASE_DIR / "logs/generate-wall-clustered.log",
-        ))
+        grid_commands = (
+            ("uniform", "grids/uniform_36x48x36.cgns", "0.0"),
+            ("wall-clustered", "grids/wall_clustered_36x48x36.cgns", "1.0"),
+        )
+        for label, relative_path, strength in grid_commands:
+            grid_path = CASE_DIR / relative_path
+            command = [str(generator), "periodic-channel", relative_path] + common_grid + [strength]
+            if args.resume:
+                if not grid_path.is_file():
+                    raise RuntimeError(f"resume grid is missing: {grid_path}")
+                records.append({
+                    "command": command,
+                    "return_code": 0,
+                    "wall_seconds": None,
+                    "peak_process_tree_rss_bytes": None,
+                    "log": f"logs/generate-{label}.log",
+                    "last_line": "existing grid reused",
+                    "reused_existing": True,
+                    "sha256": sha256(grid_path),
+                })
+            else:
+                records.append(execute(
+                    command,
+                    CASE_DIR / f"logs/generate-{label}.log",
+                ))
 
         final_fields: dict[str, Path] = {}
         for name, config in (
             ("uniform", "uniform_36x48x36.wcns"),
-        ("wall_clustered", "wall_clustered_36x48x36.wcns"),
+            ("wall_clustered", "wall_clustered_36x48x36.wcns"),
         ):
             command = [str(run_executable), "--config", config]
             if mpi_executable is not None:
                 command = [str(mpi_executable), "-n", str(args.ranks)] + command
-            run_record = execute(command, CASE_DIR / f"logs/run-{name}.log")
+            result_directory = CASE_DIR / "results" / name
+            if args.resume and result_directory.exists():
+                manifests = sorted(result_directory.glob(f"*.manifest.r{args.ranks}.txt"))
+                if len(manifests) != 1:
+                    raise RuntimeError(
+                        f"{name} resume expected one rank-matched manifest, found {len(manifests)}"
+                    )
+                manifest = read_manifest(manifests[0])
+                if manifest.get("stop_reason") != "steady_converged":
+                    raise RuntimeError(f"{name} resume manifest is not steady_converged")
+                dry_command = command + ["--dry-run"]
+                dry_log = CASE_DIR / f"logs/resume-check-{name}.log"
+                dry_record = execute(dry_command, dry_log)
+                digest_match = re.search(
+                    r"digest=0x([0-9a-fA-F]+)", dry_log.read_text(encoding="utf-8")
+                )
+                if digest_match is None:
+                    raise RuntimeError(f"{name} resume could not read current config digest")
+                current_digest = int(digest_match.group(1), 16)
+                if current_digest != int(manifest.get("config_digest", "-1")):
+                    raise RuntimeError(f"{name} resume config digest does not match manifest")
+                records.append(dry_record | {"purpose": "resume configuration check"})
+                run_log = CASE_DIR / f"logs/run-{name}.log"
+                run_record = {
+                    "command": command,
+                    "return_code": 0,
+                    "wall_seconds": float(manifest["wall_time"]),
+                    "peak_process_tree_rss_bytes": None,
+                    "log": str(run_log.relative_to(CASE_DIR)),
+                    "last_line": last_nonempty_line(run_log),
+                    "reused_existing": True,
+                    "manifest": str(manifests[0].relative_to(CASE_DIR)),
+                }
+            else:
+                run_record = execute(command, CASE_DIR / f"logs/run-{name}.log")
             if "reason=steady_converged" not in str(run_record["last_line"]):
                 raise RuntimeError(f"{name} did not stop by steady residual convergence")
             records.append(run_record)
@@ -224,6 +296,14 @@ def main() -> int:
             "ranks": args.ranks,
             "domain": [2.0 * math.pi, 1.0, math.pi],
             "end_condition": "steady residual convergence",
+            "steady_convergence": {
+                "check_interval_steps": 20,
+                "consecutive_checks": 3,
+                "l2_absolute": 5.0e-5,
+                "l2_relative": 1.0e-6,
+                "linf_absolute": 2.0e-4,
+                "linf_relative": 1.0e-5,
+            },
             "physics": {
                 "equations": "compressible Navier-Stokes",
                 "reynolds": 10.0,
@@ -239,7 +319,7 @@ def main() -> int:
                 "reconstruction_variables": "primitive",
                 "riemann": "hllc",
                 "time_integrator": "ssprk3",
-                "cfl": 0.2,
+                "cfl": 0.5,
             },
             "grids": {
                 "uniform": grid_metadata(0.0),

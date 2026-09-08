@@ -1,0 +1,1 @@
+check=poiseuille_profile cells=62208 layers=48 velocity_l2=0 velocity_linf=0 bulk_velocity=0.66681134259250874 exact_bulk_velocity=0.66666666666666663 crossflow_linf=0 pressure_span=0 homogeneity_linf=0 rho_range=0.99617468991135283,0.99968995799035065 T_range=1.0003101381655093,1.0038399992766203

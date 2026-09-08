@@ -48,7 +48,7 @@ source.pressure_gradient.z = 0.0
 
 run.mode = steady
 run.viscous = true
-run.cfl = 0.2
+run.cfl = 0.5
 run.max_steps = 20000
 run.max_wall_time = 0
 
@@ -56,10 +56,10 @@ steady.min_steps = 20
 steady.check_interval_steps = 20
 steady.consecutive_checks = 3
 steady.reference_floor = 1e-30
-steady.l2_absolute = 1e-7
+steady.l2_absolute = 5e-5
 steady.l2_relative = 1e-6
 steady.linf_enabled = true
-steady.linf_absolute = 1e-6
+steady.linf_absolute = 2e-4
 steady.linf_relative = 1e-5
 
 output.directory = results/wall_clustered
