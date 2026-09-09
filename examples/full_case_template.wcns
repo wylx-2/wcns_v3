@@ -21,8 +21,13 @@ mesh.path = mesh.cgns
 # 可选：phenglei_wcns | scmm6_wcns
 algorithm.profile = phenglei_wcns
 
-# 可选：weno_js | weno_z | mdcd_linear | mdcd_hybrid
+# 可选：zero_order | linear5 | weno_js | weno_z | mdcd_linear | mdcd_hybrid
 algorithm.reconstruction = weno_z
+
+# MDCD-LINEAR/MDCD-HYBRID 的可控色散/耗散系数；省略时使用下列默认值。
+# 两值会进入数值摘要与 restart signature。
+# algorithm.mdcd.disp = 0.0463783
+# algorithm.mdcd.diss = 0.01
 
 # 可选：conservative | primitive | characteristic
 algorithm.reconstruction_variables = characteristic
@@ -61,7 +66,8 @@ partition.min_cells_per_active_direction = 8
 
 # 当前启用均匀初场。其他初场的完整参数见用户手册第 8 章。
 # 可选：uniform | sod_x | quadrant_riemann | isentropic_vortex |
-#       couette | poiseuille | linear_conduction | manufactured_periodic
+#       couette | poiseuille | linear_conduction | manufactured_periodic |
+#       double_mach_reflection
 initial.type = uniform
 
 # 所有初场量都是内部无量纲量。uniform 可给 temperature 或 pressure；
@@ -75,7 +81,8 @@ initial.temperature = 1.0
 
 # 所有没有单独覆盖的 CGNS 物理边界采用此类型。
 # 可选：farfield | inflow | outflow | slip_wall |
-#       no_slip_adiabatic_wall | no_slip_isothermal_wall | symmetry
+#       no_slip_adiabatic_wall | no_slip_isothermal_wall | symmetry |
+#       double_mach_reflection（仅限经典双马赫反射的 left/bottom/top）
 # periodic 字符串虽可解析，但生产周期边界必须由 CGNS 1-to-1 连接表达。
 boundary.default = farfield
 
@@ -188,6 +195,11 @@ output.statistics.every_time = 0
 output.statistics.write_initial = true
 output.statistics.write_final = true
 output.statistics.quantities = total_mass,total_momentum_x,total_momentum_y,total_momentum_z,total_energy
+
+# 三维槽道可选：监测一个或多个原 CGNS zone 的零基 cell-j 层。
+# 开启后自动在 statistics 列表末尾加入每层的 <u>_xz 和 integral(rho*u dA_xz)。
+# output.statistics.xz_planes.enabled = true
+# output.statistics.xz_planes.cell_j_indices = 0,23,47
 
 # 内部 CGNS 检查点。即使只想在终止时保存，也要保持 enabled=true。
 output.checkpoint.enabled = true

@@ -1,31 +1,18 @@
 # WCNS 用户手册
 
-本文面向第一次接触本程序的算例使用者，对应 WCNS `0.1.0`、配置
-`schema_version = 1` 和生产入口 `wcns_run`。按本文顺序操作，可以从源码构建程序、准备
-CGNS 网格、填写配置、完成串行或 MPI 计算、识别停止状态、读取输出并从检查点续算。
+本文面向第一次接触本程序的算例使用者，对应 WCNS `0.1.0`、配置`schema_version = 1` 和生产入口 `wcns_run`。按本文顺序操作，可以从源码构建程序、准备CGNS 网格、填写配置、完成串行或 MPI 计算、识别停止状态、读取输出并从检查点续算。
 
-本手册描述的是当前程序已经实现的行为。数学定义见
-[`算法补充.md`](../算法补充.md)，源码扩展见
-[`developer-guide.md`](developer-guide.md)，实现边界见
-[`known-limitations.md`](known-limitations.md)。可复制的完整配置见
-[`examples/full_case_template.wcns`](../examples/full_case_template.wcns)。
+本手册描述的是当前程序已经实现的行为。数学定义见[`算法补充.md`](../算法补充.md)，源码扩展见[`developer-guide.md`](developer-guide.md)，实现边界见[`known-limitations.md`](known-limitations.md)。可复制的完整配置见[`examples/full_case_template.wcns`](../examples/full_case_template.wcns)。
 
 ## 1. 开始前必须知道的约定
 
-1. 程序只读取二维或三维**结构多块** CGNS 网格；当前随附 CGNS 4.4.0 只启用 ADF 后端。
-   HDF5-CGNS、非结构网格、重叠网格、滑移接口、运动网格和 AMR 不在当前范围内。
-2. 输入网格坐标、初场、边界数据、源项、计算时间全部使用程序的**内部无量纲量**。只有
-   `gas.*` 和 `reference.*` 是用于定义量纲的有量纲参考输入。
-3. 二维状态仍保存五个 Euler 分量
-   `(rho,rho*u,rho*v,rho*w,rho*E)`，但二维的 `w` 及 z 动量必须为零。
-4. `algorithm.profile = phenglei_wcns` 与 `scmm6_wcns` 是两套独立的度量、线性插值、
-   通量导数和物理边界闭合组合；不能从两套 profile 中交叉抽取部件。
-5. 时间推进固定为显式 SSPRK3。定常计算使用伪时间和残差停止；非定常计算按无量纲物理
-   时间停止。`run.max_steps` 对两者始终是硬上限。
-6. 配置解析是严格的：键区分大小写，未知键、重复键、缺失必填键、空值、`NaN/Inf`、非法
-   枚举和逗号列表空项都会在计算前失败。
-7. 建议每次计算使用新的输出目录，并保留最终 manifest。退出码为 0 才表示正常达到定常
-   收敛或非定常目标时间；最大步数、墙钟和信号停止返回 2，不能当作“计算成功收敛”。
+1. 程序只读取二维或三维**结构多块** CGNS 网格；当前随附 CGNS 4.4.0 只启用 ADF 后端。HDF5-CGNS、非结构网格、重叠网格、滑移接口、运动网格和 AMR 不在当前范围内。
+2. 输入网格坐标、初场、边界数据、源项、计算时间全部使用程序的**内部无量纲量**。只有 `gas.*` 和 `reference.*` 是用于定义量纲的有量纲参考输入。
+3. 二维状态仍保存五个 Euler 分量 `(rho,rho*u,rho*v,rho*w,rho*E)`，但二维的 `w` 及 z 动量必须为零。
+4. `algorithm.profile = phenglei_wcns` 与 `scmm6_wcns` 是两套独立的度量、线性插值、通量导数和物理边界闭合组合；不能从两套 profile 中交叉抽取部件。
+5. 时间推进固定为显式 SSPRK3。定常计算使用伪时间和残差停止；非定常计算按无量纲物理时间停止。`run.max_steps` 对两者始终是硬上限。
+6. 配置解析是严格的：键区分大小写，未知键、重复键、缺失必填键、空值、`NaN/Inf`、非法枚举和逗号列表空项都会在计算前失败。
+7. 建议每次计算使用新的输出目录，并保留最终 manifest。退出码为 0 才表示正常达到定常收敛或非定常目标时间；最大步数、墙钟和信号停止返回 2，不能当作“计算成功收敛”。
 
 ## 2. 源码目录与可执行程序
 
@@ -122,8 +109,7 @@ ctest --test-dir build-user-serial --output-on-failure
 - `--parallel 4` 是编译并发数，可按机器调整，与求解 MPI rank 数无关。
 - `ctest --output-on-failure` 只在失败时展开对应测试输出。
 
-若之前用不同编译器或 MPI 选项配置过同一个构建目录，不要在其中混改缓存；使用新的
-`-B` 目录最安全。
+若之前用不同编译器或 MPI 选项配置过同一个构建目录，不要在其中混改缓存；使用新的`-B` 目录最安全。
 
 ### 4.2 MPI Release 构建
 
@@ -154,8 +140,7 @@ ctest --test-dir build-user-linux-mpi --output-on-failure
 mpiexec -n 2 build-user-linux-mpi/wcns_run --config path/to/case.wcns --dry-run
 ```
 
-这是未进入当前冻结发布矩阵的环境。若 CMake 找到多个 MPI，实现的头文件、链接库和
-`mpiexec` 必须来自同一套安装。
+这是未进入当前冻结发布矩阵的环境。若 CMake 找到多个 MPI，实现的头文件、链接库和`mpiexec` 必须来自同一套安装。
 
 ### 4.3 安装到独立目录
 
@@ -182,8 +167,7 @@ build-user-mpi\wcns_generate_release_cgns.exe periodic-square `
   build-user-mpi\manual-smoke.cgns 16 16 1.0
 ```
 
-已有构建中的测试数可能随开发增加，不要把某个固定数量硬编码成成功条件；以 CTest 零失败
-和命令退出码 0 为准。
+已有构建中的测试数可能随开发增加，不要把某个固定数量硬编码成成功条件；以 CTest 零失败和命令退出码 0 为准。
 
 ## 5. 十分钟完成第一个计算
 
@@ -222,8 +206,7 @@ output.directory = work/quickstart/output
 output.checkpoint.enabled = false
 ```
 
-由于 `mesh.path` 相对配置文件解析，网格与配置在同一目录时只写 `mesh.cgns`。由于从仓库根
-启动，`output.directory` 写成 `work/quickstart/output`。
+由于 `mesh.path` 相对配置文件解析，网格与配置在同一目录时只写 `mesh.cgns`。由于从仓库根启动，`output.directory` 写成 `work/quickstart/output`。
 
 ### 步骤 4：只做启动检查
 
@@ -232,9 +215,7 @@ build-user-serial\wcns_run.exe --config work\quickstart\quickstart.wcns --dry-ru
 if ($LASTEXITCODE -ne 0) { throw "WCNS dry-run failed" }
 ```
 
-`--dry-run` 会实际完成配置解析、CGNS 读取、分区、块连接构建、度量计算、初场或检查点恢复
-和启动校验，但不推进、不创建输出目录。rank 0 应打印配置摘要、分区摘要、网格签名以及由
-参考量导出的 `Re`、`Ma`，最后打印 `WCNS dry-run completed`。
+`--dry-run` 会实际完成配置解析、CGNS 读取、分区、块连接构建、度量计算、初场或检查点恢复和启动校验，但不推进、不创建输出目录。rank 0 应打印配置摘要、分区摘要、网格签名以及由参考量导出的 `Re`、`Ma`，最后打印 `WCNS dry-run completed`。
 
 ### 步骤 5：正式运行
 
@@ -244,8 +225,7 @@ $code = $LASTEXITCODE
 Write-Host "wcns exit code = $code"
 ```
 
-正常非定常结束应打印 `reason=physical_time_reached`，退出码为 0。若输出目录已存在且模板中
-`output.allow_existing=false`，程序会拒绝运行；改用新目录最安全。
+正常非定常结束应打印 `reason=physical_time_reached`，退出码为 0。若输出目录已存在且模板中`output.allow_existing=false`，程序会拒绝运行；改用新目录最安全。
 
 ### 步骤 6：检查结果
 
@@ -272,28 +252,22 @@ build-user-serial\wcns_validate_release_case.exe finite $final.FullName
 - 至少一个 `CGNSBase_t`，`CellDimension` 为 2 或 3，且物理维数不小于单元维数；
 - zone 类型为 `Structured`；每个活动方向至少有两个顶点；
 - 必须有 `CoordinateX`、`CoordinateY`；三维物理空间还必须有 `CoordinateZ`；
-- 坐标为有限值，网格不能产生非正或退化 Jacobian/面面积；
+- 坐标为有限值，网格不能产生非正或退化 Jacobian 体积/面积；
 - 物理边界使用顶点位置的 `BC_t/PointRange`，且范围必须描述完整块面，不可只描述边或角；
 - 块间共形连接使用 `GridConnectivity1to1_t`，接收与供体范围、轴变换和层数必须一致；
-- 周期连接也用 1-to-1 connectivity，并通过 CGNS 周期平移/旋转数据表达；二维旋转周期当前
-  因 CGNS 表意歧义被拒绝。
+- 周期连接也用 1-to-1 connectivity，并通过 CGNS 周期平移/旋转数据表达；二维旋转周期当前因 CGNS 表意歧义被拒绝。
 
-CGNS 索引是 1-based；读入后程序转换为 0-based 半开区间并检查边界。用户不需要在配置中
-写索引范围，只需用准确的 `BC_t` 名称覆盖边界类型和物理数据。
+CGNS 索引是 1-based；读入后程序转换为 0-based 半开区间并检查边界。用户不需要在配置中写索引范围，只需用准确的 `BC_t` 名称覆盖边界类型和物理数据。
 
 ### 6.2 网格坐标必须预先无量纲化
 
-若物理坐标为 `x_dim`，写入求解网格的值应为 `x=x_dim/L_ref`。例如 2 m 长通道选
-`reference.length=2` 时，网格 x 范围应写 0 到 1；若网格仍写 0 到 2，程序会把它理解为
-2 个参考长度。`output.dimensional=true` 时输出坐标再乘 `L_ref`。
+若物理坐标为 `x_dim`，写入求解网格的值应为 `x=x_dim/L_ref`。例如 2 m 长通道选`reference.length=2` 时，网格 x 范围应写 0 到 1；若网格仍写 0 到 2，程序会把它理解为 2 个参考长度。`output.dimensional=true` 时输出坐标再乘 `L_ref`。
 
 ### 6.3 物理边界名与连接的职责
 
-- CGNS `BC_t` 的**名称和范围**决定配置如何找到边界；正式入口会用
-  `boundary.default`/`boundary.<name>.type` 覆盖读入的 CGNS BC 类型。
+- CGNS `BC_t` 的**名称和范围**决定配置如何找到边界；正式入口会用`boundary.default`/`boundary.<name>.type` 覆盖读入的 CGNS BC 类型。
 - CGNS 1-to-1 connectivity 决定块间或周期 halo 通信，不能用两个物理 BC 假装成块连接。
-- 配置中虽然能解析 `periodic` 边界字符串，但生产物理边界填充不接受“周期 BC”；周期必须
-  已在 CGNS connectivity 中给出。不要写 `boundary.left.type=periodic` 来替代连接。
+- 配置中虽然能解析 `periodic` 边界字符串，但生产物理边界填充不接受“周期 BC”；周期必须已在 CGNS connectivity 中给出。不要写 `boundary.left.type=periodic` 来替代连接。
 - 自动二次剖分产生的人造切面由程序建立兄弟连接，不需要写回 CGNS。
 
 ### 6.4 用随附工具生成网格
@@ -304,8 +278,7 @@ CGNS 索引是 1-based；读入后程序转换为 0-based 半开区间并检查�
 wcns_generate_release_cgns output.cgns dimension cells_i cells_j cells_k zones_i warp periodic_x
 ```
 
-二维必须 `dimension=2,cells_k=1`；`zones_i` 是 x 向原生 zone 数，`cells_i` 必须可整除；
-`periodic_x` 是 `true|false`。其他专用模式：
+二维必须 `dimension=2,cells_k=1`；`zones_i` 是 x 向原生 zone 数，`cells_i` 必须可整除；`periodic_x` 是 `true|false`。其他专用模式：
 
 ```text
 periodic-square output.cgns cells_i cells_j length
@@ -321,8 +294,7 @@ periodic-channel output.cgns cells_i cells_j cells_k zones_i zones_k Lx Ly Lz wa
 - `periodic-channel` 生成 x/z 周期、y 向有上下物理壁的三维通道；壁面加密强度 0 为均匀网格。
 - `invalid-one-sided` 专用于失败测试，故意生成单向连接，严禁物理解算。
 
-生成器覆盖测试网格，不是通用网格转换器。外部网格工具产生的 CGNS 仍须满足本节契约，并
-首先通过 `wcns_run --dry-run`。
+生成器覆盖测试网格，不是通用网格转换器。外部网格工具产生的 CGNS 仍须满足本节契约，并首先通过 `wcns_run --dry-run`。
 
 ## 7. 配置文件语法与必填清单
 
@@ -388,9 +360,7 @@ output.statistics.enabled
 output.checkpoint.enabled
 ```
 
-此外 `gas.molar_mass` 和 `gas.specific_gas_constant` 必须恰好给一个。非定常必须有正的
-`run.t_end`；启用流场必须有非空 `output.field.quantities`；启用统计必须有非空
-`output.statistics.quantities`；启用源项必须有非空 `source.models`。
+此外 `gas.molar_mass` 和 `gas.specific_gas_constant` 必须恰好给一个。非定常必须有正的`run.t_end`；启用流场必须有非空 `output.field.quantities`；启用统计必须有非空 `output.statistics.quantities`；启用源项必须有非空 `source.models`。
 
 ## 8. 逐组填写配置
 
@@ -412,20 +382,24 @@ output.checkpoint.enabled
 | 键 | 可选值 | 建议 |
 |---|---|---|
 | `algorithm.profile` | `phenglei_wcns`, `scmm6_wcns` | 同一网格可分别运行两次比较，不可混用组件 |
-| `algorithm.reconstruction` | `weno_js`, `weno_z`, `mdcd_linear`, `mdcd_hybrid` | 间断优先从 `weno_z`/`mdcd_hybrid` 开始 |
+| `algorithm.reconstruction` | `zero_order`, `linear5`, `weno_js`, `weno_z`, `mdcd_linear`, `mdcd_hybrid` | 间断优先从 `weno_z`/`mdcd_hybrid` 开始；`zero_order` 主要用于调试和高耗散基线 |
 | `algorithm.reconstruction_variables` | `conservative`, `primitive`, `characteristic` | 强间断通常用 `characteristic` |
 | `algorithm.riemann` | `rusanov`, `hllc`, `roe` | Rusanov 更耗散；HLLC/Roe 分辨率更高 |
 
-四种重构都要求六点标量模板和三层 cell-centered ghost。非法重构状态会按确定性策略回退，
-HLLC/Roe 的非法中间状态也会回退；历史文件记录累计回退数。回退不是静默成功，数量异常增大
-时应检查网格、CFL、初边值和正性。
+六种重构都保持六点标量模板和三层 cell-centered ghost。`zero_order` 不缩小模板：同一面六点为 `(q[j-2],q[j-1],q[j],q[j+1],q[j+2],q[j+3])` 时，左值严格取第 3 点 `q[j]`，右值严格取第 4 点 `q[j+1]`。非法重构状态会按确定性策略回退，HLLC/Roe 的非法中间状态也会回退；历史文件记录累计回退数。回退不是静默成功，数量异常增大时应检查网格、CFL、初边值和正性。
 
-registry 中还注册了 `linear5`，供线性回退和算法测试使用，当前字符串配置技术上也能选中它；
-但发布算例承诺的用户重构集合是表中的四种，普通物理解算不把 `linear5` 当作首选方案。
+`linear5` 主要供线性回退、光滑基线和算法测试使用；普通有激波计算不把它或 `zero_order` 当作高分辨率首选方案。
 
-当前生产配置**没有**低 Mach 预处理键，也没有暴露 WENO epsilon、MDCD 常数、Roe 熵修正、
-数值 floor 或无粘边界强约束开关。底层 `strong_boundary_face_state` 默认且实际为 `true`；
-标准 `wcns_run` 不能通过 `.wcns` 关闭它。需要研究这些参数时按开发手册扩展 schema 和重启签名。
+MDCD 的两个线性谱控制参数已经暴露：
+
+```text
+algorithm.mdcd.disp = 0.0463783
+algorithm.mdcd.diss = 0.01
+```
+
+`disp` 对应 `WcnsParameters::mdcd_dispersion`，`diss` 对应 `mdcd_dissipation`；二者同时作用于 `mdcd_linear` 与 `mdcd_hybrid` 的线性部分。两值必须有限，并满足 `disp>0`、`0<=diss<disp`、`3*disp+9*diss<1`。省略时使用上面的默认值。即使当前选择不是 MDCD，出现的键仍被解析、验证、写入摘要和 restart signature；因此不要在不同重启段任意改值。
+
+当前生产配置仍**没有**低 Mach 预处理键，也没有暴露 WENO epsilon、MDCD 传感器常数、Roe 熵修正、数值 floor 或无粘边界强约束开关。底层 `strong_boundary_face_state` 默认且实际为 `true`；标准 `wcns_run` 不能通过 `.wcns` 关闭它。
 
 ### 8.3 气体与无量纲参考量
 
@@ -464,28 +438,22 @@ p_ref = rho_ref * U_ref^2
 t_ref = L_ref / U_ref
 ```
 
-禁止配置 `Re`、`Ma`、`reference.reynolds` 或 `reference.mach`。内部状态使用
-`rho/rho_ref`、`u/U_ref`、`T/T_ref`、`p/(rho_ref*U_ref^2)`。因此理想气体无量纲关系为
-`p=rho*T/(gamma*Ma^2)`；`rho=1,T=1` 并不意味着 `p=1`。
+禁止配置 `Re`、`Ma`、`reference.reynolds` 或 `reference.mach`。内部状态使用 `rho/rho_ref`、`u/U_ref`、`T/T_ref`、`p/(rho_ref*U_ref^2)`。因此理想气体无量纲关系为 `p=rho*T/(gamma*Ma^2)`；`rho=1,T=1` 并不意味着 `p=1`。
 
 ### 8.4 MPI 分区
 
 | 键 | 约束 | 含义 |
 |---|---|---|
 | `partition.mode` | 三种枚举 | `zones_only` 只用原 zone；`auto_split`/`force_split` 可二分 zone |
-| `partition.allow_idle_ranks` | `true|false` | 是否允许某些 rank 无叶块 |
+| `partition.allow_idle_ranks` | `true\|false` | 是否允许某些 rank 无叶块 |
 | `partition.max_load_ratio` | `>=1` | 最大 rank 单元负载与平均负载的目标比 |
 | `partition.min_cells_per_active_direction` | 整数 | 每个叶块每个活动方向最少单元数 |
 
-当前 `auto_split` 与 `force_split` 在实现中走同一可切分流程；`force_split` 是为后续更明确策略
-保留的配置名，不能理解为“即使没有并行需要也必然增加叶块”。
+当前 `auto_split` 与 `force_split` 在实现中走同一可切分流程；`force_split` 是为后续更明确策略保留的配置名，不能理解为“即使没有并行需要也必然增加叶块”。
 
-`zones_only` 在 zone 少于 rank 且不允许 idle 时失败。另两种模式先把较大叶块确定性二分到
-足够覆盖 rank，再在负载比超过目标时继续切分，最多探索到约 `4*ranks` 个叶块。负载只按
-单元数估计，不计通信面、边界或异构硬件。
+`zones_only` 在 zone 少于 rank 且不允许 idle 时失败。另两种模式先把较大叶块确定性二分到足够覆盖 rank，再在负载比超过目标时继续切分，最多探索到约 `4*ranks` 个叶块。负载只按单元数估计，不计通信面、边界或异构硬件。
 
-profile 的硬下限为：`phenglei_wcns>=4`，`scmm6_wcns>=5`。若 rank 数超过按该下限可形成的
-最大叶块数，且 `allow_idle_ranks=false`，启动明确失败。通常取 8 或更大更稳妥。
+profile 的硬下限为：`phenglei_wcns>=4`，`scmm6_wcns>=5`。若 rank 数超过按该下限可形成的最大叶块数，且 `allow_idle_ranks=false`，启动明确失败。通常取 8 或更大更稳妥。
 
 ### 8.5 初场
 
@@ -502,8 +470,7 @@ initial.w = 0.0
 initial.temperature = 1.0
 ```
 
-默认 `rho=1,u=v=w=0,T=1`。可用 `initial.pressure` 代替温度；如果两者都给，当前实现优先
-压力，但手册要求只给一个以保持语义清楚。
+默认 `rho=1,u=v=w=0,T=1`。可用 `initial.pressure` 代替温度；如果两者都给，当前实现优先压力，但手册要求只给一个以保持语义清楚。
 
 #### `sod_x`
 
@@ -524,8 +491,7 @@ initial.right_p = 0.1
 
 #### `quadrant_riemann`
 
-使用 `x0,y0` 和 `ne/nw/sw/se` 四组 `rho,u,v,p`。判断规则是东侧 `x>=x0`、北侧
-`y>=y0`。内建默认状态为：
+使用 `x0,y0` 和 `ne/nw/sw/se` 四组 `rho,u,v,p`。判断规则是东侧 `x>=x0`、北侧`y>=y0`。内建默认状态为：
 
 | 象限 | rho | u | v | p |
 |---|---:|---:|---:|---:|
@@ -573,8 +539,7 @@ initial.period_x = 10.0
 initial.period_y = 10.0
 ```
 
-周期域必须显式给正的 `period_x/period_y`，使初场用最短周期距离；0 表示普通非周期距离。
-程序根据 `gamma` 和导出的 Ma 计算温度、密度并检查正性。case03 给出扭曲周期网格的一周期示例。
+周期域必须显式给正的 `period_x/period_y`，使初场用最短周期距离；0 表示普通非周期距离。程序根据 `gamma` 和导出的 Ma 计算温度、密度并检查正性。case03 给出扭曲周期网格的一周期示例。
 
 #### `couette`
 
@@ -602,8 +567,7 @@ initial.temperature_curvature = 0.0
 initial.pressure = 1.0
 ```
 
-压力恒定，密度由状态方程得到。默认 `y0=0,y1=1,lower_velocity=0,upper_velocity=1`，
-两个曲率为 0，端温默认 1。压力省略时用 `1/(gamma*Ma^2)`。
+压力恒定，密度由状态方程得到。默认 `y0=0,y1=1,lower_velocity=0,upper_velocity=1`，两个曲率为 0，端温默认 1。压力省略时用 `1/(gamma*Ma^2)`。
 
 #### `poiseuille`
 
@@ -617,19 +581,26 @@ initial.temperature_curvature = 0.0
 initial.pressure = 1.0
 ```
 
-速度 `u=4*Ucenter*eta*(1-eta)`，横向速度为零。温度使用手册模板对应的四次多项式修正；
-压力恒定、密度由状态方程闭合。维持周期通道流还必须配置 `pressure_gradient` 源项。case02
-展示了三维均匀/壁面加密网格，但加密算例在 3600 步被人工强制停止，不能作为已收敛基线。
+速度 `u=4*Ucenter*eta*(1-eta)`，横向速度为零。温度使用手册模板对应的四次多项式修正；压力恒定、密度由状态方程闭合。维持周期通道流还必须配置 `pressure_gradient` 源项。case02 展示了三维均匀/壁面加密网格，但加密算例在 3600 步被人工强制停止，不能作为已收敛基线。
 
 #### `linear_conduction`
 
-速度为零，`T=lower_temperature+(upper_temperature-lower_temperature)*eta`，压力恒定。默认
-下/上温为 1/2。
+速度为零，`T=lower_temperature+(upper_temperature-lower_temperature)*eta`，压力恒定。默认下/上温为 1/2。
 
 #### `manufactured_periodic`
 
-`beta` 默认 0.01，背景速度默认 `(0.2,0.1,0)`；在 x/y（以及三维 z）用固定 `2*pi`
-三角函数构造光滑非均匀场。它用于程序回归，不会自动匹配任意域周期或任意制造源。
+`beta` 默认 0.01，背景速度默认 `(0.2,0.1,0)`；在 x/y（以及三维 z）用固定 `2*pi` 三角函数构造光滑非均匀场。它用于程序回归，不会自动匹配任意域周期或任意制造源。
+
+#### `double_mach_reflection`
+
+该类型只实现经典 Woodward--Colella 二维无粘问题，并固定采用 `gamma=1.4`、入射 Mach 10、激波与 x 轴夹角 60 度、激波足点默认 `x0=1/6`。标准区域为 `[0,4]x[0,1]`：
+
+```text
+initial.type = double_mach_reflection
+initial.x0 = 0.16666666666666667
+```
+
+激波前状态为 `(rho,u,v,p)=(1.4,0,0,1)`，激波后状态为`(8,8.25*cos(30deg),-8.25*sin(30deg),116.5)`。初始激波线为`x=x0+y/tan(60deg)`；激波后状态位于其左侧。该初场必须配合下文专用边界，且 `run.viscous=false`、`source.enabled=false`。非二维网格、非 1.4 的 gamma 或只设置初场而没有专用边界都会在推进前失败。
 
 ### 8.6 物理边界
 
@@ -644,6 +615,7 @@ initial.pressure = 1.0
 | `symmetry` | 与静止滑移壁相同的法向反射 | 通常无需数据 |
 | `no_slip_adiabatic_wall` | ghost 反射三速度，真实粘性面强制无滑移和零法向温度梯度 | 壁速可选 |
 | `no_slip_isothermal_wall` | ghost/真实粘性面施加无滑移与给定壁温 | 壁温必需；程序有回退值但建议显式给 |
+| `double_mach_reflection` | 经典算例的左固定激波后态、顶面移动激波和底面分段入流/滑移壁 | 只与同名初场配套；无需普通目标态字段 |
 
 目标态写法：
 
@@ -656,8 +628,7 @@ boundary.inlet.w = 0.0
 boundary.inlet.temperature = 1.0
 ```
 
-也可把最后一行换为 `boundary.inlet.pressure=...`，但温度和压力不能同时给。一旦出现任意
-目标态字段，`rho` 与恰好一个 `temperature|pressure` 必须存在；缺省速度分量按零处理。
+也可把最后一行换为 `boundary.inlet.pressure=...`，但温度和压力不能同时给。一旦出现任意目标态字段，`rho` 与恰好一个 `temperature|pressure` 必须存在；缺省速度分量按零处理。
 
 壁面写法：
 
@@ -670,12 +641,20 @@ boundary.bottom.wall_velocity_z = 0.0
 boundary.bottom.wall_temperature = 1.0
 ```
 
-patch 名必须与 CGNS 名完全一致。自动分区会保留原 patch 名。只填面 ghost 的三层法向数据；
-边和角 ghost 不填，且物理边界 ghost 上只有由边界条件得到的原始量、压力及守恒量可用，
-坐标、度量、梯度和其他二级量不可读取。
+patch 名必须与 CGNS 名完全一致。自动分区会保留原 patch 名。只填面 ghost 的三层法向数据；边和角 ghost 不填，且物理边界 ghost 上只有由边界条件得到的原始量、压力及守恒量可用，坐标、度量、梯度和其他二级量不可读取。
 
-当前无粘真实边界面在重构后总执行强约束；粘性壁面速度/温度或热流约束也总是强制。配置
-schema 尚未暴露 `strong_boundary_face_state`。
+当前无粘真实边界面在重构后总执行强约束；粘性壁面速度/温度或热流约束也总是强制。配置 schema 尚未暴露 `strong_boundary_face_state`。
+
+经典双马赫反射的边界配置必须按 CGNS patch 名显式写成：
+
+```text
+boundary.default = outflow
+boundary.left.type = double_mach_reflection
+boundary.bottom.type = double_mach_reflection
+boundary.top.type = double_mach_reflection
+```
+
+左边界恒取激波后态；顶边界使用`x_s(y,t)=x0+y/tan(60deg)+10*t/sin(60deg)`判断移动激波两侧；底边界在`x<x0`取激波后态，在`x>=x0`按静止滑移壁反射法向速度；右边界由 default 保持出流。专用算子只用真实边界顶点求面中心，不构造或读取 ghost 坐标，三层 ghost 的物理状态在每个 SSPRK 子步按该子步时间刷新。
 
 ### 8.7 源项
 
@@ -705,8 +684,7 @@ source.pressure_gradient.z = 0.0
 | `pressure_gradient` | `x,y,z` | 保存 `G=-grad(p)`，动量源 `G`，能量源 `u·G` |
 | `manufactured` | 五个 `source.manufactured.*` | 幅值乘 `1+x+y(+z)+t` |
 
-多个模型同址相加并在每个 SSPRK 子步按该子步时间计算。模型名不可重复，二维 z 动量总源
-必须为零。所有源项值是当前无量纲控制方程中的值，程序不解析带单位表达式。
+多个模型同址相加并在每个 SSPRK 子步按该子步时间计算。模型名不可重复，二维 z 动量总源必须为零。所有源项值是当前无量纲控制方程中的值，程序不解析带单位表达式。
 
 ### 8.8 运行模式和停止
 
@@ -740,13 +718,9 @@ steady.linf_absolute = 1e-11
 steady.linf_relative = 1e-8
 ```
 
-在 `step % check_interval_steps == 0` 时检查。第一次检查冻结五分量参考 `L2/Linf`。每个分量
-必须满足 `L2绝对阈值 OR L2相对阈值`，并在启用时满足 `Linf绝对 OR Linf相对`；全部分量
-连续通过指定次数且达到 `min_steps` 才停止。
+在 `step % check_interval_steps == 0` 时检查。第一次检查冻结五分量参考 `L2/Linf`。每个分量必须满足 `L2绝对阈值 OR L2相对阈值`，并在启用时满足 `Linf绝对 OR Linf相对`；全部分量连续通过指定次数且达到 `min_steps` 才停止。
 
-停止优先级是：数值失败 → steady 收敛或 t_end → 用户信号 → 墙钟 → 最大步数。SIGINT/
-SIGTERM 和墙钟只在完整步结束时生效。不要用任务管理器“结束进程”代替一次 Ctrl+C，因为
-强制杀进程无法保证原子提交最终检查点。
+停止优先级是：数值失败 → steady 收敛或 t_end → 用户信号 → 墙钟 → 最大步数。SIGINT/SIGTERM 和墙钟只在完整步结束时生效。不要用任务管理器“结束进程”代替一次 Ctrl+C，因为强制杀进程无法保证原子提交最终检查点。
 
 ### 8.9 输出总设置与调度
 
@@ -756,9 +730,7 @@ output.allow_existing = false
 output.dimensional = false
 ```
 
-`allow_existing=false` 时只要目录存在即失败，保护历史结果。`true` 允许目录存在并允许同名
-最终文件被替换，但历史/统计文件是本次运行重写而不是追加。重启推荐写到新目录；如必须复用
-目录，应先备份并理解覆盖行为。
+`allow_existing=false` 时只要目录存在即失败，保护历史结果。`true` 允许目录存在并允许同名最终文件被替换，但历史/统计文件是本次运行重写而不是追加。重启推荐写到新目录；如必须复用目录，应先备份并理解覆盖行为。
 
 每类输出都有：
 
@@ -770,9 +742,7 @@ write_initial = false
 write_final = true
 ```
 
-在键前加对应前缀 `output.field|history|statistics|checkpoint`。四种事件取并集；同一
-`(step,time)` 去重。`explicit_times` 必须非负、严格递增。`every_time` 和显式时刻会让时间步
-裁剪到事件时刻；定常时这里的 time 是伪时间。
+在键前加对应前缀 `output.field|history|statistics|checkpoint`。四种事件取并集；同一`(step,time)` 去重。`explicit_times` 必须非负、严格递增。`every_time` 和显式时刻会让时间步裁剪到事件时刻；定常时这里的 time 是伪时间。
 
 ## 9. 输出文件逐项说明
 
@@ -811,9 +781,7 @@ my_case.field.step00000100.time1p250000000eM02.dat
 | `viscosity` | 当前输运模型黏度 | `mu_ref` |
 | `jacobian` | 计算到物理空间 Jacobian | `L_ref^dimension` |
 
-CGNS 输出在 rank 0 把运行时叶块重新拼回输入原 zone，写 cell-centered `FlowSolution` 和时间
-descriptor。Tecplot 是 ASCII ordered zone，坐标取 cell center。当前场输出只复制坐标和场，
-不承诺完整保留输入 BC/connectivity，因此它是后处理文件，不是正式检查点，也不应替代原网格。
+CGNS 输出在 rank 0 把运行时叶块重新拼回输入原 zone，写 cell-centered `FlowSolution` 和时间descriptor。Tecplot 是 ASCII ordered zone，坐标取 cell center。当前场输出只复制坐标和场，不承诺完整保留输入 BC/connectivity，因此它是后处理文件，不是正式检查点，也不应替代原网格。
 
 ### 9.2 残差历史
 
@@ -825,11 +793,8 @@ output.history.write_initial = true
 output.history.write_final = true
 ```
 
-禁止设置 `output.history.quantities`；历史 schema 固定。文件名为
-`<case>.history.r<ranks>.txt|dat`。TXT 首行以 `#` 开头，依次包含：step、time、dt、CFL、
-wall time、总 L2、五分量 L2、参考 L2、归一化 L2、五分量 Linf、参考 Linf、归一化 Linf、
-连续通过次数、重构回退数、Riemann 回退数、本步是否检查残差、停止原因。初始行 `dt=0`；
-重启后的首行也不要当成本步时间步长。
+禁止设置 `output.history.quantities`；历史 schema 固定。文件名为`<case>.history.r<ranks>.txt|dat`。TXT 首行以 `#` 开头，依次包含：step、time、dt、CFL、
+wall time、总 L2、五分量 L2、参考 L2、归一化 L2、五分量 Linf、参考 Linf、归一化 Linf、连续通过次数、重构回退数、Riemann 回退数、本步是否检查残差、停止原因。初始行 `dt=0`；重启后的首行也不要当成本步时间步长。
 
 ### 9.3 全场统计
 
@@ -840,10 +805,19 @@ output.statistics.every_steps = 10
 output.statistics.quantities = total_mass,total_momentum_x,total_energy
 ```
 
-可选 `total_mass,total_momentum_x,total_momentum_y,total_momentum_z,total_energy`。这些值使用
-原 zone 守恒积分权重、正 Jacobian 和 MPI 全局归约，避免人工切分接口重复计数。
-`output.dimensional=true` 时还乘相应场尺度和 `L_ref^dimension`；二维结果表示单位出平面厚度
-下的积分，应按二维模型解释。
+可选 `total_mass,total_momentum_x,total_momentum_y,total_momentum_z,total_energy`。这些值使用原 zone 守恒积分权重、正 Jacobian 和 MPI 全局归约，避免人工切分接口重复计数。`output.dimensional=true` 时还乘相应场尺度和 `L_ref^dimension`；二维结果表示单位出平面厚度下的积分，应按二维模型解释。
+
+三维 Poiseuille/槽道流还可打开多个 x-z 层监测：
+
+```text
+output.statistics.enabled = true
+output.statistics.xz_planes.enabled = true
+output.statistics.xz_planes.cell_j_indices = 0,11,23,35,47
+```
+
+索引是每个**原始 CGNS zone** 的零基 cell-j 索引，不是顶点索引，也不是自动分区后的叶块局部索引。开启后程序按给定次序为每个 `j` 自动追加两列：`xz_mean_u_j<j>` 为面积加权`<u>_xz=sum(A*u)/sum(A)`；`xz_mass_flow_x_j<j>` 为`sum(A*rho*u)`。后者是 x 方向质量流动在 x-z 壁平行面的面积积分指标，不是穿过该面的法向通量；若需要真正的通道截面流量，应监测法向为 x 的 y-z 面，当前内建接口尚未提供。
+
+所有原 zone 必须为三维、每个索引在各 zone 中都有效，并且同一索引对应的所有单元中心 y 坐标必须在容差内共面。面积使用该 cell-j 层上下两个 J 面面积的平均；人工 MPI 切分时通过 `PartitionLeaf` 映射回原 zone，再由 MPI 求和，因此不会重复累计 ghost 或接口。无量纲输出时两列分别为速度和`rho*u*L^2`；量纲输出分别乘 `U_ref` 和`rho_ref*U_ref*L_ref^2`。关闭功能可以保留索引列表但不会生成列；开启时无需、也不要把自动列名手工重复写进`output.statistics.quantities`。
 
 ### 9.4 检查点
 
@@ -854,17 +828,13 @@ my_case.checkpoint.step00001000.time....cgns
 my_case.checkpoint.latest.cgns
 ```
 
-带 step/time 的文件是事件快照；`latest` 是滚动副本。还保存格式版本、step/time/dt、网格
-签名、数值签名、定常参考残差与连续计数。
+带 step/time 的文件是事件快照；`latest` 是滚动副本。还保存格式版本、step/time/dt、网格签名、数值签名、定常参考残差与连续计数。
 
 ### 9.5 manifest 与临时文件
 
-正常进入最终化后，rank 0 写 `<case>.manifest.r<ranks>.txt`，其中包含程序版本、Git 提交、
-编译器、Release/Debug、MPI 数、配置/分区摘要、网格/重启签名、最终状态、停止原因和成功
-提交的文件列表。审查结果时先看 manifest，再看 history。
+正常进入最终化后，rank 0 写 `<case>.manifest.r<ranks>.txt`，其中包含程序版本、Git 提交、编译器、Release/Debug、MPI 数、配置/分区摘要、网格/重启签名、最终状态、停止原因和成功提交的文件列表。审查结果时先看 manifest，再看 history。
 
-输出先写 `.tmp`，关闭成功后改名。启动阶段异常可能没有 manifest；I/O 中断可能留下 `.tmp`，
-它只是诊断残留，不能当成有效结果。
+输出先写 `.tmp`，关闭成功后改名。启动阶段异常可能没有 manifest；I/O 中断可能留下 `.tmp`，它只是诊断残留，不能当成有效结果。
 
 ## 10. 串行与 MPI 运行
 
@@ -880,9 +850,7 @@ MPI：
 mpiexec -n 4 build-user-mpi\wcns_run.exe --config path\case.wcns
 ```
 
-配置只由 rank 0 读取并广播，随后所有 rank 校验摘要 digest；网格元数据和分区也要求一致。
-求解 halo 使用 MPI，但 CGNS 读写和原 zone 重组当前不是并行 I/O。rank 增多不保证更快，尤其
-小网格和频繁全场输出可能由通信/根进程 I/O 主导。
+配置只由 rank 0 读取并广播，随后所有 rank 校验摘要 digest；网格元数据和分区也要求一致。求解 halo 使用 MPI，但 CGNS 读写和原 zone 重组当前不是并行 I/O。rank 增多不保证更快，尤其小网格和频繁全场输出可能由通信/根进程 I/O 主导。
 
 更换 rank 数前先执行 dry-run：
 
@@ -890,8 +858,7 @@ mpiexec -n 4 build-user-mpi\wcns_run.exe --config path\case.wcns
 mpiexec -n 8 build-user-mpi\wcns_run.exe --config path\case.wcns --dry-run
 ```
 
-检查摘要中的每个 `leaf=...,range=...,owner=...`，确认没有不可行分区。正式可复现性检查应
-在同一网格/配置下运行 1 rank 和目标 rank，并用验证器比较最终场。
+检查摘要中的每个 `leaf=...,range=...,owner=...`，确认没有不可行分区。正式可复现性检查应在同一网格/配置下运行 1 rank 和目标 rank，并用验证器比较最终场。
 
 ## 11. 检查点重启操作
 
@@ -905,8 +872,7 @@ output.checkpoint.write_final = true
 
 ### 步骤 2：确认检查点已完整提交
 
-查看源运行 manifest 中是否列出 `.checkpoint.latest.cgns`，并确认源停止原因。不要从 `.tmp`
-或数值失败状态恢复。
+查看源运行 manifest 中是否列出 `.checkpoint.latest.cgns`，并确认源停止原因。不要从 `.tmp` 或数值失败状态恢复。
 
 ### 步骤 3：复制配置并设置新输出目录
 
@@ -915,8 +881,7 @@ restart.path = ../run-a/output/my_case.checkpoint.latest.cgns
 output.directory = output/run-b
 ```
 
-可以改变 rank 数、合法的叶块分区、输出设置、`run.max_steps` 和非定常 `run.t_end`。也可改变
-case 名。初场配置仍是 schema 必填，但恢复时不会用于覆盖检查点状态。
+可以改变 rank 数、合法的叶块分区、输出设置、`run.max_steps` 和非定常 `run.t_end`。也可改变case 名。初场配置仍是 schema 必填，但恢复时不会用于覆盖检查点状态。
 
 ### 步骤 4：先 dry-run，再续算
 
@@ -925,12 +890,9 @@ mpiexec -n 4 build-user-mpi\wcns_run.exe --config run-b\restart.wcns --dry-run
 mpiexec -n 4 build-user-mpi\wcns_run.exe --config run-b\restart.wcns
 ```
 
-程序要求 profile、重构、Riemann、气体、参考量、边界数据、源项、黏性开关和网格签名兼容。
-当前网格签名覆盖 base/zone 名称、维数、尺寸和坐标；不要依赖它发现所有 BC/connectivity
-语义变化，实际重启应保持原网格文件不变，只改变运行时分区。
+程序要求 profile、重构、Riemann、气体、参考量、边界数据、源项、黏性开关和网格签名兼容。当前网格签名覆盖 base/zone 名称、维数、尺寸和坐标；不要依赖它发现所有 BC/connectivity 语义变化，实际重启应保持原网格文件不变，只改变运行时分区。
 
-历史/统计不会把源文件自动拼接到新文件。分析连续轨迹时按 checkpoint 的 step/time 合并两次
-运行的序列，并去掉重复的重启初始行。
+历史/统计不会把源文件自动拼接到新文件。分析连续轨迹时按 checkpoint 的 step/time 合并两次运行的序列，并去掉重复的重启初始行。
 
 ## 12. 常用算例操作配方
 
@@ -944,20 +906,20 @@ mpiexec -n 4 build-user-mpi\wcns_run.exe --config run-b\restart.wcns
 
 ### 12.2 二维 Riemann 问题
 
-使用 `quadrant_riemann`、`outflow`、`run.mode=unsteady`、特征重构和 HLLC/Roe，输出初末场。
-完整 256² 均匀/局部加密操作见 [`case01`](../cases/manual/case01_2d_riemann/README.md)。
+使用 `quadrant_riemann`、`outflow`、`run.mode=unsteady`、特征重构和 HLLC/Roe，输出初末场。完整 256² 均匀/局部加密操作见 [`case01`](../cases/manual/case01_2d_riemann/README.md)。
 
 ### 12.3 三维 Poiseuille
 
-使用 `periodic-channel` 网格、上下无滑移等温壁、`poiseuille` 初场、
-`source.models=pressure_gradient`、`run.viscous=true` 和 `run.mode=steady`。完整设置及一次未完成
-的壁面加密运行分析见 [`case02`](../cases/manual/case02_3d_poiseuille/README.md)。
+使用 `periodic-channel` 网格、上下无滑移等温壁、`poiseuille` 初场、`source.models=pressure_gradient`、`run.viscous=true` 和 `run.mode=steady`。完整设置及一次未完成的壁面加密运行分析见 [`case02`](../cases/manual/case02_3d_poiseuille/README.md)。
 
 ### 12.4 扭曲网格等熵涡
 
-使用 `warped-periodic-square`、周期初场距离、两套独立 profile 各运行一周期；用
-`wcns_compare_metric_profiles` 和 `field-error` 比较。完整实测见
+使用 `warped-periodic-square`、周期初场距离、两套独立 profile 各运行一周期；用`wcns_compare_metric_profiles` 和 `field-error` 比较。完整实测见
 [`case03`](../cases/manual/case03_2d_vortex/README.md)。
+
+### 12.5 经典双马赫反射
+
+用 `wcns_generate_release_cgns rectangle ... 960 240 ... 4.0 1.0 false` 生成`[0,4]x[0,1]`结构网格；配置 `double_mach_reflection` 初场和 left/bottom/top 三个同名专用边界，以 WENO-Z 特征重构和 HLLC 从 `t=0` 推进到 `t=0.2`。完整命令、配置解释和输出判读见 [`case04`](../cases/manual/case04_2d_double_mach_reflection/README.md)。
 
 ## 13. 独立验证工具
 
@@ -971,10 +933,7 @@ wcns_validate_release_case tecplot-consistency final.cgns final.dat 1e-12
 wcns_compare_metric_profiles mesh.cgns
 ```
 
-解析算例还支持 `uniform`、`vortex`、`sod`、`diagonal-symmetry`、`viscous-profile`、
-`poiseuille-profile`、`uniform-source`、`derived` 和 `nonzero`。完整参数表和 Python 矩阵驱动
-见 [`release-validation.md`](release-validation.md)。验证器独立通过 CGNS API 重读文件，
-不直接信任求解器内存结果。
+解析算例还支持 `uniform`、`vortex`、`sod`、`diagonal-symmetry`、`viscous-profile`、`poiseuille-profile`、`uniform-source`、`derived` 和 `nonzero`。完整参数表和 Python 矩阵驱动见 [`release-validation.md`](release-validation.md)。验证器独立通过 CGNS API 重读文件，不直接信任求解器内存结果。
 
 ## 14. 运行前、运行中和运行后检查表
 
@@ -1027,10 +986,6 @@ wcns_compare_metric_profiles mesh.cgns
 
 ## 16. 当前功能边界
 
-当前只有单组分热完全理想气体、层流常比热模型、显式 SSPRK3、结构共形网格和内建源项。
-标准配置尚未暴露 Sutherland/Prandtl、低 Mach 预处理、湍流、化学反应、隐式推进、本地时间步、
-通用表达式源项、动态插件、涡量/Q/壁面热流等派生输出。默认输运为 `Pr=0.72` 和
-`mu/mu_ref=1` 的常黏度。
+当前只有单组分热完全理想气体、层流常比热模型、显式 SSPRK3、结构共形网格和内建源项。标准配置尚未暴露 Sutherland/Prandtl、低 Mach 预处理、湍流、化学反应、隐式推进、本地时间步、通用表达式源项、动态插件、涡量/Q/壁面热流等派生输出。默认输运为 `Pr=0.72` 和`mu/mu_ref=1` 的常黏度。
 
-这些限制不能通过写一个未知配置键绕过。需要扩展时按开发手册同时修改数据结构、严格
-parser、验证、摘要/重启签名、生产装配、测试、模板和文档。
+这些限制不能通过写一个未知配置键绕过。需要扩展时按开发手册同时修改数据结构、严格 parser、验证、摘要/重启签名、生产装配、测试、模板和文档。

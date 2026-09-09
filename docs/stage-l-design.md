@@ -5,8 +5,7 @@
 
 本文是阶段 L 的实施前冻结规格。阶段 L 只扩展无粘界面算法和健壮性机制，不改变
 `phenglei_wcns`、`scmm6_wcns` 各自绑定的度量、线性插值、通量差分、边界闭合和
-`FaceFluxHalo` 语义。[`interpolation.cpp`](interpolation.cpp) 仅作为 MDCD 公式来源，不参与构建；其中
-未检查模板长度、用浮点符号选择左右方向和未知枚举静默返回等行为不得复制到生产代码。
+`FaceFluxHalo` 语义。MDCD 公式已在本文冻结并由生产测试保护；早期参考代码没有进入构建，且其中未检查模板长度、用浮点符号选择左右方向和未知枚举静默返回等行为不得复制到生产代码。
 
 ## 1. 配置与统一调用约定
 
@@ -16,10 +15,9 @@
 reconstruction = weno_js | weno_z | mdcd_linear | mdcd_hybrid
 reconstruction_variables = conservative | primitive | characteristic
 riemann_solver = rusanov | hllc | roe
-low_mach_preconditioning = off | weiss_smith_roe
 ```
 
-`linear5` 保留为测试、正性回退和光滑基线方案，但不替代上述四种必做重构。
+`linear5` 保留为测试、正性回退和光滑基线方案，但不替代上述四种必做重构。阶段 L 后又加入兼容同一六点模板的`zero_order`调试格式：左/右值分别取模板第 3/4 点。
 早期名称 `wcns_js` 只能作为带弃用警告的输入迁移别名，内部配置摘要和重启签名一律写
 `weno_js`。算法名称不区分大小写的便利转换只能发生在配置读取层；注册表键使用上述小写
 规范名称。未知名称、重复注册、非法参数或不兼容组合必须在推进前报错。
@@ -135,7 +133,7 @@ $$
 
 ### 3.3 MDCD_LINEAR
 
-`docs/interpolation.cpp` 中的六点线性 MDCD 公式冻结为
+六点线性 MDCD 公式冻结为
 
 $$
 q_L=\sum_{m=0}^{5}c_mf_m,
@@ -152,7 +150,7 @@ c_5&=\frac{3(\gamma_{disp}-\gamma_{diss})}{8}.
 \end{aligned}
 $$
 
-项目默认 `mdcd_dispersion=0.0463783`、`mdcd_dissipation=0.01`。二者必须有限，且满足
+项目默认 `mdcd_dispersion=0.0463783`、`mdcd_dissipation=0.01`，现分别由配置键`algorithm.mdcd.disp`、`algorithm.mdcd.diss`覆盖。二者必须有限，且满足
 
 $$
 \gamma_{disp}>0,\qquad 0\le\gamma_{diss}<\gamma_{disp},\qquad
@@ -176,7 +174,7 @@ b_2&=|\bar f_3-\bar f_4|+|\bar f_3-2\bar f_4+\bar f_5|,\\
 \end{aligned}
 $$
 
-冻结 `docs/interpolation.cpp` 的默认值
+传感器冻结默认值
 
 $$
 \epsilon_s=\frac{0.9\times0.4}{1-0.9\times0.4}\,10^{-4}=5.625\times10^{-5},
@@ -367,10 +365,10 @@ $$
 项目默认 $C_{entropy}=0.1$。Roe 平均、声速平方、特征分解、预测更新或通量无效时，
 按 `Roe -> HLLC -> Rusanov` 回退并分别计数。
 
-## 7. 低 Mach 预处理开关
+## 7. 低 Mach 预处理预留（未实现）
 
-默认 `low_mach_preconditioning=off`，此时三种求解器必须与经典公式逐位一致。阶段 L 预留
-`IPreconditioningModel`，可选实现 `weiss_smith_roe`；它只与 `riemann_solver=roe` 和稳态
+当前 schema 和生产程序没有低 Mach 预处理键；三种求解器与经典公式一致。未来可预留
+`IPreconditioningModel` 并实现 `weiss_smith_roe`；它只应与 `riemann_solver=roe` 和稳态
 伪时间模式组合。开启后必须一致地修改伪时间导数预处理矩阵、Roe 特征系统、谱半径/CFL 和
 远场特征边界，不能只在某个公式里替换声速。
 
@@ -408,7 +406,7 @@ HLLC 与 `weiss_smith_roe` 组合，必须在启动时拒绝；不得把预处�
 - MDCD：Z.-S. Sun et al., *A class of finite difference schemes with low dispersion and
   controllable dissipation for DNS of compressible turbulence*, JCP 230 (2011),
   [期刊页面](https://www.sciencedirect.com/science/article/pii/S0021999111001276)；本项目具体混合
-  公式以随仓库提供的 `interpolation.cpp` 为直接冻结参考。
+  公式以本文第 3.3--3.4 节和对应单元测试为直接冻结参考。
 - HLLC 波速：P. Batten et al., *On the Choice of Wavespeeds for the HLLC Riemann Solver*,
   SIAM J. Sci. Comput. 18 (1997), DOI
   [10.1137/S1064827593260140](https://doi.org/10.1137/S1064827593260140)。

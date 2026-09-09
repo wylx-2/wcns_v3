@@ -6,7 +6,7 @@
 
 阶段 A--J 已按各自卡口完成，其中 H--J 已通过项目负责人人工验收。阶段 K、L 候选版本的正式自动验收已通过，K/L 尚未进行的人工检查已按负责人批示并入最终发布算例验收，不视为追认通过。阶段 M、N 已通过正式自动验收；阶段 O0--O6 自动验收现已完成，`stage-o-release-candidate-v1` 等待项目负责人集中人工检查，尚未合并 `main` 或创建正式版本。当前能力边界见 [`docs/known-limitations.md`](docs/known-limitations.md)，候选说明见 [`docs/release-notes-0.1.0-rc1.md`](docs/release-notes-0.1.0-rc1.md)，发布级基线见 [`cases/baselines/stage-o-release-v1.json`](cases/baselines/stage-o-release-v1.json)，许可状态见 [`LICENSE.md`](LICENSE.md)。
 
-当前程序具备 CGNS 结构多块网格读取、两套独立高阶几何 profile、单 zone 受约束二次剖分、同 rank/MPI 非阻塞 halo 交换、四种界面重构、Rusanov/HLLC/Roe、WCNS-Euler 空间离散、层流 Navier--Stokes 粘性通量、显式源项和 SSPRK3 推进。正式入口支持严格配置、定常/非定常停止、MPI 全局残差、精确时间事件、CGNS/Tecplot 流场、TXT/Tecplot 历史与统计、manifest，以及可改变 rank 数和叶块划分的 CGNS 检查点重启。逐步使用说明见 [`docs/user-manual.md`](docs/user-manual.md)，源码二次开发见 [`docs/developer-guide.md`](docs/developer-guide.md)，可复制的完整配置见 [`examples/full_case_template.wcns`](examples/full_case_template.wcns)；简明运行速查仍见 [`docs/runtime-guide.md`](docs/runtime-guide.md)，阶段 O 发布算例的生成、独立重读和矩阵入口见 [`docs/release-validation.md`](docs/release-validation.md)。
+当前程序具备 CGNS 结构多块网格读取、两套独立高阶几何 profile、单 zone 受约束二次剖分、同 rank/MPI 非阻塞 halo 交换、六种界面重构（含保持六点调用契约的 `zero_order`）、Rusanov/HLLC/Roe、WCNS-Euler 空间离散、层流 Navier--Stokes 粘性通量、显式源项和 SSPRK3 推进。正式入口支持严格配置、可配置 MDCD 色散/耗散系数、定常/非定常停止、MPI 全局残差、精确时间事件、CGNS/Tecplot 流场、TXT/Tecplot 历史与统计、多截面 x-z 面平均速度/质量积分、manifest，以及可改变 rank 数和叶块划分的 CGNS 检查点重启；二维经典双马赫反射已有专用初场和时变边界。逐步使用说明见 [`docs/user-manual.md`](docs/user-manual.md)，源码二次开发见 [`docs/developer-guide.md`](docs/developer-guide.md)，可复制的完整配置见 [`examples/full_case_template.wcns`](examples/full_case_template.wcns)；简明运行速查仍见 [`docs/runtime-guide.md`](docs/runtime-guide.md)，阶段 O 发布算例的生成、独立重读和矩阵入口见 [`docs/release-validation.md`](docs/release-validation.md)。
 
 ## 构建与测试
 

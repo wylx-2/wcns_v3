@@ -402,10 +402,23 @@ output.statistics.every_steps = 20
 output.statistics.write_initial = true
 output.statistics.write_final = true
 output.statistics.quantities = total_mass,total_momentum_x,total_momentum_y,total_momentum_z,total_energy
+output.statistics.xz_planes.enabled = true
+output.statistics.xz_planes.cell_j_indices = 0,11,23,35,47
 ```
 
 统计量使用正 Jacobian 和原 zone 守恒权重作 MPI 全局积分。压力梯度持续向流体输入动量和功，
 因此不能要求总 x 动量/总能量在伪时间中保持常数；y/z 总动量应保持近零。
+
+新增的 x-z 平面监测以原始 CGNS zone 的零基单元 J 索引选层；以上五层覆盖近下壁、四分之一、
+中心附近、四分之三和近上壁位置。每个索引自动向 statistics 追加两列：
+`xz_mean_u_jN` 为面积加权流向平均速度，`xz_mass_flow_x_jN` 为
+$\int_{xz}\rho u\,\mathrm dA$。后者是在壁平行截面上对 x 向质量通量密度作面积积分，用于监测
+不同 y 层的一致性，不应解释为穿过该 x-z 面的法向流量。开关关闭时不注册这些列；可修改
+索引列表来监测更多层，但各原 zone 必须具有相同合法 J 索引，且选中层必须几何共面。
+
+本目录已归档的长时运行结果生成于该监测功能加入之前，现有 `*.statistics*.txt` 因而只含
+原来的五个全场总量列。两份配置现已升级以便下一次重算直接产生十个新增截面列；不能用旧
+结果文件声称已经完成截面统计验收。
 
 ```text
 output.checkpoint.enabled = false
@@ -741,8 +754,9 @@ x 动量改变 -1.80053e-3，总能量改变 -8.18792e-4，y/z 总动量仍为 1
 - `*.history.r8.txt`：正常提交的步数、伪时间、dt、CFL、墙钟、五分量 L2/Linf、参考/归一化
   残差、连续通过次数、回退计数、判定标志与停止原因。本次加密网格的原始临时文件重命名为
   `*.history.r8.forced-step3600.txt`，第 3600 步末行不完整，最后完整行为 3580。
-- `*.statistics.r8.txt`：正常提交的总质量、三个方向总动量和总能量随伪时间积分。本次加密
-  文件名为 `*.statistics.r8.forced-step3600.txt`，最后完整行为 3560。
+- `*.statistics.r8.txt`：旧归档文件记录总质量、三个方向总动量和总能量随伪时间积分；它们
+  早于 x-z 截面监测功能，不含 `xz_mean_u_jN`/`xz_mass_flow_x_jN`。按当前配置重算时会追加
+  五个 J 层各两列。本次加密文件名为 `*.statistics.r8.forced-step3600.txt`，最后完整行为 3560。
 - `*.manifest.r8.txt`：程序版本、Git 提交、编译器/构建类型、MPI 数、配置/分区摘要、网格与
   重启签名、最终步/伪时间/dt/墙钟、停止原因和成功提交文件清单。
 - `logs/generate-*.log`：两套网格生成命令结果。
