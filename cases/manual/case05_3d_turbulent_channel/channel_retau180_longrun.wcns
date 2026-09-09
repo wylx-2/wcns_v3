@@ -1,0 +1,108 @@
+# case05 Linux 长算段 01。首次正式长算前必须先通过同包内 4-rank 五步卡口。
+schema_version = 1
+case.name = case05-channel-retau180-longrun-segment01
+mesh.path = grids/channel_36x48x36_beta1p75.cgns
+
+algorithm.profile = phenglei_wcns
+algorithm.reconstruction = mdcd_hybrid
+algorithm.reconstruction_variables = primitive
+algorithm.riemann = hllc
+algorithm.mdcd.disp = 0.0463783
+algorithm.mdcd.diss = 0.01
+
+gas.gamma = 1.4
+gas.specific_gas_constant = 1.0
+# U_ref=u_tau、L_ref=h、rho_ref=1、T_ref=71.428571...、mu_ref=1/180。
+# 程序导出 Re_ref=180、Ma_ref=0.1；注意体积平均 Ma_b 约为 1.548，不是 0.1。
+reference.velocity = 1.0
+reference.density = 1.0
+reference.temperature = 71.42857142857143
+reference.length = 1.0
+reference.viscosity = 0.005555555555555556
+
+partition.mode = auto_split
+partition.allow_idle_ranks = false
+partition.max_load_ratio = 1.2
+partition.min_cells_per_active_direction = 8
+
+initial.type = turbulent_channel
+initial.y0 = -1.0
+initial.y1 = 1.0
+initial.x0 = 0.0
+initial.z0 = 0.0
+initial.period_x = 6.283185307179586
+initial.period_z = 3.141592653589793
+initial.re_tau = 180.0
+initial.bulk_velocity = 15.481978793165828
+initial.bulk_velocity_plus = 15.481978793165828
+initial.perturbation_amplitude = 0.05
+initial.rho = 1.0
+initial.temperature = 1.0
+
+boundary.default = no_slip_isothermal_wall
+boundary.bottom.type = no_slip_isothermal_wall
+boundary.bottom.wall_velocity_x = 0.0
+boundary.bottom.wall_velocity_y = 0.0
+boundary.bottom.wall_velocity_z = 0.0
+boundary.bottom.wall_temperature = 1.0
+boundary.top.type = no_slip_isothermal_wall
+boundary.top.wall_velocity_x = 0.0
+boundary.top.wall_velocity_y = 0.0
+boundary.top.wall_velocity_z = 0.0
+boundary.top.wall_temperature = 1.0
+
+source.enabled = true
+source.models = body_force
+source.body.ax = 1.0
+source.body.ay = 0.0
+source.body.az = 0.0
+
+run.mode = unsteady
+run.viscous = true
+run.cfl = 0.15
+# t_end 以 h/u_tau 为时间尺度；max_steps 是防止意外无限推进的硬上限。
+run.max_steps = 6000000
+run.t_end = 500.0
+# 23 h，比示例 24 h 调度墙钟提前 1 h 安全写检查点。必须随作业墙钟同步修改。
+run.max_wall_time = 82800
+
+output.directory = results/longrun-segment01
+output.allow_existing = false
+output.dimensional = false
+
+output.field.enabled = true
+output.field.format = cgns
+output.field.every_steps = 0
+output.field.every_time = 10.0
+output.field.write_initial = true
+output.field.write_final = true
+output.field.quantities = rho,u,v,w,p,T,rho_u,rho_v,rho_w,rho_E,mach,viscosity,jacobian
+
+output.history.enabled = true
+output.history.format = txt
+output.history.every_steps = 100
+output.history.write_initial = true
+output.history.write_final = true
+
+output.statistics.enabled = true
+output.statistics.format = txt
+output.statistics.every_steps = 0
+output.statistics.every_time = 0.1
+output.statistics.write_initial = true
+output.statistics.write_final = true
+output.statistics.quantities = total_mass,total_momentum_x,total_momentum_y,total_momentum_z,total_energy
+output.statistics.yz_planes.enabled = true
+output.statistics.yz_planes.target_x_coordinates = 0.0,3.141592653589793
+output.statistics.channel_walls.enabled = true
+output.statistics.channel_walls.lower_patch = bottom
+output.statistics.channel_walls.upper_patch = top
+output.statistics.channel_walls.half_height = 1.0
+
+output.checkpoint.enabled = true
+output.checkpoint.every_steps = 0
+output.checkpoint.every_time = 5.0
+output.checkpoint.write_initial = false
+output.checkpoint.write_final = true
+
+# 从上一段续算时取消下一行注释，并同时修改 case.name 和 output.directory，禁止覆盖旧结果。
+# restart.path = results/longrun-segment01/case05-channel-retau180-longrun-segment01.checkpoint.latest.cgns
