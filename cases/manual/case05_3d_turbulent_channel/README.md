@@ -379,6 +379,15 @@ python cases\manual\case05_3d_turbulent_channel\run_case05.py --clean --ranks 4
 4. 用发布校验器检查终场每个样本有限且 \(\rho,p,T>0\)；
 5. 检查槽道统计文件的列集、步数、时间、壁摩擦正性与初始 \(Re_\tau\) 范围。
 
+若还要复核报告中的终场最大局部 Mach，在根目录执行：
+
+```powershell
+build-rc-mpi\wcns_validate_release_case.exe nonzero cases\manual\case05_3d_turbulent_channel\results\feasibility-r4\case05-channel-retau180-feasibility.field.step00000005.time4p727996516eM04.cgns Mach 0
+```
+
+这里 `nonzero ... Mach 0` 会遍历 CGNS 中的 `Mach` 场并打印 `max_abs`；阈值 0 仅要求该场
+不是全零，本命令的主要用途是独立读取并报告最大值。
+
 可以只生成网格：
 
 ```powershell

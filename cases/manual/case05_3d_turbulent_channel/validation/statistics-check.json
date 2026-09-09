@@ -1,10 +1,14 @@
 {
   "status": "short_feasibility_passed_not_turbulence_accepted",
   "statistics_file": "results/feasibility-r4/case05-channel-retau180-feasibility.statistics.r4.txt",
-  "initial_re_tau": 177.97581030723984,
-  "final_re_tau": 178.10187090293948,
-  "initial_wall_shear": 0.004078721114696823,
-  "final_wall_shear": 0.004084496135580113,
+  "initial_re_tau": 177.97581030723987,
+  "final_re_tau": 178.74245165516868,
+  "initial_wall_shear": 0.9776354646456383,
+  "final_wall_shear": 0.9856895926796474,
+  "initial_yz_mass_flow_plane0": 97.3140375199063,
+  "initial_yz_mass_flow_plane1": 97.31403751990624,
+  "final_yz_mass_flow_plane0": 97.31386368944678,
+  "final_yz_mass_flow_plane1": 97.31386329908302,
   "final_step": 5,
-  "final_time": 0.001175229194474591
+  "final_time": 0.00047279965159166115
 }
