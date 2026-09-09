@@ -74,6 +74,11 @@ if(WCNS_ENABLE_CGNS)
         ${CMAKE_CURRENT_BINARY_DIR}/double_mach_reflection_case.wcns
         @ONLY
     )
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/xz_plane_statistics_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/xz_plane_statistics_case.wcns
+        @ONLY
+    )
     set(WCNS_PERIODIC_CASE periodic-translation-2d)
     set(WCNS_PERIODIC_MESH generated_periodic_2d.cgns)
     set(WCNS_PERIODIC_PARTITION auto_split)
@@ -225,6 +230,37 @@ if(WCNS_ENABLE_CGNS)
     set_tests_properties(
         wcns.run.double_mach_reflection.smoke.serial
         PROPERTIES FIXTURES_REQUIRED cgns_files
+    )
+    add_test(
+        NAME wcns.generate_xz_plane_statistics_mesh
+        COMMAND wcns_generate_release_cgns
+            ${CMAKE_CURRENT_BINARY_DIR}/xz_plane_statistics_mesh.cgns
+            3 8 8 8 1 0 false
+    )
+    set_tests_properties(
+        wcns.generate_xz_plane_statistics_mesh
+        PROPERTIES FIXTURES_SETUP xz_plane_statistics_mesh
+    )
+    add_test(
+        NAME wcns.run.xz_plane_statistics.smoke.serial
+        COMMAND wcns_run
+            --config ${CMAKE_CURRENT_BINARY_DIR}/xz_plane_statistics_case.wcns
+    )
+    set_tests_properties(
+        wcns.run.xz_plane_statistics.smoke.serial
+        PROPERTIES
+            FIXTURES_REQUIRED xz_plane_statistics_mesh
+            FIXTURES_SETUP xz_plane_statistics_output
+    )
+    add_test(
+        NAME wcns.check.xz_plane_statistics.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/check_xz_statistics.py
+            ${CMAKE_CURRENT_BINARY_DIR}/xz-plane-statistics-smoke/xz-plane-statistics-smoke.statistics.r1.txt
+    )
+    set_tests_properties(
+        wcns.check.xz_plane_statistics.serial
+        PROPERTIES FIXTURES_REQUIRED xz_plane_statistics_output
     )
     set_tests_properties(
         wcns.run.freestream.serial
