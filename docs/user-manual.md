@@ -285,13 +285,13 @@ periodic-square output.cgns cells_i cells_j length
 warped-periodic-square output.cgns cells_i cells_j length Ax Ay
 rectangle output.cgns cells_i cells_j zones_i Lx Ly periodic_x
 clustered-rectangle output.cgns cells_i cells_j zones_i Lx Ly cluster_x cluster_y strength periodic_x
-periodic-channel output.cgns cells_i cells_j cells_k zones_i zones_k Lx Ly Lz wall_cluster_strength
+periodic-channel output.cgns cells_i cells_j cells_k zones_i zones_k Lx Ly Lz wall_cluster_strength [origin_y]
 ```
 
 - `periodic-square`/`warped-periodic-square` 生成 2×2 原生多块、x/y 双周期网格。
 - 扭曲方形采用连续解析映射；幅值必须满足生成器的正 Jacobian 条件。
 - `clustered-rectangle` 向给定 x/y 内点光滑加密；`strength` 越大目标点附近越密。
-- `periodic-channel` 生成 x/z 周期、y 向有上下物理壁的三维通道；壁面加密强度 0 为均匀网格。
+- `periodic-channel` 生成 x/z 周期、y 向有上下物理壁的三维通道；壁面加密强度 0 为均匀网格。可选 `origin_y` 是 y 区间起点，默认 0；例如 `Ly=2,origin_y=-1` 产生 `[-1,1]`。
 - `invalid-one-sided` 专用于失败测试，故意生成单向连接，严禁物理解算。
 
 生成器覆盖测试网格，不是通用网格转换器。外部网格工具产生的 CGNS 仍须满足本节契约，并首先通过 `wcns_run --dry-run`。
@@ -583,6 +583,33 @@ initial.pressure = 1.0
 
 速度 `u=4*Ucenter*eta*(1-eta)`，横向速度为零。温度使用手册模板对应的四次多项式修正；压力恒定、密度由状态方程闭合。维持周期通道流还必须配置 `pressure_gradient` 源项。case02 展示了三维均匀/壁面加密网格，但加密算例在 3600 步被人工强制停止，不能作为已收敛基线。
 
+#### `turbulent_channel`
+
+该类型专用于三维双壁周期槽道的非定常初场：
+
+```text
+initial.type = turbulent_channel
+initial.y0 = -1.0
+initial.y1 = 1.0
+initial.x0 = 0.0
+initial.z0 = 0.0
+initial.period_x = 6.283185307179586
+initial.period_z = 3.141592653589793
+initial.re_tau = 180.0
+initial.bulk_velocity = 1.0
+initial.bulk_velocity_plus = 15.481978793165828
+initial.perturbation_amplitude = 0.05
+initial.rho = 1.0
+initial.temperature = 1.0
+```
+
+平均速度用对称 Reichardt 类复合壁律，并用一个高次小修正使中心线导数为零；
+三个速度叠加可解析的低阶 x/z 周期扰动，扰动在两面壁上为零且 x-z 面平均为零。
+`period_x/period_z`、`re_tau`、`bulk_velocity`、`bulk_velocity_plus` 必须为正，
+`perturbation_amplitude` 只允许 `[0,0.5]`。修改壁律或参考尺度时必须重新计算
+`bulk_velocity_plus`、体系 Re 和驱动体积力。完整公式、稀疏网格限制和可执行示例见
+[`case05`](../cases/manual/case05_3d_turbulent_channel/README.md)。
+
 #### `linear_conduction`
 
 速度为零，`T=lower_temperature+(upper_temperature-lower_temperature)*eta`，压力恒定。默认下/上温为 1/2。
@@ -819,6 +846,21 @@ output.statistics.xz_planes.cell_j_indices = 0,11,23,35,47
 
 所有原 zone 必须为三维、每个索引在各 zone 中都有效，并且同一索引对应的所有单元中心 y 坐标必须在容差内共面。面积使用该 cell-j 层上下两个 J 面面积的平均；人工 MPI 切分时通过 `PartitionLeaf` 映射回原 zone，再由 MPI 求和，因此不会重复累计 ghost 或接口。无量纲输出时两列分别为速度和`rho*u*L^2`；量纲输出分别乘 `U_ref` 和`rho_ref*U_ref*L_ref^2`。关闭功能可以保留索引列表但不会生成列；开启时无需、也不要把自动列名手工重复写进`output.statistics.quantities`。
 
+三维等温槽道还可开启两面壁摩擦统计：
+
+```text
+output.statistics.channel_walls.enabled = true
+output.statistics.channel_walls.lower_patch = bottom
+output.statistics.channel_walls.upper_patch = top
+output.statistics.channel_walls.half_height = 1.0
+```
+
+开启后自动追加 `channel_wall_shear_lower`、`channel_wall_shear_upper`、
+`channel_wall_shear_mean`、`channel_friction_velocity`、`channel_re_tau`。两个 patch 必须分别是
+J-lower/J-upper 的 `no_slip_isothermal_wall`，网格必须为三维平面 x-z 壁，且
+`run.viscous=true`。壁切应力是面积加权的流向切应力绝对值；摩擦速度用面平均壁密度，
+`channel_re_tau` 还使用壁温对应黏性和所配半高。这些列是瞬时空间统计，不是累积时间平均。
+
 ### 9.4 检查点
 
 检查点固定保存五个无量纲守恒量，不使用 `quantities` 键。每次事件生成：
@@ -920,6 +962,14 @@ mpiexec -n 4 build-user-mpi\wcns_run.exe --config run-b\restart.wcns
 ### 12.5 经典双马赫反射
 
 用 `wcns_generate_release_cgns rectangle ... 960 240 ... 4.0 1.0 false` 生成`[0,4]x[0,1]`结构网格；配置 `double_mach_reflection` 初场和 left/bottom/top 三个同名专用边界，以 WENO-Z 特征重构和 HLLC 从 `t=0` 推进到 `t=0.2`。完整命令、配置解释和输出判读见 [`case04`](../cases/manual/case04_2d_double_mach_reflection/README.md)。
+
+### 12.6 \(Re_\tau=180\) 非定常湍流槽道
+
+使用 x/z 双周期 `periodic-channel` 网格、y 向两面等温无滑移壁、
+`turbulent_channel` 复合壁律加低模态扰动初场、`body_force` 定常体积力、
+`run.mode=unsteady`，并开启多个 x-z 层和两壁摩擦统计。当前 36×48×36 网格只通过
+4-rank、5 步工程可行性卡口，未作湍流统计/DNS 验收。完整公式、配置、命令、实测结果和
+Linux 迁移前检查见 [`case05`](../cases/manual/case05_3d_turbulent_channel/README.md)。
 
 ## 13. 独立验证工具
 

@@ -1,0 +1,57 @@
+{
+  "case": "case05_3d_turbulent_channel_retau180",
+  "status": "short_feasibility_passed_not_turbulence_accepted",
+  "platform": "Windows 10, MinGW-w64 GCC 8.1, Intel MPI 2021.10",
+  "git_commit_in_executable": "7c4916e629c8",
+  "ranks": 4,
+  "domain": {
+    "x": [0.0, 6.283185307179586],
+    "y": [-1.0, 1.0],
+    "z": [0.0, 3.141592653589793]
+  },
+  "cells": [36, 48, 36],
+  "native_zones": [2, 1, 2],
+  "wall_cluster_strength": 1.75,
+  "design": {
+    "re_tau": 180.0,
+    "bulk_velocity_plus": 15.481978793165828,
+    "reynolds_half_height": 2786.756182769849,
+    "mach_bulk": 0.2,
+    "body_acceleration_x": 0.004172026549973031,
+    "wall_temperature": 1.0,
+    "first_cell_center_y_plus": 0.821226,
+    "delta_x_plus": 31.415927,
+    "delta_z_plus": 15.707963
+  },
+  "algorithm": {
+    "profile": "phenglei_wcns",
+    "reconstruction": "mdcd_hybrid",
+    "reconstruction_variables": "primitive",
+    "riemann": "hllc",
+    "time_integrator": "ssprk3",
+    "cfl": 0.15
+  },
+  "short_run": {
+    "configured_max_steps": 5,
+    "configured_t_end_guard": 0.01,
+    "stop_reason": "maximum_steps",
+    "final_step": 5,
+    "final_time": 0.001175229194474591,
+    "reconstruction_fallbacks": 0,
+    "riemann_fallbacks": 0,
+    "initial_re_tau": 177.97581030723984,
+    "final_re_tau": 178.10187090293948,
+    "initial_wall_shear_mean": 0.004078721114696823,
+    "final_wall_shear_mean": 0.004084496135580113,
+    "final_minimum_density": 0.9995082018603285,
+    "final_minimum_pressure": 17.84484915370814,
+    "final_minimum_temperature": 0.9998032539880043
+  },
+  "claims": {
+    "configuration_and_short_mpi_advancement": true,
+    "linux_migration_tested": false,
+    "statistical_stationarity": false,
+    "turbulence_statistics_accepted": false,
+    "dns_resolution_accepted": false
+  }
+}

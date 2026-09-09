@@ -21,7 +21,7 @@ wcns_generate_release_cgns periodic-square output.cgns cells_i cells_j length
 wcns_generate_release_cgns warped-periodic-square output.cgns cells_i cells_j length x_warp_amplitude y_warp_amplitude
 wcns_generate_release_cgns rectangle output.cgns cells_i cells_j zones_i length_x length_y periodic_x
 wcns_generate_release_cgns clustered-rectangle output.cgns cells_i cells_j zones_i length_x length_y cluster_x cluster_y strength periodic_x
-wcns_generate_release_cgns periodic-channel output.cgns cells_i cells_j cells_k zones_i zones_k length_x length_y length_z wall_cluster_strength
+wcns_generate_release_cgns periodic-channel output.cgns cells_i cells_j cells_k zones_i zones_k length_x length_y length_z wall_cluster_strength [origin_y]
 wcns_generate_release_cgns invalid-one-sided output.cgns cells_i cells_j
 ```
 
@@ -41,6 +41,7 @@ $8\pi^2A_xA_y/L^2<1$，从输入阶段排除会翻转网格的参数。
 原生多块通道。`wall_cluster_strength=0` 给出均匀 y 网格；正值采用对称 tanh 映射向
 `y=0,length_y` 两壁加密，值越大壁面首层越薄。两个周期方向都至少使用两个 zone，避免
 self-connectivity，并实际覆盖 i/k 两类跨块 halo 与共享面通量通信。
+`origin_y` 为可选 y 起点，默认 0；例如 `length_y=2,origin_y=-1` 产生 `[-1,1]`。
 `invalid-one-sided` 仅用于失败路径验收：它生成两个 zone，但故意省略右区指回左区的互逆
 连接；不得作为物理解算网格使用。
 
