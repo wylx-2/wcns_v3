@@ -162,7 +162,7 @@ wcns::Real divergence_error(wcns::AlgorithmProfileKind kind, int count)
 
 } // namespace
 
-// 验收两套 profile 的真实面 Rusanov 通量和高阶散度在笛卡尔自由流上保持常量。
+// 验收两套 profile 的真实面 Rusanov 通量以及 profile/守恒两点差分均保持笛卡尔自由流。
 void test_wcns_inviscid_freestream()
 {
     using namespace wcns;
@@ -189,8 +189,13 @@ void test_wcns_inviscid_freestream()
         const auto flux = compute_inviscid_face_fluxes(
             block, metric, profile, reconstruction, riemann, gas, reference,
             floors, data, {}, 1, diagnostics);
-        compute_wcns_inviscid_residual(block, metric, flux, profile);
-        WCNS_REQUIRE(residual_l2(block) < 2.0e-11);
+        for (const auto mode : {
+                 FluxDifferenceMode::Profile,
+                 FluxDifferenceMode::ConservativeTwoPoint}) {
+            compute_wcns_inviscid_residual(
+                block, metric, flux, profile, mode);
+            WCNS_REQUIRE(residual_l2(block) < 2.0e-11);
+        }
         WCNS_REQUIRE(diagnostics.linear_faces
             == static_cast<std::size_t>(
                 (block.cell_extent().ni + 1) * block.cell_extent().nj

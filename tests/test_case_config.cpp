@@ -71,6 +71,8 @@ void test_case_config()
         WCNS_REQUIRE(config.case_name == "parser-test");
         WCNS_REQUIRE(config.mesh_path == "mesh.cgns");
         WCNS_REQUIRE(config.profile == wcns::AlgorithmProfileKind::PhengleiWcns);
+        WCNS_REQUIRE(
+            config.flux_difference == wcns::FluxDifferenceMode::Profile);
         WCNS_REQUIRE(config.reconstruction.scheme == "weno_z");
         WCNS_REQUIRE(
             config.reconstruction.variables
@@ -100,6 +102,32 @@ void test_case_config()
         WCNS_REQUIRE(config.digest() != 0);
         WCNS_REQUIRE(config.summary().find("Re=") != std::string::npos);
         WCNS_REQUIRE(config.summary().find("Ma=") != std::string::npos);
+    }
+    {
+        auto two_point = valid_config();
+        const auto profile = two_point.find("algorithm.profile = phenglei_wcns");
+        two_point.insert(
+            profile + std::string("algorithm.profile = phenglei_wcns").size(),
+            "\nalgorithm.flux_difference = conservative_two_point");
+        const auto config = wcns::CaseConfig::from_text(two_point);
+        WCNS_REQUIRE(
+            config.flux_difference
+            == wcns::FluxDifferenceMode::ConservativeTwoPoint);
+        WCNS_REQUIRE(config.summary().find(
+            "flux_difference=conservative_two_point") != std::string::npos);
+        WCNS_REQUIRE(config.restart_signature().find(
+            "flux_difference=conservative_two_point") != std::string::npos);
+
+        auto invalid = valid_config();
+        const auto invalid_profile = invalid.find(
+            "algorithm.profile = phenglei_wcns");
+        invalid.insert(
+            invalid_profile
+                + std::string("algorithm.profile = phenglei_wcns").size(),
+            "\nalgorithm.flux_difference = unknown");
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(invalid));
     }
     {
         auto monitored = valid_config();

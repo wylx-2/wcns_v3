@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <iostream>
 #include <limits>
 #include <stdexcept>
 #include <utility>
@@ -15,6 +16,13 @@ Real default_wall_clock()
     using Clock = std::chrono::steady_clock;
     static const auto origin = Clock::now();
     return std::chrono::duration<Real>(Clock::now() - origin).count();
+}
+
+void report_solver_exception(
+    const MpiRuntime& mpi, const char* phase, const std::exception& error)
+{
+    std::cerr << "WCNS numerical failure on rank " << mpi.rank()
+              << " during " << phase << ": " << error.what() << '\n';
 }
 
 template <class Solver>
@@ -236,7 +244,8 @@ SimulationState SimulationDriver::run(SimulationInitialState initial)
     bool local_success = true;
     try {
         solver_.refresh_residuals(state.time);
-    } catch (const std::exception&) {
+    } catch (const std::exception& error) {
+        report_solver_exception(mpi_, "initial residual evaluation", error);
         local_success = false;
     }
     const bool initial_success = all_ranks_succeeded(local_success);
@@ -283,13 +292,15 @@ SimulationState SimulationDriver::run(SimulationInitialState initial)
             if (!std::isfinite(state.time_step) || state.time_step <= 0.0) {
                 local_success = false;
             }
-        } catch (const std::exception&) {
+        } catch (const std::exception& error) {
+            report_solver_exception(mpi_, "time-step evaluation", error);
             local_success = false;
         }
         if (all_ranks_succeeded(local_success)) {
             try {
                 solver_.advance(state.time_step, state.time);
-            } catch (const std::exception&) {
+            } catch (const std::exception& error) {
+                report_solver_exception(mpi_, "time integration", error);
                 local_success = false;
             }
         }
@@ -299,7 +310,8 @@ SimulationState SimulationDriver::run(SimulationInitialState initial)
             state.time += state.time_step;
             try {
                 solver_.refresh_residuals(state.time);
-            } catch (const std::exception&) {
+            } catch (const std::exception& error) {
+                report_solver_exception(mpi_, "residual refresh", error);
                 local_success = false;
             }
         }

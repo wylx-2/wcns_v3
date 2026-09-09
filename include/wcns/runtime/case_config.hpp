@@ -199,6 +199,7 @@ struct CaseConfig {
     std::string case_name;
     std::string mesh_path;
     AlgorithmProfileKind profile = AlgorithmProfileKind::PhengleiWcns;
+    FluxDifferenceMode flux_difference = FluxDifferenceMode::Profile;
     ReconstructionConfig reconstruction {};
     RiemannConfig riemann {};
     GasModelInput gas;

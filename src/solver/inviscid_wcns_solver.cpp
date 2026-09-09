@@ -67,18 +67,20 @@ void InviscidWcnsConfig::validate() const
     reconstruction.validate();
     riemann.validate();
     source_terms.validate();
+    static_cast<void>(flux_difference_mode_name(flux_difference));
 }
 
 std::string InviscidWcnsConfig::summary() const
 {
     validate();
-    return reconstruction.summary() + ';' + riemann.summary() + ';'
+    return reconstruction.summary() + ';' + riemann.summary()
+        + ";flux_difference=" + flux_difference_mode_name(flux_difference) + ';'
         + boundary.summary() + ';' + source_terms.summary();
 }
 
 std::string InviscidWcnsConfig::restart_signature() const
 {
-    return "inviscid_wcns_v2;" + summary();
+    return "inviscid_wcns_v3;" + summary();
 }
 
 InviscidWcnsSolver::InviscidWcnsSolver(
@@ -191,7 +193,8 @@ void InviscidWcnsSolver::compute_residuals(Real stage_time, int rk_stage)
     FaceFluxHaloExchanger(mpi_, current_plan).exchange(flux_registry);
     for (auto& block : local_blocks_.blocks()) {
         compute_wcns_inviscid_residual(
-            block, metrics_.at(block.id()), fluxes.at(block.id()), profile_);
+            block, metrics_.at(block.id()), fluxes.at(block.id()), profile_,
+            config_.flux_difference);
         add_source_terms(
             block, metrics_.at(block.id()), source_registry_, stage_time);
     }

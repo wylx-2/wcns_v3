@@ -1,14 +1,13 @@
+# 经典 WENO5 在本文中指 Jiang-Shu 五阶 WENO，即程序键 weno_js。
 schema_version = 1
-case.name = case04-scmm6-roe-mdcd-hybrid-960x240
-mesh.path = grids/double_mach_960x240.cgns
+case.name = case04-scmm6-roe-weno5-480x120
+mesh.path = grids/double_mach_480x120.cgns
 
 algorithm.profile = scmm6_wcns
 algorithm.flux_difference = conservative_two_point
-algorithm.reconstruction = mdcd_hybrid
+algorithm.reconstruction = weno_js
 algorithm.reconstruction_variables = characteristic
 algorithm.riemann = roe
-algorithm.mdcd.disp = 0.0463783
-algorithm.mdcd.diss = 0.01
 
 gas.gamma = 1.4
 gas.specific_gas_constant = 1.0
@@ -40,7 +39,7 @@ run.max_steps = 1000000
 run.t_end = 0.2
 run.max_wall_time = 0
 
-output.directory = results/scmm6_roe_mdcd_hybrid
+output.directory = results/scmm6_roe_weno5_480x120
 output.allow_existing = false
 output.dimensional = false
 

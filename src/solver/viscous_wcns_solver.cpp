@@ -290,7 +290,8 @@ void ViscousWcnsSolver::compute_residuals(Real stage_time, int rk_stage)
 
     for (auto& block : local_blocks_.blocks()) {
         compute_wcns_inviscid_residual(
-            block, metrics_.at(block.id()), inviscid_fluxes.at(block.id()), profile_);
+            block, metrics_.at(block.id()), inviscid_fluxes.at(block.id()), profile_,
+            config_.inviscid.flux_difference);
         add_wcns_viscous_residual(
             block, metrics_.at(block.id()), viscous_fluxes.at(block.id()),
             profile_, reference_.reynolds());

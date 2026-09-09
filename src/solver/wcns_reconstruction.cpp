@@ -169,6 +169,27 @@ public:
     }
 };
 
+const IReconstructionScheme& builtin_reconstruction_scheme(
+    std::string_view name)
+{
+    // The built-in strategies carry no mutable state.  Keeping one instance
+    // of each avoids registry/factory allocation in the per-face hot path.
+    static const ZeroOrderScheme zero_order;
+    static const Linear5Scheme linear5;
+    static const WenoJsScheme weno_js;
+    static const WenoZScheme weno_z;
+    static const MdcdLinearScheme mdcd_linear;
+    static const MdcdHybridScheme mdcd_hybrid;
+    if (name == zero_order.name()) return zero_order;
+    if (name == linear5.name()) return linear5;
+    if (name == weno_js.name()) return weno_js;
+    if (name == weno_z.name()) return weno_z;
+    if (name == mdcd_linear.name()) return mdcd_linear;
+    if (name == mdcd_hybrid.name()) return mdcd_hybrid;
+    throw std::invalid_argument(
+        "unknown reconstruction scheme: " + std::string(name));
+}
+
 Real square(Real value)
 {
     return value * value;
@@ -998,8 +1019,12 @@ EulerFaceStates reconstruct_thermodynamic_face(
     Normal3 unit_normal,
     FaceDiagnosticLocation location)
 {
-    const auto registry = ReconstructionRegistry::with_builtins();
-    config.validate(registry);
+    // This routine is called once per face and Runge--Kutta residual
+    // evaluation.  Building the complete registry (including probing every
+    // factory) and allocating the selected strategy here made production
+    // cases spend most of their time in invariant setup.  Built-in strategy
+    // objects are stateless and can be reused safely.
+    config.validate();
     if (conservative.components() != euler_components
         || pressure_primitive_field.components() != euler_components
         || conservative.ghost_width() < 3
@@ -1087,7 +1112,7 @@ EulerFaceStates reconstruct_thermodynamic_face(
         }
     };
 
-    const auto selected = registry.create(config.scheme);
+    const auto& selected = builtin_reconstruction_scheme(config.scheme);
     const auto variable_name = [](ReconstructionVariables variables) {
         switch (variables) {
         case ReconstructionVariables::Conservative: return "conservative";
@@ -1106,7 +1131,7 @@ EulerFaceStates reconstruct_thermodynamic_face(
     }
     if (config.variables == ReconstructionVariables::Characteristic) {
         ++diagnostics.characteristic_faces;
-        if (attempt_characteristic(*selected)) {
+        if (attempt_characteristic(selected)) {
             return result;
         }
         ++diagnostics.characteristic_fallbacks;
@@ -1118,14 +1143,14 @@ EulerFaceStates reconstruct_thermodynamic_face(
         if (attempt_standard(
                 pressure_primitive_field,
                 ReconstructionVariables::Primitive,
-                *selected)) {
+                selected)) {
             return result;
         }
         ++diagnostics.primitive_fallbacks;
     } else {
         const auto& source = config.variables == ReconstructionVariables::Conservative
             ? conservative : pressure_primitive_field;
-        if (attempt_standard(source, config.variables, *selected)) return result;
+        if (attempt_standard(source, config.variables, selected)) return result;
     }
 
     std::string fallback_from = strategy_name(
@@ -1144,7 +1169,7 @@ EulerFaceStates reconstruct_thermodynamic_face(
                     ? ReconstructionVariables::Conservative
                     : ReconstructionVariables::Primitive),
             ReconstructionFallbackReason::InvalidReconstructedState);
-        const auto linear = registry.create("linear5");
+        const auto& linear = builtin_reconstruction_scheme("linear5");
         const auto fallback_variables
             = config.variables == ReconstructionVariables::Conservative
             ? ReconstructionVariables::Conservative
@@ -1152,7 +1177,7 @@ EulerFaceStates reconstruct_thermodynamic_face(
         const auto& fallback_source
             = fallback_variables == ReconstructionVariables::Conservative
             ? conservative : pressure_primitive_field;
-        if (attempt_standard(fallback_source, fallback_variables, *linear)) {
+        if (attempt_standard(fallback_source, fallback_variables, linear)) {
             return result;
         }
         fallback_from = strategy_name("linear5", fallback_variables);

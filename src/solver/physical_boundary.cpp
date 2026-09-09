@@ -1,7 +1,9 @@
 #include <wcns/solver/physical_boundary.hpp>
 
 #include <cmath>
+#include <iomanip>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 
 namespace wcns {
@@ -520,12 +522,25 @@ void update_temperature_primitive_cell(
     const NumericalFloors& floors)
 {
     const auto conservative = load_conservative(block.flow.conservative, index);
-    const auto temperature = temperature_primitive_from_conservative(
-        conservative, gas, reference, floors, block.cell_dimension());
-    const auto pressure = pressure_primitive(
-        temperature, gas, reference, floors, block.cell_dimension());
-    store_temperature(block.flow.temperature_primitive, index, temperature);
-    store_state(block.flow.primitive, index, pressure);
+    try {
+        const auto temperature = temperature_primitive_from_conservative(
+            conservative, gas, reference, floors, block.cell_dimension());
+        const auto pressure = pressure_primitive(
+            temperature, gas, reference, floors, block.cell_dimension());
+        store_temperature(block.flow.temperature_primitive, index, temperature);
+        store_state(block.flow.primitive, index, pressure);
+    } catch (const PhysicsConfigurationError& error) {
+        std::ostringstream message;
+        message << std::setprecision(17)
+                << "block=" << block.id() << " cell=(" << index.i << ','
+                << index.j << ',' << index.k << ") conservative=(";
+        for (std::size_t component = 0; component < conservative.size(); ++component) {
+            if (component != 0) message << ',';
+            message << conservative[component];
+        }
+        message << "): " << error.what();
+        throw PhysicsError(message.str());
+    }
 }
 
 } // namespace wcns

@@ -1,6 +1,6 @@
 schema_version = 1
-case.name = case04-scmm6-roe-mdcd-hybrid-960x240
-mesh.path = grids/double_mach_960x240.cgns
+case.name = case04-scmm6-roe-mdcd-hybrid-480x120
+mesh.path = grids/double_mach_480x120.cgns
 
 algorithm.profile = scmm6_wcns
 algorithm.flux_difference = conservative_two_point
@@ -40,7 +40,7 @@ run.max_steps = 1000000
 run.t_end = 0.2
 run.max_wall_time = 0
 
-output.directory = results/scmm6_roe_mdcd_hybrid
+output.directory = results/scmm6_roe_mdcd_hybrid_480x120
 output.allow_existing = false
 output.dimensional = false
 

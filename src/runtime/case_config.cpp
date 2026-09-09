@@ -153,6 +153,15 @@ ReconstructionVariables parse_reconstruction_variables(const std::string& value)
     throw CaseConfigurationError("unknown reconstruction variable space: " + value);
 }
 
+FluxDifferenceMode parse_flux_difference_mode(const std::string& value)
+{
+    if (value == "profile") return FluxDifferenceMode::Profile;
+    if (value == "conservative_two_point") {
+        return FluxDifferenceMode::ConservativeTwoPoint;
+    }
+    throw CaseConfigurationError("unknown flux-difference mode: " + value);
+}
+
 BoundaryType parse_boundary_type(const std::string& value)
 {
     if (value == "farfield") return BoundaryType::Farfield;
@@ -224,6 +233,7 @@ const std::set<std::string>& fixed_keys()
         "schema_version", "case.name", "mesh.path",
         "algorithm.profile", "algorithm.reconstruction",
         "algorithm.reconstruction_variables", "algorithm.riemann",
+        "algorithm.flux_difference",
         "algorithm.mdcd.disp", "algorithm.mdcd.diss",
         "gas.gamma", "gas.molar_mass", "gas.specific_gas_constant",
         "reference.velocity", "reference.density", "reference.temperature",
@@ -1003,6 +1013,10 @@ CaseConfig CaseConfig::from_text(const std::string& text)
     result.mesh_path = require(entries, "mesh.path");
     result.profile = ProfileFactory::from_string(
         require(entries, "algorithm.profile")).kind();
+    if (const auto iterator = entries.find("algorithm.flux_difference");
+        iterator != entries.end()) {
+        result.flux_difference = parse_flux_difference_mode(iterator->second);
+    }
     result.reconstruction.scheme = require(entries, "algorithm.reconstruction");
     result.reconstruction.variables = parse_reconstruction_variables(
         require(entries, "algorithm.reconstruction_variables"));
@@ -1361,6 +1375,7 @@ InviscidWcnsConfig CaseConfig::make_inviscid_config() const
     InviscidWcnsConfig result;
     result.reconstruction = reconstruction;
     result.riemann = riemann;
+    result.flux_difference = flux_difference;
     result.source_terms = source_terms;
     return result;
 }
@@ -1379,6 +1394,7 @@ std::string CaseConfig::summary() const
     std::ostringstream result;
     result << "case(schema=" << schema_version << ",name=" << case_name
            << ",mesh=" << mesh_path << ",profile=" << make_profile().name()
+           << ",flux_difference=" << flux_difference_mode_name(flux_difference)
            << "," << reconstruction.summary() << ',' << riemann.summary()
            << ',' << gas_model.summary() << ',' << reference_scales.summary()
            << ',' << partition.summary() << ',' << initial.summary()
@@ -1407,7 +1423,8 @@ std::string CaseConfig::restart_signature() const
         [](const auto& lhs, const auto& rhs) { return lhs.first < rhs.first; });
     std::ostringstream result;
     result << "schema=" << schema_version << ";profile="
-           << make_profile().restart_signature() << ";reconstruction="
+           << make_profile().restart_signature() << ";flux_difference="
+           << flux_difference_mode_name(flux_difference) << ";reconstruction="
            << reconstruction.restart_signature() << ";riemann="
            << riemann.restart_signature() << ";gas="
            << make_gas_model().restart_signature() << ";reference="

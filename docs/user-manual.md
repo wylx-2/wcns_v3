@@ -331,6 +331,7 @@ schema_version
 case.name
 mesh.path
 algorithm.profile
+algorithm.flux_difference（可省略；默认 `profile`）
 algorithm.reconstruction
 algorithm.reconstruction_variables
 algorithm.riemann
@@ -382,11 +383,20 @@ output.checkpoint.enabled
 | 键 | 可选值 | 建议 |
 |---|---|---|
 | `algorithm.profile` | `phenglei_wcns`, `scmm6_wcns` | 同一网格可分别运行两次比较，不可混用组件 |
+| `algorithm.flux_difference` | `profile`, `conservative_two_point` | 默认 `profile`；强激波正性困难时才显式选用守恒两点差分 |
 | `algorithm.reconstruction` | `zero_order`, `linear5`, `weno_js`, `weno_z`, `mdcd_linear`, `mdcd_hybrid` | 间断优先从 `weno_z`/`mdcd_hybrid` 开始；`zero_order` 主要用于调试和高耗散基线 |
 | `algorithm.reconstruction_variables` | `conservative`, `primitive`, `characteristic` | 强间断通常用 `characteristic` |
 | `algorithm.riemann` | `rusanov`, `hllc`, `roe` | Rusanov 更耗散；HLLC/Roe 分辨率更高 |
 
 六种重构都保持六点标量模板和三层 cell-centered ghost。`zero_order` 不缩小模板：同一面六点为 `(q[j-2],q[j-1],q[j],q[j+1],q[j+2],q[j+3])` 时，左值严格取第 3 点 `q[j]`，右值严格取第 4 点 `q[j+1]`。非法重构状态会按确定性策略回退，HLLC/Roe 的非法中间状态也会回退；历史文件记录累计回退数。回退不是静默成功，数量异常增大时应检查网格、CFL、初边值和正性。
+
+`algorithm.flux_difference=profile` 严格使用 profile 冻结的高阶通量差分：
+`phenglei_wcns` 使用其 D4/D2 路径，`scmm6_wcns` 使用其 D6/D4 路径。
+`conservative_two_point` 则对相邻的左右真实面数值通量作差；它仍使用所选 profile 的
+坐标度量、同一界面重构和同一 Riemann 求解器，并保持有限体积意义下的共享面守恒，
+但通量散度不再是 profile 的高阶 D4/D6 算子。该模式是强激波出现负密度或负内能时的
+显式稳定性选项，不能把其结果表述成“纯 profile 高阶通量差分”结果。该键会进入摘要和
+restart signature，修改后不能直接续算旧检查点。
 
 `linear5` 主要供线性回退、光滑基线和算法测试使用；普通有激波计算不把它或 `zero_order` 当作高分辨率首选方案。
 

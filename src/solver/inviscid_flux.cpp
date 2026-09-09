@@ -279,6 +279,16 @@ int mpi_count(std::size_t count)
 
 } // namespace
 
+const char* flux_difference_mode_name(FluxDifferenceMode mode)
+{
+    switch (mode) {
+    case FluxDifferenceMode::Profile: return "profile";
+    case FluxDifferenceMode::ConservativeTwoPoint:
+        return "conservative_two_point";
+    }
+    throw std::invalid_argument("unknown flux-difference mode");
+}
+
 ConservativeState transform_inviscid_face_flux_for_receiver(
     const ConservativeState& donor,
     const FaceFluxExchangeDescriptor& descriptor)
@@ -580,7 +590,8 @@ void compute_wcns_inviscid_residual(
     StructuredBlock& block,
     const MetricField& metric,
     const InviscidFaceFluxField& flux,
-    const AlgorithmProfile& profile)
+    const AlgorithmProfile& profile,
+    FluxDifferenceMode mode)
 {
     if (metric.profile() != profile.kind() || flux.profile() != profile.kind()
         || metric.dimension() != block.cell_dimension()
@@ -589,10 +600,45 @@ void compute_wcns_inviscid_residual(
     }
     block.flow.residual.fill(0.0);
     const auto cells = block.cell_extent();
+    static_cast<void>(flux_difference_mode_name(mode));
     const auto accumulate_axis = [&](Axis axis) {
         const int count = cells[static_cast<std::size_t>(axis)];
-        const auto operators = LineOperators::build(profile, count);
         const auto& values = flux.field(axis);
+        if (mode == FluxDifferenceMode::ConservativeTwoPoint) {
+            for (int k = 0; k < cells.nk; ++k) {
+                for (int j = 0; j < cells.nj; ++j) {
+                    for (int i = 0; i < cells.ni; ++i) {
+                        const Index3 cell {i, j, k};
+                        const int normal = cell[static_cast<std::size_t>(axis)];
+                        auto upper = cell;
+                        upper[static_cast<std::size_t>(axis)] = normal + 1;
+                        auto lower = cell;
+                        lower[static_cast<std::size_t>(axis)] = normal;
+                        const Real jacobian = metric.jacobian()(i, j, k);
+                        if (!std::isfinite(jacobian) || jacobian <= 0.0) {
+                            throw PhysicsError(
+                                "WCNS flux divergence has an invalid Jacobian");
+                        }
+                        for (int component = 0; component < euler_components;
+                             ++component) {
+                            const Real derivative = values(
+                                upper.i, upper.j, upper.k, component)
+                                - values(
+                                    lower.i, lower.j, lower.k, component);
+                            if (!std::isfinite(derivative)) {
+                                throw PhysicsError(
+                                    "WCNS flux divergence is non-finite");
+                            }
+                            block.flow.residual(i, j, k, component)
+                                -= derivative / jacobian;
+                        }
+                    }
+                }
+            }
+            return;
+        }
+
+        const auto operators = LineOperators::build(profile, count);
         for (int k = 0; k < cells.nk; ++k) {
             for (int j = 0; j < cells.nj; ++j) {
                 for (int i = 0; i < cells.ni; ++i) {

@@ -4,6 +4,7 @@ case.name = case04-scmm6-roe-weno5-960x240
 mesh.path = grids/double_mach_960x240.cgns
 
 algorithm.profile = scmm6_wcns
+algorithm.flux_difference = conservative_two_point
 algorithm.reconstruction = weno_js
 algorithm.reconstruction_variables = characteristic
 algorithm.riemann = roe

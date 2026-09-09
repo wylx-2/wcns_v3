@@ -14,6 +14,14 @@
 
 namespace wcns {
 
+enum class FluxDifferenceMode {
+    Profile,
+    ConservativeTwoPoint,
+};
+
+[[nodiscard]] const char* flux_difference_mode_name(
+    FluxDifferenceMode mode);
+
 class InviscidFaceFluxField {
 public:
     InviscidFaceFluxField(
@@ -131,6 +139,7 @@ void compute_wcns_inviscid_residual(
     StructuredBlock& block,
     const MetricField& metric,
     const InviscidFaceFluxField& flux,
-    const AlgorithmProfile& profile);
+    const AlgorithmProfile& profile,
+    FluxDifferenceMode mode = FluxDifferenceMode::Profile);
 
 } // namespace wcns

@@ -15,6 +15,7 @@ using BlockBoundaryDataMap = std::unordered_map<BlockId, BoundaryDataMap>;
 struct InviscidWcnsConfig {
     ReconstructionConfig reconstruction {};
     RiemannConfig riemann {};
+    FluxDifferenceMode flux_difference = FluxDifferenceMode::Profile;
     InviscidBoundaryOptions boundary {};
     SourceTermConfig source_terms {};
 

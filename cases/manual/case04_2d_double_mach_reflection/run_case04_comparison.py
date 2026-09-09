@@ -17,14 +17,14 @@ CASE_DIR = Path(__file__).resolve().parent
 REPOSITORY = CASE_DIR.parents[2]
 METHODS = {
     "weno5": {
-        "config": "scmm6_roe_weno5_960x240.wcns",
-        "case": "case04-scmm6-roe-weno5-960x240",
-        "output": "scmm6_roe_weno5",
+        "config": "scmm6_roe_weno5_480x120.wcns",
+        "case": "case04-scmm6-roe-weno5-480x120",
+        "output": "scmm6_roe_weno5_480x120",
     },
     "mdcd_hybrid": {
-        "config": "scmm6_roe_mdcd_hybrid_960x240.wcns",
-        "case": "case04-scmm6-roe-mdcd-hybrid-960x240",
-        "output": "scmm6_roe_mdcd_hybrid",
+        "config": "scmm6_roe_mdcd_hybrid_480x120.wcns",
+        "case": "case04-scmm6-roe-mdcd-hybrid-480x120",
+        "output": "scmm6_roe_mdcd_hybrid_480x120",
     },
 }
 
@@ -65,8 +65,8 @@ def require_file(path: Path, label: str) -> Path:
 
 def clean_comparison_outputs() -> None:
     targets = [
-        CASE_DIR / "results/scmm6_roe_weno5",
-        CASE_DIR / "results/scmm6_roe_mdcd_hybrid",
+        CASE_DIR / "results/scmm6_roe_weno5_480x120",
+        CASE_DIR / "results/scmm6_roe_mdcd_hybrid_480x120",
         CASE_DIR / "logs/comparison",
         CASE_DIR / "validation/comparison",
         CASE_DIR / "comparison",
@@ -143,12 +143,12 @@ def main() -> int:
         raise FileNotFoundError(f"MPI launcher was not found: {args.mpi_exec}")
     prefix = [mpi_exec, "-n", str(args.ranks)]
 
-    grid = CASE_DIR / "grids/double_mach_960x240.cgns"
+    grid = CASE_DIR / "grids/double_mach_480x120.cgns"
     if not grid.exists():
         execute_streaming(
             [
-                str(generator), "rectangle", "grids/double_mach_960x240.cgns",
-                "960", "240", "4", "4.0", "1.0", "false",
+                str(generator), "rectangle", "grids/double_mach_480x120.cgns",
+                "480", "120", "4", "4.0", "1.0", "false",
             ],
             CASE_DIR / "logs/comparison/generate-grid.log",
         )
