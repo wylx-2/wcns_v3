@@ -49,6 +49,7 @@ enum class BoundaryType {
     NoSlipIsothermalWall,
     Symmetry,
     Periodic,
+    DoubleMachReflection,
 };
 
 struct BoundaryPatch {

@@ -232,4 +232,27 @@ void test_case_config()
             wcns::CaseConfigurationError,
             wcns::CaseConfig::from_text(scmm));
     }
+    {
+        auto double_mach = valid_config();
+        const auto initial = double_mach.find("initial.type = uniform");
+        double_mach.replace(
+            initial,
+            std::string("initial.type = uniform").size(),
+            "initial.type = double_mach_reflection\ninitial.x0 = 0.16666666666666667");
+        double_mach += "boundary.double_mach.type = double_mach_reflection\n";
+        const auto config = wcns::CaseConfig::from_text(double_mach);
+        WCNS_REQUIRE(
+            config.boundary_overrides.at("double_mach")
+            == wcns::BoundaryType::DoubleMachReflection);
+        WCNS_REQUIRE(config.restart_signature().find(
+            "double_mach_reflection_v1") != std::string::npos);
+
+        auto wrong_gamma = double_mach;
+        const auto gamma = wrong_gamma.find("gas.gamma = 1.4");
+        wrong_gamma.replace(
+            gamma, std::string("gas.gamma = 1.4").size(), "gas.gamma = 1.3");
+        WCNS_REQUIRE_THROWS(
+            wcns::PhysicsConfigurationError,
+            wcns::CaseConfig::from_text(wrong_gamma));
+    }
 }

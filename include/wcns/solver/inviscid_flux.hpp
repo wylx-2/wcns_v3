@@ -124,7 +124,8 @@ private:
     std::uint64_t version,
     ReconstructionDiagnostics& diagnostics,
     RiemannDiagnostics* riemann_diagnostics = nullptr,
-    int rk_stage = 0);
+    int rk_stage = 0,
+    Real stage_time = 0.0);
 
 void compute_wcns_inviscid_residual(
     StructuredBlock& block,

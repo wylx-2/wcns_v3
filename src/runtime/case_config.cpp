@@ -1,5 +1,6 @@
 #include <wcns/runtime/case_config.hpp>
 #include <wcns/runtime/quantity_registry.hpp>
+#include <wcns/physics/double_mach_reflection.hpp>
 
 #include <algorithm>
 #include <array>
@@ -162,6 +163,9 @@ BoundaryType parse_boundary_type(const std::string& value)
     if (value == "no_slip_isothermal_wall") return BoundaryType::NoSlipIsothermalWall;
     if (value == "symmetry") return BoundaryType::Symmetry;
     if (value == "periodic") return BoundaryType::Periodic;
+    if (value == "double_mach_reflection") {
+        return BoundaryType::DoubleMachReflection;
+    }
     throw CaseConfigurationError("unknown boundary type: " + value);
 }
 
@@ -441,6 +445,7 @@ const char* boundary_type_name(BoundaryType type)
     case BoundaryType::NoSlipIsothermalWall: return "no_slip_isothermal_wall";
     case BoundaryType::Symmetry: return "symmetry";
     case BoundaryType::Periodic: return "periodic";
+    case BoundaryType::DoubleMachReflection: return "double_mach_reflection";
     case BoundaryType::Undefined: return "undefined";
     }
     throw CaseConfigurationError("invalid boundary type");
@@ -510,6 +515,7 @@ void InitialConditionConfig::validate(int dimension) const
     static const std::set<std::string> valid_types {
         "uniform", "quadrant_riemann", "sod_x", "isentropic_vortex",
         "couette", "poiseuille", "linear_conduction", "manufactured_periodic",
+        "double_mach_reflection",
     };
     if (valid_types.find(type) == valid_types.end()) {
         throw CaseConfigurationError("unknown initial condition type: " + type);
@@ -1186,6 +1192,31 @@ void CaseConfig::validate() const
                 "target state is only valid for inflow, farfield or outflow: " + name);
         }
     }
+    const auto is_double_mach_boundary = [](BoundaryType type) {
+        return type == BoundaryType::DoubleMachReflection;
+    };
+    bool has_double_mach_boundary = is_double_mach_boundary(default_boundary);
+    for (const auto& [name, type] : boundary_overrides) {
+        static_cast<void>(name);
+        has_double_mach_boundary = has_double_mach_boundary
+            || is_double_mach_boundary(type);
+    }
+    if (initial.type == "double_mach_reflection") {
+        DoubleMachReflection(initial.parameter("x0", 1.0 / 6.0))
+            .validate(gas_model.gamma(), 2);
+        if (!has_double_mach_boundary) {
+            throw CaseConfigurationError(
+                "double-Mach-reflection initial data require at least one "
+                "double_mach_reflection boundary");
+        }
+        if (run.viscous || source_terms.enable_source_terms) {
+            throw CaseConfigurationError(
+                "classical double-Mach reflection must be inviscid and source-free");
+        }
+    } else if (has_double_mach_boundary) {
+        throw CaseConfigurationError(
+            "double_mach_reflection boundary requires matching initial.type");
+    }
     auto inviscid = make_inviscid_config();
     inviscid.validate();
 }
@@ -1272,6 +1303,11 @@ std::string CaseConfig::restart_signature() const
     }
     result << ";source=" << source_terms.restart_signature()
            << ";viscous=" << (run.viscous ? "true" : "false");
+    if (initial.type == "double_mach_reflection") {
+        result << ';'
+               << DoubleMachReflection(initial.parameter("x0", 1.0 / 6.0))
+                      .restart_signature();
+    }
     return result.str();
 }
 

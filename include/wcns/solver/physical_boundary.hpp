@@ -1,6 +1,7 @@
 #pragma once
 
 #include <wcns/mesh/structured_block.hpp>
+#include <wcns/physics/double_mach_reflection.hpp>
 #include <wcns/physics/thermodynamics.hpp>
 #include <wcns/solver/euler.hpp>
 
@@ -16,6 +17,7 @@ struct BoundaryData {
     std::optional<TemperaturePrimitiveState> target_state;
     std::array<Real, 3> wall_velocity {{0.0, 0.0, 0.0}};
     std::optional<Real> wall_temperature;
+    std::optional<DoubleMachReflection> double_mach_reflection;
 
     void validate(BoundaryType type, int dimension) const;
 };
@@ -35,8 +37,14 @@ public:
         const GasModel& gas,
         const ReferenceScales& reference,
         const NumericalFloors& floors,
-        std::uint64_t version);
+        std::uint64_t version,
+        Real time = 0.0);
 };
+
+[[nodiscard]] std::array<Real, 3> boundary_face_coordinates(
+    const StructuredBlock& block,
+    const BoundaryPatch& patch,
+    Index3 face);
 
 struct InviscidBoundaryOptions {
     bool strong_boundary_face_state = true;
@@ -55,7 +63,9 @@ struct InviscidBoundaryOptions {
     const GasModel& gas,
     const ReferenceScales& reference,
     const NumericalFloors& floors,
-    int dimension);
+    int dimension,
+    std::array<Real, 3> face_coordinates = {{0.0, 0.0, 0.0}},
+    Real time = 0.0);
 
 void update_temperature_primitive_interior(
     StructuredBlock& block,

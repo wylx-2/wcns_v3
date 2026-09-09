@@ -32,6 +32,7 @@ void test_line_conservation_weights();
 void test_global_conservation_weights();
 void test_physical_ghost_state();
 void test_inviscid_boundary_face_state();
+void test_double_mach_reflection();
 void test_stage_j_scalar_reconstruction();
 void test_stage_l_algorithm_registries();
 void test_stage_l_scalar_reconstruction_schemes();
@@ -107,6 +108,7 @@ int main()
         test_global_conservation_weights();
         test_physical_ghost_state();
         test_inviscid_boundary_face_state();
+        test_double_mach_reflection();
         test_stage_j_scalar_reconstruction();
         test_stage_l_algorithm_registries();
         test_stage_l_scalar_reconstruction_schemes();

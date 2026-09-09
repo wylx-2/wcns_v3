@@ -222,7 +222,7 @@ void ViscousWcnsSolver::compute_residuals(Real stage_time, int rk_stage)
     for (auto& block : local_blocks_.blocks()) {
         const auto& data = boundary_data_.at(block.id());
         const auto ghost = PhysicalGhostStateOperator::fill(
-            block, data, gas_, reference_, floors_, version_);
+            block, data, gas_, reference_, floors_, version_, stage_time);
         if (ghost.version != version_) {
             throw std::logic_error("viscous WCNS physical ghost version mismatch");
         }
@@ -233,7 +233,8 @@ void ViscousWcnsSolver::compute_residuals(Real stage_time, int rk_stage)
                 block, metrics_.at(block.id()), profile_,
                 config_.inviscid.reconstruction, riemann_, gas_, reference_, floors_,
                 data, config_.inviscid.boundary, version_,
-                reconstruction_diagnostics_, &riemann_diagnostics_, rk_stage)));
+                reconstruction_diagnostics_, &riemann_diagnostics_, rk_stage,
+                stage_time)));
         if (!inserted_inviscid) throw std::logic_error("duplicate inviscid flux block");
         inviscid_registry.add(block.id(), inviscid->second);
 

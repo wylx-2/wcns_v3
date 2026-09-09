@@ -19,6 +19,7 @@ add_executable(wcns_unit_tests
     test_spatial_operator.cpp
     test_source_terms.cpp
     test_physical_boundary.cpp
+    test_double_mach_reflection.cpp
     test_inviscid_reconstruction.cpp
     test_inviscid_flux.cpp
     test_stage_j_sources.cpp
@@ -66,6 +67,11 @@ if(WCNS_ENABLE_CGNS)
     configure_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/data/freestream_case.wcns.in
         ${CMAKE_CURRENT_BINARY_DIR}/freestream_case.wcns
+        @ONLY
+    )
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/double_mach_reflection_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/double_mach_reflection_case.wcns
         @ONLY
     )
     set(WCNS_PERIODIC_CASE periodic-translation-2d)
@@ -210,6 +216,15 @@ if(WCNS_ENABLE_CGNS)
         NAME wcns.run.freestream.serial
         COMMAND wcns_run
             --config ${CMAKE_CURRENT_BINARY_DIR}/freestream_case.wcns
+    )
+    add_test(
+        NAME wcns.run.double_mach_reflection.smoke.serial
+        COMMAND wcns_run
+            --config ${CMAKE_CURRENT_BINARY_DIR}/double_mach_reflection_case.wcns
+    )
+    set_tests_properties(
+        wcns.run.double_mach_reflection.smoke.serial
+        PROPERTIES FIXTURES_REQUIRED cgns_files
     )
     set_tests_properties(
         wcns.run.freestream.serial

@@ -169,7 +169,7 @@ void InviscidWcnsSolver::compute_residuals(Real stage_time, int rk_stage)
     for (auto& block : local_blocks_.blocks()) {
         const auto data = boundary_data_.find(block.id());
         const auto ghost = PhysicalGhostStateOperator::fill(
-            block, data->second, gas_, reference_, floors_, version_);
+            block, data->second, gas_, reference_, floors_, version_, stage_time);
         if (ghost.version != version_) {
             throw std::logic_error("WCNS physical ghost version mismatch");
         }
@@ -180,7 +180,7 @@ void InviscidWcnsSolver::compute_residuals(Real stage_time, int rk_stage)
                 block, metrics_.at(block.id()), profile_, config_.reconstruction,
                 riemann_, gas_, reference_, floors_, data->second,
                 config_.boundary, version_, reconstruction_diagnostics_,
-                &riemann_diagnostics_, rk_stage)));
+                &riemann_diagnostics_, rk_stage, stage_time)));
         if (!inserted) {
             throw std::logic_error("duplicate local WCNS face-flux block");
         }

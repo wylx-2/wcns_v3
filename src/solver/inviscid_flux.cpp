@@ -499,7 +499,8 @@ InviscidFaceFluxField compute_inviscid_face_fluxes(
     std::uint64_t version,
     ReconstructionDiagnostics& diagnostics,
     RiemannDiagnostics* riemann_diagnostics,
-    int rk_stage)
+    int rk_stage,
+    Real stage_time)
 {
     ProfileFactory::validate_bundle(profile.components());
     if (metric.profile() != profile.kind()
@@ -538,17 +539,21 @@ InviscidFaceFluxField compute_inviscid_face_fluxes(
                                 "inviscid face boundary data is missing for patch " + patch->name);
                         }
                         if (patch->face.side == Side::Lower) {
+                            const auto coordinates = boundary_face_coordinates(
+                                block, *patch, face);
                             states.left = apply_inviscid_boundary_face_state(
                                 *patch, states.right, states.left,
                                 outward(normal, Side::Lower), data_iterator->second,
                                 boundary_options, gas, reference, floors,
-                                block.cell_dimension());
+                                block.cell_dimension(), coordinates, stage_time);
                         } else {
+                            const auto coordinates = boundary_face_coordinates(
+                                block, *patch, face);
                             states.right = apply_inviscid_boundary_face_state(
                                 *patch, states.left, states.right,
                                 outward(normal, Side::Upper), data_iterator->second,
                                 boundary_options, gas, reference, floors,
-                                block.cell_dimension());
+                                block.cell_dimension(), coordinates, stage_time);
                         }
                     }
                     const auto numerical

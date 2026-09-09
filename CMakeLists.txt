@@ -37,6 +37,7 @@ else()
 endif()
 
 add_library(wcns_physics STATIC
+    src/physics/double_mach_reflection.cpp
     src/physics/source_terms.cpp
     src/physics/thermodynamics.cpp
 )

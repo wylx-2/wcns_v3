@@ -239,6 +239,10 @@ wcns::BlockBoundaryDataMap make_boundary_data(
                     : std::optional<wcns::Real>(
                         config.initial.parameter("temperature", 1.0));
             }
+            if (patch.type == wcns::BoundaryType::DoubleMachReflection) {
+                patch_data.double_mach_reflection.emplace(
+                    config.initial.parameter("x0", 1.0 / 6.0));
+            }
             patch_data.validate(patch.type, block.cell_dimension());
             data.emplace(patch.name, patch_data);
         }

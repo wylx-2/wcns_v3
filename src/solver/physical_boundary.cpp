@@ -200,13 +200,15 @@ TemperaturePrimitiveState make_ghost(
     const TemperaturePrimitiveState& interior,
     Normal3 normal,
     const BoundaryData& data,
-    BoundaryType type,
+    const BoundaryPatch& patch,
+    std::array<Real, 3> face_coordinates,
+    Real time,
     const GasModel& gas,
     const ReferenceScales& reference,
     const NumericalFloors& floors,
     int dimension)
 {
-    switch (type) {
+    switch (patch.type) {
     case BoundaryType::Farfield:
     case BoundaryType::Inflow:
     case BoundaryType::Outflow: {
@@ -225,7 +227,37 @@ TemperaturePrimitiveState make_ghost(
     case BoundaryType::NoSlipAdiabaticWall:
     case BoundaryType::NoSlipIsothermalWall:
         return wall_ghost(
-            interior, normal, data, type, gas, reference, floors, dimension);
+            interior, normal, data, patch.type,
+            gas, reference, floors, dimension);
+    case BoundaryType::DoubleMachReflection: {
+        if (!data.double_mach_reflection) {
+            throw PhysicsConfigurationError(
+                "double-Mach-reflection boundary data are missing");
+        }
+        const auto& model = *data.double_mach_reflection;
+        model.validate(gas.gamma(), dimension);
+        if (patch.face.axis == Axis::I && patch.face.side == Side::Lower) {
+            return temperature_primitive(
+                model.post_shock_state(), gas, reference, floors, dimension);
+        }
+        if (patch.face.axis == Axis::J && patch.face.side == Side::Upper) {
+            return temperature_primitive(
+                model.exact_state(face_coordinates[0], face_coordinates[1], time),
+                gas, reference, floors, dimension);
+        }
+        if (patch.face.axis == Axis::J && patch.face.side == Side::Lower) {
+            if (face_coordinates[0] < model.shock_foot()) {
+                return temperature_primitive(
+                    model.post_shock_state(), gas, reference, floors, dimension);
+            }
+            return wall_ghost(
+                interior, normal, data, BoundaryType::SlipWall,
+                gas, reference, floors, dimension);
+        }
+        throw PhysicsConfigurationError(
+            "double-Mach-reflection boundary is valid only on i-lower, "
+            "j-lower or j-upper faces");
+    }
     case BoundaryType::Periodic:
         throw PhysicsConfigurationError("periodic boundary must use a connectivity");
     case BoundaryType::Undefined:
@@ -282,6 +314,43 @@ void BoundaryData::validate(BoundaryType type, int dimension) const
     if (wall_temperature && (!finite(*wall_temperature) || *wall_temperature <= 0.0)) {
         throw PhysicsConfigurationError("wall temperature must be positive and finite");
     }
+    const bool needs_double_mach = type == BoundaryType::DoubleMachReflection;
+    if (needs_double_mach != double_mach_reflection.has_value()) {
+        throw PhysicsConfigurationError(
+            needs_double_mach
+                ? "double-Mach-reflection model data are required"
+                : "double-Mach-reflection model data are invalid for this boundary type");
+    }
+    if (needs_double_mach) {
+        if (wall_velocity != std::array<Real, 3> {{0.0, 0.0, 0.0}}) {
+            throw PhysicsConfigurationError(
+                "double-Mach-reflection boundary requires a stationary wall");
+        }
+    }
+}
+
+std::array<Real, 3> boundary_face_coordinates(
+    const StructuredBlock& block,
+    const BoundaryPatch& patch,
+    Index3 face)
+{
+    const int dimension = block.cell_dimension();
+    const int tangential_count = 1 << (dimension - 1);
+    std::array<Real, 3> result {{0.0, 0.0, 0.0}};
+    for (int mask = 0; mask < tangential_count; ++mask) {
+        Index3 vertex = face;
+        int bit = 0;
+        for (int axis = 0; axis < dimension; ++axis) {
+            if (axis == static_cast<int>(patch.face.axis)) continue;
+            vertex[static_cast<std::size_t>(axis)] += (mask >> bit) & 1;
+            ++bit;
+        }
+        result[0] += block.coordinates.x(vertex.i, vertex.j, vertex.k);
+        result[1] += block.coordinates.y(vertex.i, vertex.j, vertex.k);
+        result[2] += block.coordinates.z(vertex.i, vertex.j, vertex.k);
+    }
+    for (auto& value : result) value /= static_cast<Real>(tangential_count);
+    return result;
 }
 
 PhysicalGhostFillResult PhysicalGhostStateOperator::fill(
@@ -290,13 +359,18 @@ PhysicalGhostFillResult PhysicalGhostStateOperator::fill(
     const GasModel& gas,
     const ReferenceScales& reference,
     const NumericalFloors& floors,
-    std::uint64_t version)
+    std::uint64_t version,
+    Real time)
 {
     if (version == 0) {
         throw PhysicsConfigurationError("physical ghost version must be non-zero");
     }
     if (block.ghost_width() < 3) {
         throw PhysicsConfigurationError("WCNS physical ghost fill requires three layers");
+    }
+    if (!finite(time) || time < 0.0) {
+        throw PhysicsConfigurationError(
+            "physical boundary time must be finite and non-negative");
     }
     PhysicalGhostFillResult result {version, 0};
     for (const auto& patch : block.boundaries) {
@@ -312,13 +386,16 @@ PhysicalGhostFillResult PhysicalGhostStateOperator::fill(
                 for (int oi = 0; oi < counts.ni; ++oi) {
                     const auto face = patch.boundary_face_range.at({oi, oj, ok});
                     const auto normal = patch_outward_normal(block, patch, face);
+                    const auto coordinates = boundary_face_coordinates(
+                        block, patch, face);
                     for (int layer = 1; layer <= 3; ++layer) {
                         const auto interior_index = mirror_index(
                             face, patch.face, layer, block.cell_extent());
                         const auto ghost = make_ghost(
                             load_temperature(
                                 block.flow.temperature_primitive, interior_index),
-                            normal, data, patch.type, gas, reference, floors,
+                            normal, data, patch, coordinates, time,
+                            gas, reference, floors,
                             block.cell_dimension());
                         const auto destination = ghost_index(
                             face, patch.face, layer, block.cell_extent());
@@ -361,7 +438,9 @@ PressurePrimitiveState apply_inviscid_boundary_face_state(
     const GasModel& gas,
     const ReferenceScales& reference,
     const NumericalFloors& floors,
-    int dimension)
+    int dimension,
+    std::array<Real, 3> face_coordinates,
+    Real time)
 {
     require_unit_normal(outward_unit_normal);
     data.validate(patch.type, dimension);
@@ -388,6 +467,26 @@ PressurePrimitiveState apply_inviscid_boundary_face_state(
             pressure_primitive(
                 *data.target_state, gas, reference, floors, dimension),
             outward_unit_normal, gas, floors, dimension);
+    case BoundaryType::DoubleMachReflection: {
+        const auto& model = *data.double_mach_reflection;
+        model.validate(gas.gamma(), dimension);
+        if (patch.face.axis == Axis::I && patch.face.side == Side::Lower) {
+            return model.post_shock_state();
+        }
+        if (patch.face.axis == Axis::J && patch.face.side == Side::Upper) {
+            return model.exact_state(face_coordinates[0], face_coordinates[1], time);
+        }
+        if (patch.face.axis == Axis::J && patch.face.side == Side::Lower) {
+            if (face_coordinates[0] < model.shock_foot()) {
+                return model.post_shock_state();
+            }
+            return reflected_face_trace(
+                interior_trace, outward_unit_normal, data.wall_velocity);
+        }
+        throw PhysicsConfigurationError(
+            "double-Mach-reflection boundary is valid only on i-lower, "
+            "j-lower or j-upper faces");
+    }
     case BoundaryType::Periodic:
         throw PhysicsConfigurationError("periodic boundary must use a connectivity");
     case BoundaryType::Undefined:

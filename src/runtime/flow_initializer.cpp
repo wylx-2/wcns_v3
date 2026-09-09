@@ -1,4 +1,5 @@
 #include <wcns/runtime/flow_initializer.hpp>
+#include <wcns/physics/double_mach_reflection.hpp>
 
 #include <cmath>
 #include <string>
@@ -208,6 +209,22 @@ TemperaturePrimitiveState sod_state(
         dimension);
 }
 
+TemperaturePrimitiveState double_mach_reflection_state(
+    const InitialConditionConfig& config,
+    Real x,
+    Real y,
+    const GasModel& gas,
+    const ReferenceScales& reference,
+    const NumericalFloors& floors,
+    int dimension)
+{
+    const DoubleMachReflection model(config.parameter("x0", 1.0 / 6.0));
+    model.validate(gas.gamma(), dimension);
+    return temperature_primitive(
+        model.exact_state(x, y, 0.0),
+        gas, reference, floors, dimension);
+}
+
 TemperaturePrimitiveState quadrant_state(
     const InitialConditionConfig& config,
     Real x,
@@ -324,6 +341,11 @@ TemperaturePrimitiveState FlowInitializer::evaluate(
     if (config.type == "sod_x") {
         return sod_state(
             config, coordinates[0],
+            gas, reference, floors, dimension);
+    }
+    if (config.type == "double_mach_reflection") {
+        return double_mach_reflection_state(
+            config, coordinates[0], coordinates[1],
             gas, reference, floors, dimension);
     }
     if (config.type == "quadrant_riemann") {

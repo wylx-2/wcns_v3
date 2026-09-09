@@ -121,6 +121,9 @@ PrimitiveState boundary_state(
         throw PhysicsError("no-slip boundary conditions require a viscous solver");
     case BoundaryType::Periodic:
         throw PhysicsError("periodic boundaries must be represented as connectivities");
+    case BoundaryType::DoubleMachReflection:
+        throw PhysicsError(
+            "double-Mach reflection requires PhysicalGhostStateOperator");
     case BoundaryType::Undefined:
         throw PhysicsError("undefined physical boundary type");
     }
