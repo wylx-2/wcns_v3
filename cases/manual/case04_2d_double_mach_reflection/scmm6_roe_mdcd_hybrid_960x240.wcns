@@ -53,7 +53,7 @@ output.field.quantities = rho,u,v,p,T,mach,entropy_proxy
 
 output.history.enabled = true
 output.history.format = txt
-output.history.every_steps = 20
+output.history.every_steps = 1
 output.history.write_initial = true
 output.history.write_final = true
 
