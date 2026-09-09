@@ -183,6 +183,16 @@ void test_quantity_registry()
     WCNS_REQUIRE_THROWS(
         std::invalid_argument,
         wcns::validate_xz_plane_statistics({0}, two_dimensional));
+    wcns::register_yz_plane_statistics(statistics, {0.0, 3.141592653589793});
+    const auto yz_names = wcns::yz_plane_statistic_names(2);
+    WCNS_REQUIRE(yz_names == std::vector<std::string>({
+        "yz_mean_u_plane0", "yz_mass_flow_x_plane0",
+        "yz_mean_u_plane1", "yz_mass_flow_x_plane1"}));
+    statistics.validate_selection(yz_names);
+    wcns::validate_yz_plane_statistics({0.0, 3.141592653589793}, partition);
+    WCNS_REQUIRE_THROWS(
+        std::invalid_argument,
+        wcns::validate_yz_plane_statistics({0.0}, two_dimensional));
     wcns::register_channel_wall_statistics(
         statistics, "bottom", "top", 1.0);
     statistics.validate_selection(wcns::channel_wall_statistic_names());

@@ -794,6 +794,165 @@ void register_xz_plane_statistics(
     }
 }
 
+std::vector<std::string> yz_plane_statistic_names(std::size_t plane_count)
+{
+    std::vector<std::string> result;
+    result.reserve(2 * plane_count);
+    for (std::size_t plane = 0; plane < plane_count; ++plane) {
+        const auto suffix = "_plane" + std::to_string(plane);
+        result.push_back("yz_mean_u" + suffix);
+        result.push_back("yz_mass_flow_x" + suffix);
+    }
+    return result;
+}
+
+void validate_yz_plane_statistics(
+    const std::vector<Real>& target_x_coordinates,
+    const StructuredPartitionPlan& partition)
+{
+    if (target_x_coordinates.empty()) {
+        throw std::invalid_argument(
+            "y-z plane statistics require at least one target x coordinate");
+    }
+    std::set<Real> unique;
+    for (const Real target : target_x_coordinates) {
+        if (!std::isfinite(target) || !unique.insert(target).second) {
+            throw std::invalid_argument(
+                "y-z plane target x coordinates must be finite and unique");
+        }
+    }
+    if (partition.zones().empty()) {
+        throw std::invalid_argument("y-z plane statistic partition has no zones");
+    }
+    for (const auto& zone : partition.zones()) {
+        if (zone.cell_dimension != 3) {
+            throw std::invalid_argument(
+                "y-z plane statistics require three-dimensional source zones");
+        }
+    }
+}
+
+void register_yz_plane_statistics(
+    StatisticRegistry& registry,
+    const std::vector<Real>& target_x_coordinates)
+{
+    const auto planar_x = [](
+        const StructuredBlock& block, const MetricField& metric, int cell_i) {
+        const auto extent = block.cell_extent();
+        Real minimum = std::numeric_limits<Real>::infinity();
+        Real maximum = -std::numeric_limits<Real>::infinity();
+        for (int k = 0; k < extent.nk; ++k) {
+            for (int j = 0; j < extent.nj; ++j) {
+                const Real x = metric.cell_coordinates().x(cell_i, j, k);
+                if (!std::isfinite(x)) {
+                    throw PhysicsError(
+                        "y-z plane statistic encountered a non-finite coordinate");
+                }
+                minimum = std::min(minimum, x);
+                maximum = std::max(maximum, x);
+            }
+        }
+        const Real tolerance = 1.0e-10
+            * (1.0 + std::max(std::abs(minimum), std::abs(maximum)));
+        if (maximum - minimum > tolerance) {
+            throw PhysicsError(
+                "y-z plane statistics require geometrically planar constant-x sections");
+        }
+        return 0.5 * (minimum + maximum);
+    };
+
+    const auto accumulate = [planar_x](
+        const StatisticContext& context, Real target_x, bool mass_flow) {
+        Real local_selected_x = std::numeric_limits<Real>::infinity();
+        for (const auto& block : context.local_blocks.blocks()) {
+            if (block.cell_dimension() != 3) {
+                throw PhysicsError("y-z plane statistics require a 3D mesh");
+            }
+            const auto metric_iterator = context.metrics.find(block.id());
+            if (metric_iterator == context.metrics.end()) {
+                throw std::invalid_argument(
+                    "y-z plane statistic is missing metric data");
+            }
+            const auto extent = block.cell_extent();
+            for (int i = 0; i < extent.ni; ++i) {
+                const Real x = planar_x(block, metric_iterator->second, i);
+                const Real tolerance = 1.0e-12
+                    * (1.0 + std::max(std::abs(x), std::abs(target_x)));
+                if (x + tolerance >= target_x) {
+                    local_selected_x = std::min(local_selected_x, x);
+                }
+            }
+        }
+        const Real selected_x = context.mpi.min(local_selected_x);
+        if (!std::isfinite(selected_x)) {
+            throw PhysicsError(
+                "y-z plane target has no cell-centre section on its positive-x side");
+        }
+
+        Real local_area = 0.0;
+        Real local_integral = 0.0;
+        const Real selection_tolerance = 1.0e-10
+            * (1.0 + std::abs(selected_x));
+        for (const auto& block : context.local_blocks.blocks()) {
+            const auto& metric = context.metrics.at(block.id());
+            const auto extent = block.cell_extent();
+            for (int i = 0; i < extent.ni; ++i) {
+                const Real x = planar_x(block, metric, i);
+                if (std::abs(x - selected_x) > selection_tolerance) continue;
+                for (int k = 0; k < extent.nk; ++k) {
+                    for (int j = 0; j < extent.nj; ++j) {
+                        const Real area = 0.5 * (
+                            metric.i_faces().area(i, j, k)
+                            + metric.i_faces().area(i + 1, j, k));
+                        const Real rho = block.flow.conservative(i, j, k, density);
+                        const Real rho_u = block.flow.conservative(
+                            i, j, k, momentum_x);
+                        const Real value = mass_flow ? rho_u : rho_u / rho;
+                        if (!std::isfinite(area) || area <= 0.0
+                            || !std::isfinite(rho)
+                            || rho <= context.quantities.floors.density
+                            || !std::isfinite(value)) {
+                            throw PhysicsError(
+                                "y-z plane statistic encountered invalid flow data");
+                        }
+                        local_area += area;
+                        local_integral += area * value;
+                    }
+                }
+            }
+        }
+        const Real area = context.mpi.sum(local_area);
+        const Real integral = context.mpi.sum(local_integral);
+        if (!std::isfinite(area) || area <= 0.0 || !std::isfinite(integral)) {
+            throw PhysicsError(
+                "y-z plane statistic has no finite global support");
+        }
+        return mass_flow ? integral : integral / area;
+    };
+
+    const auto names = yz_plane_statistic_names(target_x_coordinates.size());
+    for (std::size_t plane = 0; plane < target_x_coordinates.size(); ++plane) {
+        auto mean = make_descriptor(
+            names[2 * plane], "m/s", QuantityScale::Velocity);
+        mean.integration_length_power = 0;
+        registry.register_quantity(statistic(
+            std::move(mean),
+            [accumulate, target_x = target_x_coordinates[plane]](
+                const StatisticContext& context) {
+                return accumulate(context, target_x, false);
+            }));
+        auto flow = make_descriptor(
+            names[2 * plane + 1], "kg/s", QuantityScale::Momentum);
+        flow.integration_length_power = 2;
+        registry.register_quantity(statistic(
+            std::move(flow),
+            [accumulate, target_x = target_x_coordinates[plane]](
+                const StatisticContext& context) {
+                return accumulate(context, target_x, true);
+            }));
+    }
+}
+
 std::vector<std::string> channel_wall_statistic_names()
 {
     return {

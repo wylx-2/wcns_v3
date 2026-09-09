@@ -153,6 +153,41 @@ void test_case_config()
             wcns::CaseConfigurationError,
             wcns::CaseConfig::from_text(missing_end));
     }
+    // 验证 y-z 截面目标坐标按配置顺序生成平均速度和真实质量流量列。
+    {
+        auto monitored = valid_config();
+        const auto statistics = monitored.find(
+            "output.statistics.enabled = false");
+        monitored.replace(
+            statistics,
+            std::string("output.statistics.enabled = false").size(),
+            "output.statistics.enabled = true\n"
+            "output.statistics.quantities = total_mass\n"
+            "output.statistics.yz_planes.enabled = true\n"
+            "output.statistics.yz_planes.target_x_coordinates = 0, 3.141592653589793");
+        const auto config = wcns::CaseConfig::from_text(monitored);
+        WCNS_REQUIRE(config.output.yz_planes.enabled);
+        WCNS_REQUIRE(config.output.yz_planes.target_x_coordinates.size() == 2);
+        WCNS_REQUIRE_NEAR(
+            config.output.yz_planes.target_x_coordinates[1],
+            3.141592653589793, 1.0e-15);
+        WCNS_REQUIRE(config.output.statistics.quantities
+            == std::vector<std::string>({
+                "total_mass", "yz_mean_u_plane0", "yz_mass_flow_x_plane0",
+                "yz_mean_u_plane1", "yz_mass_flow_x_plane1"}));
+
+        auto duplicate = monitored;
+        const auto targets = duplicate.find(
+            "output.statistics.yz_planes.target_x_coordinates = 0, 3.141592653589793");
+        duplicate.replace(
+            targets,
+            std::string(
+                "output.statistics.yz_planes.target_x_coordinates = 0, 3.141592653589793").size(),
+            "output.statistics.yz_planes.target_x_coordinates = 0, 0");
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(duplicate));
+    }
     // 验证槽道壁面统计会自动注册全部派生列，并拒绝无粘或非法几何配置。
     {
         auto channel = valid_config();

@@ -596,7 +596,7 @@ initial.z0 = 0.0
 initial.period_x = 6.283185307179586
 initial.period_z = 3.141592653589793
 initial.re_tau = 180.0
-initial.bulk_velocity = 1.0
+initial.bulk_velocity = 15.481978793165828
 initial.bulk_velocity_plus = 15.481978793165828
 initial.perturbation_amplitude = 0.05
 initial.rho = 1.0
@@ -609,6 +609,8 @@ initial.temperature = 1.0
 `perturbation_amplitude` 只允许 `[0,0.5]`。修改壁律或参考尺度时必须重新计算
 `bulk_velocity_plus`、体系 Re 和驱动体积力。完整公式、稀疏网格限制和可执行示例见
 [`case05`](../cases/manual/case05_3d_turbulent_channel/README.md)。
+该 case 以 `U_ref=u_tau` 缩放，所以无量纲 `bulk_velocity=U_b^+`；若用其他速度尺度，
+必须相应修改这个值，不能照搬。
 
 #### `linear_conduction`
 
@@ -842,9 +844,22 @@ output.statistics.xz_planes.enabled = true
 output.statistics.xz_planes.cell_j_indices = 0,11,23,35,47
 ```
 
-索引是每个**原始 CGNS zone** 的零基 cell-j 索引，不是顶点索引，也不是自动分区后的叶块局部索引。开启后程序按给定次序为每个 `j` 自动追加两列：`xz_mean_u_j<j>` 为面积加权`<u>_xz=sum(A*u)/sum(A)`；`xz_mass_flow_x_j<j>` 为`sum(A*rho*u)`。后者是 x 方向质量流动在 x-z 壁平行面的面积积分指标，不是穿过该面的法向通量；若需要真正的通道截面流量，应监测法向为 x 的 y-z 面，当前内建接口尚未提供。
+索引是每个**原始 CGNS zone** 的零基 cell-j 索引，不是顶点索引，也不是自动分区后的叶块局部索引。开启后程序按给定次序为每个 `j` 自动追加两列：`xz_mean_u_j<j>` 为面积加权`<u>_xz=sum(A*u)/sum(A)`；`xz_mass_flow_x_j<j>` 为`sum(A*rho*u)`。后者是 x 方向质量流动在 x-z 壁平行面的面积积分指标，不是穿过该面的法向通量；真正的通道截面流量应使用下述法向为 x 的 y-z 面接口。
 
 所有原 zone 必须为三维、每个索引在各 zone 中都有效，并且同一索引对应的所有单元中心 y 坐标必须在容差内共面。面积使用该 cell-j 层上下两个 J 面面积的平均；人工 MPI 切分时通过 `PartitionLeaf` 映射回原 zone，再由 MPI 求和，因此不会重复累计 ghost 或接口。无量纲输出时两列分别为速度和`rho*u*L^2`；量纲输出分别乘 `U_ref` 和`rho_ref*U_ref*L_ref^2`。关闭功能可以保留索引列表但不会生成列；开启时无需、也不要把自动列名手工重复写进`output.statistics.quantities`。
+
+真实 y-z 截面平均速度和 x 向质量流量使用目标 x 坐标配置：
+
+```text
+output.statistics.yz_planes.enabled = true
+output.statistics.yz_planes.target_x_coordinates = 0.0,3.141592653589793
+```
+
+对每个目标，程序选择与其重合或正 x 侧最近的常 x 单元中心面，并按配置顺序自动追加
+`yz_mean_u_plane<n>` 和 `yz_mass_flow_x_plane<n>`。前者为面积加权平均速度，后者为
+`integral(rho*u dA_yz)`，即穿过截面的真实 x 向质量流量。程序只支持三维、几何上常 x
+的平面；不会在任意曲面上做隐式插值。这两类自动列也不应重复写入
+`output.statistics.quantities`。
 
 三维等温槽道还可开启两面壁摩擦统计：
 
@@ -967,7 +982,7 @@ mpiexec -n 4 build-user-mpi\wcns_run.exe --config run-b\restart.wcns
 
 使用 x/z 双周期 `periodic-channel` 网格、y 向两面等温无滑移壁、
 `turbulent_channel` 复合壁律加低模态扰动初场、`body_force` 定常体积力、
-`run.mode=unsteady`，并开启多个 x-z 层和两壁摩擦统计。当前 36×48×36 网格只通过
+`run.mode=unsteady`，并开启 \(x=0,\pi\) 附近的 y-z 截面流量/平均速度和两壁摩擦统计。当前 36×48×36 网格只通过
 4-rank、5 步工程可行性卡口，未作湍流统计/DNS 验收。完整公式、配置、命令、实测结果和
 Linux 迁移前检查见 [`case05`](../cases/manual/case05_3d_turbulent_channel/README.md)。
 

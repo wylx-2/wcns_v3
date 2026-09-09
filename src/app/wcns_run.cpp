@@ -403,6 +403,10 @@ int main(int argc, char** argv)
             wcns::validate_xz_plane_statistics(
                 config.output.xz_planes.cell_j_indices, plan);
         }
+        if (config.output.yz_planes.enabled) {
+            wcns::validate_yz_plane_statistics(
+                config.output.yz_planes.target_x_coordinates, plan);
+        }
         if (!mpi.all_equal(plan.digest())) {
             throw std::runtime_error(
                 "structured partition digest differs across MPI ranks");
@@ -513,6 +517,11 @@ int main(int argc, char** argv)
             wcns::register_xz_plane_statistics(
                 statistic_registry,
                 config.output.xz_planes.cell_j_indices);
+        }
+        if (config.output.yz_planes.enabled) {
+            wcns::register_yz_plane_statistics(
+                statistic_registry,
+                config.output.yz_planes.target_x_coordinates);
         }
         if (config.output.channel_walls.enabled) {
             wcns::register_channel_wall_statistics(

@@ -135,6 +135,16 @@ struct XzPlaneStatisticsConfig {
     [[nodiscard]] std::string summary() const;
 };
 
+struct YzPlaneStatisticsConfig {
+    bool enabled = false;
+    // Each target selects the nearest geometrically planar cell-centre section
+    // on its positive-x side (an exactly coincident section is selected).
+    std::vector<Real> target_x_coordinates;
+
+    void validate(bool statistics_enabled) const;
+    [[nodiscard]] std::string summary() const;
+};
+
 struct ChannelWallStatisticsConfig {
     bool enabled = false;
     std::string lower_patch = "bottom";
@@ -161,6 +171,7 @@ struct OutputConfig {
     SeriesOutputConfig history;
     SeriesOutputConfig statistics;
     XzPlaneStatisticsConfig xz_planes;
+    YzPlaneStatisticsConfig yz_planes;
     ChannelWallStatisticsConfig channel_walls;
     CheckpointOutputConfig checkpoint;
 

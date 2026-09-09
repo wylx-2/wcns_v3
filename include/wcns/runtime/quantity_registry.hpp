@@ -134,6 +134,15 @@ void register_xz_plane_statistics(
     StatisticRegistry& registry,
     const std::vector<int>& cell_j_indices);
 
+[[nodiscard]] std::vector<std::string> yz_plane_statistic_names(
+    std::size_t plane_count);
+void validate_yz_plane_statistics(
+    const std::vector<Real>& target_x_coordinates,
+    const StructuredPartitionPlan& partition);
+void register_yz_plane_statistics(
+    StatisticRegistry& registry,
+    const std::vector<Real>& target_x_coordinates);
+
 [[nodiscard]] std::vector<std::string> channel_wall_statistic_names();
 void register_channel_wall_statistics(
     StatisticRegistry& registry,

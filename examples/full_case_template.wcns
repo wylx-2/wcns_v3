@@ -201,6 +201,11 @@ output.statistics.quantities = total_mass,total_momentum_x,total_momentum_y,tota
 # output.statistics.xz_planes.enabled = true
 # output.statistics.xz_planes.cell_j_indices = 0,23,47
 
+# 三维常 x 的 y-z 截面可选：每个目标选择其正 x 侧最近的单元中心面，
+# 自动追加截面面积平均 u 和 integral(rho*u dA_yz)。
+# output.statistics.yz_planes.enabled = true
+# output.statistics.yz_planes.target_x_coordinates = 0.0,3.141592653589793
+
 # 三维等温槽道可选：自动追加上/下壁摩擦、平均摩擦、u_tau 和 Re_tau。
 # lower/upper patch 必须是 J-lower/J-upper 的 no_slip_isothermal_wall。
 # output.statistics.channel_walls.enabled = true

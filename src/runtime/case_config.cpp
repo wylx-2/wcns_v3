@@ -277,6 +277,8 @@ const std::set<std::string>& fixed_keys()
         "output.statistics.write_final", "output.statistics.quantities",
         "output.statistics.xz_planes.enabled",
         "output.statistics.xz_planes.cell_j_indices",
+        "output.statistics.yz_planes.enabled",
+        "output.statistics.yz_planes.target_x_coordinates",
         "output.statistics.channel_walls.enabled",
         "output.statistics.channel_walls.lower_patch",
         "output.statistics.channel_walls.upper_patch",
@@ -859,6 +861,38 @@ std::string XzPlaneStatisticsConfig::summary() const
     return result.str();
 }
 
+void YzPlaneStatisticsConfig::validate(bool statistics_enabled) const
+{
+    std::set<Real> unique;
+    for (const Real coordinate : target_x_coordinates) {
+        if (!std::isfinite(coordinate) || !unique.insert(coordinate).second) {
+            throw CaseConfigurationError(
+                "y-z plane target x coordinates must be finite and unique");
+        }
+    }
+    if (enabled && !statistics_enabled) {
+        throw CaseConfigurationError(
+            "y-z plane monitoring requires output.statistics.enabled=true");
+    }
+    if (enabled && target_x_coordinates.empty()) {
+        throw CaseConfigurationError(
+            "enabled y-z plane monitoring requires at least one target x coordinate");
+    }
+}
+
+std::string YzPlaneStatisticsConfig::summary() const
+{
+    std::ostringstream result;
+    result << "yz_planes(enabled=" << (enabled ? "true" : "false")
+           << ",target_x_coordinates=" << std::setprecision(17);
+    for (std::size_t index = 0; index < target_x_coordinates.size(); ++index) {
+        if (index != 0) result << ':';
+        result << target_x_coordinates[index];
+    }
+    result << ')';
+    return result.str();
+}
+
 void ChannelWallStatisticsConfig::validate(bool statistics_enabled) const
 {
     if (lower_patch.empty() || upper_patch.empty() || lower_patch == upper_patch
@@ -903,6 +937,7 @@ void OutputConfig::validate() const
     history.validate("history");
     statistics.validate("statistics");
     xz_planes.validate(statistics.enabled);
+    yz_planes.validate(statistics.enabled);
     channel_walls.validate(statistics.enabled);
     checkpoint.validate();
 }
@@ -915,7 +950,8 @@ std::string OutputConfig::summary() const
            << ",dimensional=" << (dimensional ? "true" : "false")
            << ',' << field.summary() << ',' << history.summary("history")
            << ',' << statistics.summary("statistics") << ','
-           << xz_planes.summary() << ',' << channel_walls.summary() << ','
+           << xz_planes.summary() << ',' << yz_planes.summary() << ','
+           << channel_walls.summary() << ','
            << checkpoint.summary() << ')';
     return result.str();
 }
@@ -1161,6 +1197,16 @@ CaseConfig CaseConfig::from_text(const std::string& text)
     if (result.output.xz_planes.enabled) {
         const auto names = xz_plane_statistic_names(
             result.output.xz_planes.cell_j_indices);
+        result.output.statistics.quantities.insert(
+            result.output.statistics.quantities.end(), names.begin(), names.end());
+    }
+    result.output.yz_planes.enabled = optional_bool(
+        entries, "output.statistics.yz_planes.enabled", false);
+    result.output.yz_planes.target_x_coordinates = optional_real_list(
+        entries, "output.statistics.yz_planes.target_x_coordinates");
+    if (result.output.yz_planes.enabled) {
+        const auto names = yz_plane_statistic_names(
+            result.output.yz_planes.target_x_coordinates.size());
         result.output.statistics.quantities.insert(
             result.output.statistics.quantities.end(), names.begin(), names.end());
     }

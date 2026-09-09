@@ -12,8 +12,8 @@ from pathlib import Path
 REQUIRED = {
     "step", "time", "channel_wall_shear_lower", "channel_wall_shear_upper",
     "channel_wall_shear_mean", "channel_friction_velocity", "channel_re_tau",
-    "xz_mean_u_j0", "xz_mass_flow_x_j0", "xz_mean_u_j23",
-    "xz_mass_flow_x_j23", "xz_mean_u_j47", "xz_mass_flow_x_j47",
+    "yz_mean_u_plane0", "yz_mass_flow_x_plane0",
+    "yz_mean_u_plane1", "yz_mass_flow_x_plane1",
 }
 
 
@@ -53,6 +53,22 @@ def main() -> int:
         raise RuntimeError(
             f"initial measured Re_tau is inconsistent with the target: "
             f"{initial['channel_re_tau']}")
+    for record in (initial, final):
+        for name in (
+            "yz_mean_u_plane0", "yz_mass_flow_x_plane0",
+            "yz_mean_u_plane1", "yz_mass_flow_x_plane1",
+        ):
+            if record[name] <= 0.0:
+                raise RuntimeError(f"non-positive y-z section statistic: {name}")
+    initial_flow_difference = abs(
+        initial["yz_mass_flow_x_plane0"]
+        - initial["yz_mass_flow_x_plane1"])
+    initial_flow_scale = max(
+        abs(initial["yz_mass_flow_x_plane0"]),
+        abs(initial["yz_mass_flow_x_plane1"]), 1.0)
+    if initial_flow_difference > 1.0e-12 * initial_flow_scale:
+        raise RuntimeError(
+            "initial periodic y-z section mass flows are inconsistent")
     case_directory = Path(__file__).resolve().parent
     try:
         displayed_path = str(path.resolve().relative_to(case_directory))
@@ -65,6 +81,10 @@ def main() -> int:
         "final_re_tau": final["channel_re_tau"],
         "initial_wall_shear": initial["channel_wall_shear_mean"],
         "final_wall_shear": final["channel_wall_shear_mean"],
+        "initial_yz_mass_flow_plane0": initial["yz_mass_flow_x_plane0"],
+        "initial_yz_mass_flow_plane1": initial["yz_mass_flow_x_plane1"],
+        "final_yz_mass_flow_plane0": final["yz_mass_flow_x_plane0"],
+        "final_yz_mass_flow_plane1": final["yz_mass_flow_x_plane1"],
         "final_step": int(final["step"]),
         "final_time": final["time"],
     }
