@@ -52,6 +52,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--clean", action="store_true")
     parser.add_argument("--dry-run-only", action="store_true")
+    parser.add_argument(
+        "--postprocess-only", action="store_true",
+        help="validate and compare already completed result directories",
+    )
     parser.add_argument("--skip-analysis", action="store_true")
     return parser.parse_args()
 
@@ -132,51 +136,54 @@ def main() -> int:
     args = parse_args()
     if args.ranks <= 0:
         raise ValueError("--ranks must be positive")
+    if args.postprocess_only and (args.clean or args.dry_run_only):
+        raise ValueError("--postprocess-only cannot be combined with --clean/--dry-run-only")
     if args.clean:
         clean_comparison_outputs()
 
-    run = require_file(args.run, "solver")
-    generator = require_file(args.generator, "grid generator")
     validator = require_file(args.validator, "field validator")
-    mpi_exec = shutil.which(str(args.mpi_exec))
-    if mpi_exec is None:
-        raise FileNotFoundError(f"MPI launcher was not found: {args.mpi_exec}")
-    prefix = [mpi_exec, "-n", str(args.ranks)]
-
-    grid = CASE_DIR / "grids/double_mach_480x120.cgns"
-    if not grid.exists():
-        execute_streaming(
-            [
-                str(generator), "rectangle", "grids/double_mach_480x120.cgns",
-                "480", "120", "4", "4.0", "1.0", "false",
-            ],
-            CASE_DIR / "logs/comparison/generate-grid.log",
-        )
-    else:
-        print(f"reusing existing mesh: {grid}")
-
     selected = list(METHODS) if args.method == "both" else [args.method]
     elapsed: dict[str, float] = {}
-    for method in selected:
-        config = METHODS[method]["config"]
-        execute_streaming(
-            prefix + [str(run), "--config", config, "--dry-run"],
-            CASE_DIR / f"logs/comparison/dry-run-{method}-r{args.ranks}.log",
-        )
-    if args.dry_run_only:
-        return 0
+    if not args.postprocess_only:
+        run = require_file(args.run, "solver")
+        generator = require_file(args.generator, "grid generator")
+        mpi_exec = shutil.which(str(args.mpi_exec))
+        if mpi_exec is None:
+            raise FileNotFoundError(f"MPI launcher was not found: {args.mpi_exec}")
+        prefix = [mpi_exec, "-n", str(args.ranks)]
 
-    for method in selected:
-        specification = METHODS[method]
-        output = CASE_DIR / "results" / specification["output"]
-        if output.exists():
-            raise RuntimeError(f"output exists; archive it or use --clean: {output}")
-        _, elapsed[method] = execute_streaming(
-            prefix + [
-                str(run), "--config", specification["config"],
-            ],
-            CASE_DIR / f"logs/comparison/run-{method}-r{args.ranks}.log",
-        )
+        grid = CASE_DIR / "grids/double_mach_480x120.cgns"
+        if not grid.exists():
+            execute_streaming(
+                [
+                    str(generator), "rectangle", "grids/double_mach_480x120.cgns",
+                    "480", "120", "4", "4.0", "1.0", "false",
+                ],
+                CASE_DIR / "logs/comparison/generate-grid.log",
+            )
+        else:
+            print(f"reusing existing mesh: {grid}")
+
+        for method in selected:
+            config = METHODS[method]["config"]
+            execute_streaming(
+                prefix + [str(run), "--config", config, "--dry-run"],
+                CASE_DIR / f"logs/comparison/dry-run-{method}-r{args.ranks}.log",
+            )
+        if args.dry_run_only:
+            return 0
+
+        for method in selected:
+            specification = METHODS[method]
+            output = CASE_DIR / "results" / specification["output"]
+            if output.exists():
+                raise RuntimeError(f"output exists; archive it or use --clean: {output}")
+            _, elapsed[method] = execute_streaming(
+                prefix + [
+                    str(run), "--config", specification["config"],
+                ],
+                CASE_DIR / f"logs/comparison/run-{method}-r{args.ranks}.log",
+            )
 
     validation = CASE_DIR / "validation/comparison"
     validation.mkdir(parents=True, exist_ok=True)
@@ -187,6 +194,8 @@ def main() -> int:
         final_cgns = require_single(directory, "*.field.*.cgns")
         final_tecplot = require_single(directory, "*.field.*.dat")
         manifest = require_single(directory, "*.manifest.r*.txt")
+        history = require_single(directory, "*.history.r*.txt")
+        statistics = require_single(directory, "*.statistics.r*.txt")
         values = manifest_values(manifest)
         execute_streaming(
             [str(validator), "finite", str(final_cgns)],
@@ -203,6 +212,8 @@ def main() -> int:
             "cgns": final_cgns,
             "tecplot": final_tecplot,
             "manifest": manifest,
+            "history": history,
+            "statistics": statistics,
             "manifest_values": values,
         }
 
@@ -220,14 +231,24 @@ def main() -> int:
                 sys.executable, str(CASE_DIR / "analyze_case04.py"),
                 str(outputs["weno5"]["tecplot"]),
                 str(outputs["mdcd_hybrid"]["tecplot"]),
+                "--weno-history", str(outputs["weno5"]["history"]),
+                "--mdcd-history", str(outputs["mdcd_hybrid"]["history"]),
+                "--weno-statistics", str(outputs["weno5"]["statistics"]),
+                "--mdcd-statistics", str(outputs["mdcd_hybrid"]["statistics"]),
                 "--output-directory", str(CASE_DIR / "comparison"),
             ],
             validation / "analysis.log",
         )
 
+    manifest_ranks = {
+        int(output["manifest_values"]["mpi_ranks"])
+        for output in outputs.values()
+    }
+    if len(manifest_ranks) != 1:
+        raise RuntimeError("comparison results use different MPI rank counts")
     summary = {
         "status": "completed" if not args.dry_run_only else "dry_run_completed",
-        "ranks": args.ranks,
+        "ranks": manifest_ranks.pop(),
         "methods": {},
     }
     for method in selected:
@@ -235,7 +256,7 @@ def main() -> int:
         assert isinstance(values, dict)
         summary["methods"][method] = {
             "configuration": METHODS[method]["config"],
-            "elapsed_seconds": elapsed[method],
+            "elapsed_seconds": elapsed.get(method, float(values["wall_time"])),
             "final_step": int(values["step"]),
             "final_time": float(values["time"]),
             "time_step": float(values["time_step"]),

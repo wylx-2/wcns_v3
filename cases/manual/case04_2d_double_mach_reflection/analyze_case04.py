@@ -23,6 +23,10 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("weno5", type=Path)
     parser.add_argument("mdcd_hybrid", type=Path)
+    parser.add_argument("--weno-history", type=Path)
+    parser.add_argument("--mdcd-history", type=Path)
+    parser.add_argument("--weno-statistics", type=Path)
+    parser.add_argument("--mdcd-statistics", type=Path)
     parser.add_argument(
         "--output-directory", type=Path,
         default=CASE_DIR / "comparison",
@@ -69,14 +73,42 @@ def read_tecplot(path: Path) -> dict[str, np.ndarray]:
     return {name: array[:, column] for column, name in enumerate(variables)}
 
 
+def coordinate_axis(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Cluster nominally identical centres emitted by independent CGNS zones."""
+    tolerance = 1.0e-12 * max(1.0, float(np.max(np.abs(values))))
+    centres: list[float] = []
+    counts: list[int] = []
+    for value in np.sort(values):
+        scalar = float(value)
+        if not centres or abs(scalar - centres[-1]) > tolerance:
+            centres.append(scalar)
+            counts.append(1)
+        else:
+            counts[-1] += 1
+            centres[-1] += (scalar - centres[-1]) / counts[-1]
+    axis = np.asarray(centres)
+    insertion = np.searchsorted(axis, values)
+    upper = np.minimum(insertion, axis.size - 1)
+    lower = np.maximum(insertion - 1, 0)
+    indices = np.where(
+        np.abs(values - axis[lower]) <= np.abs(values - axis[upper]),
+        lower, upper,
+    )
+    if np.max(np.abs(values - axis[indices])) > tolerance:
+        raise RuntimeError("Tecplot coordinate clustering exceeded tolerance")
+    return axis, indices
+
+
 def structured(data: dict[str, np.ndarray]) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray]]:
-    x_values = np.unique(data["X"])
-    y_values = np.unique(data["Y"])
+    x_values, i = coordinate_axis(data["X"])
+    y_values, j = coordinate_axis(data["Y"])
     expected = x_values.size * y_values.size
     if expected != data["X"].size:
         raise RuntimeError("Tecplot cells do not form one rectangular structured grid")
-    i = np.searchsorted(x_values, data["X"])
-    j = np.searchsorted(y_values, data["Y"])
+    occupancy = np.zeros((y_values.size, x_values.size), dtype=np.int8)
+    np.add.at(occupancy, (j, i), 1)
+    if not np.all(occupancy == 1):
+        raise RuntimeError("Tecplot cells contain duplicate or missing coordinates")
     result: dict[str, np.ndarray] = {}
     for name, values in data.items():
         if name in {"X", "Y"}:
@@ -108,6 +140,90 @@ def field_statistics(
             np.sqrt(np.mean(difference * difference))
             / max(reference_l2, np.finfo(float).tiny)),
     }
+
+
+def read_table(path: Path) -> dict[str, np.ndarray]:
+    with path.open("r", encoding="utf-8") as stream:
+        header = stream.readline().lstrip("# ").split()
+    values = np.loadtxt(path, comments="#", dtype=str)
+    if values.ndim == 1:
+        values = values.reshape(1, -1)
+    if values.shape[1] != len(header):
+        raise RuntimeError(f"table column count does not match header: {path}")
+    result: dict[str, np.ndarray] = {}
+    for column, name in enumerate(header):
+        if name != "stop_reason":
+            result[name] = values[:, column].astype(np.float64)
+    return result
+
+
+def history_figure(
+    weno: dict[str, np.ndarray], mdcd: dict[str, np.ndarray], output: Path,
+) -> dict[str, dict[str, float | int]]:
+    figure, axis = plt.subplots(figsize=(10, 5), constrained_layout=True)
+    tiny = np.finfo(float).tiny
+    axis.semilogy(weno["time"], np.maximum(weno["total_l2"], tiny), label="WENO5")
+    axis.semilogy(
+        mdcd["time"], np.maximum(mdcd["total_l2"], tiny),
+        label="MDCD-HYBRID",
+    )
+    axis.set_xlabel("time")
+    axis.set_ylabel("total residual L2")
+    axis.set_title("Non-steady residual histories")
+    axis.grid(alpha=0.25)
+    axis.legend()
+    figure.savefig(output, dpi=180)
+    plt.close(figure)
+
+    def summarize(table: dict[str, np.ndarray]) -> dict[str, float | int]:
+        reconstruction = table["reconstruction_fallbacks"]
+        riemann = table["riemann_fallbacks"]
+        return {
+            "history_rows": int(table["step"].size),
+            "minimum_dt_excluding_initial": float(table["dt"][1:].min()),
+            "maximum_dt": float(table["dt"].max()),
+            "final_total_l2": float(table["total_l2"][-1]),
+            "maximum_reconstruction_fallbacks_per_residual": int(
+                reconstruction.max()),
+            "rows_with_reconstruction_fallbacks": int(
+                np.count_nonzero(reconstruction)),
+            "sum_of_reported_reconstruction_fallbacks": int(
+                reconstruction.sum()),
+            "maximum_riemann_fallbacks_per_residual": int(riemann.max()),
+        }
+
+    return {"weno5": summarize(weno), "mdcd_hybrid": summarize(mdcd)}
+
+
+def statistics_figure(
+    weno: dict[str, np.ndarray], mdcd: dict[str, np.ndarray], output: Path,
+) -> dict[str, dict[str, float]]:
+    quantities = (
+        "total_mass", "total_momentum_x", "total_momentum_y", "total_energy",
+    )
+    figure, axes = plt.subplots(2, 2, figsize=(12, 7), constrained_layout=True)
+    summary: dict[str, dict[str, float]] = {}
+    for axis, quantity in zip(axes.flat, quantities):
+        axis.plot(weno["time"], weno[quantity], label="WENO5")
+        axis.plot(mdcd["time"], mdcd[quantity], label="MDCD-HYBRID")
+        axis.set_title(quantity)
+        axis.set_xlabel("time")
+        axis.grid(alpha=0.25)
+        axis.legend()
+        weno_final = float(weno[quantity][-1])
+        mdcd_final = float(mdcd[quantity][-1])
+        summary[quantity] = {
+            "weno5_final": weno_final,
+            "mdcd_final": mdcd_final,
+            "mdcd_minus_weno5": mdcd_final - weno_final,
+            "relative_difference_to_weno5": (
+                (mdcd_final - weno_final)
+                / max(abs(weno_final), np.finfo(float).tiny)
+            ),
+        }
+    figure.savefig(output, dpi=180)
+    plt.close(figure)
+    return summary
 
 
 def density_gradient(
@@ -254,6 +370,27 @@ def main() -> int:
         output / "density-sections.png",
         output / "density-sections.csv",
     )
+    optional_paths = (
+        args.weno_history, args.mdcd_history,
+        args.weno_statistics, args.mdcd_statistics,
+    )
+    if any(path is not None for path in optional_paths) and not all(
+        path is not None for path in optional_paths
+    ):
+        raise RuntimeError("all four history/statistics paths must be provided together")
+    history_summary: dict[str, dict[str, float | int]] = {}
+    integral_summary: dict[str, dict[str, float]] = {}
+    if all(path is not None for path in optional_paths):
+        history_summary = history_figure(
+            read_table(args.weno_history.resolve()),
+            read_table(args.mdcd_history.resolve()),
+            output / "residual-history-comparison.png",
+        )
+        integral_summary = statistics_figure(
+            read_table(args.weno_statistics.resolve()),
+            read_table(args.mdcd_statistics.resolve()),
+            output / "integral-statistics-comparison.png",
+        )
     summary = {
         "status": "comparison_completed",
         "grid_cells": [int(weno_x.size), int(weno_y.size)],
@@ -264,6 +401,8 @@ def main() -> int:
         },
         "fields": statistics,
         "density_sections": sections,
+        "history": history_summary,
+        "integral_statistics": integral_summary,
     }
     (output / "comparison-summary.json").write_text(
         json.dumps(summary, indent=2) + "\n", encoding="utf-8")

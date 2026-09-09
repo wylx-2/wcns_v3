@@ -2,8 +2,20 @@
 
 本目录给出 Woodward--Colella 经典双马赫反射问题的可执行 WCNS 配置、统一 CGNS 网格生成
 方法和运行脚本。它既检验强激波捕捉，也检验专用的分段/时变物理边界、SSPRK 子步时间传递、
-多块连接和 MPI。当前仓库交付的是“可重现算例定义”，没有附带昂贵的 960×240 完整结果；
-只有实际运行到 `t=0.2` 并保留 manifest 后，才可以声称完成该算例的人工验收。
+多块连接和 MPI。仓库现已附带 480×120、16-rank、`t=0.2` 的 WENO5 与 MDCD_HYBRID
+实际结果、验证文件和图像；完整结论及“SCMM6 度量已通过、纯 D6 尚未通过”的适用范围见
+[`COMPARISON_REPORT.md`](COMPARISON_REPORT.md)。960×240 文件保留为高分辨率复算模板。
+
+实际比较的统一入口是：
+
+```powershell
+python run_case04_comparison.py --method both --ranks 16 `
+  --mpi-exec "C:\Program Files (x86)\Intel\oneAPI\mpi\latest\bin\mpiexec.exe"
+```
+
+两组使用 `algorithm.profile=scmm6_wcns`、特征重构和 Roe；为克服纯 D6 在初始激波足的
+负内能问题，正式结果显式使用 `algorithm.flux_difference=conservative_two_point`。
+这不是两套 profile 的交叉混用，但通量散度已经降阶，不得把结果标为纯 SCMM6-D6。
 
 ## 1. 物理问题
 
@@ -283,7 +295,7 @@ python run_case04.py --ranks 4 --mpi-exec "C:\Program Files (x86)\Intel\oneAPI\m
 - `*.manifest.r4.txt`：版本、配置/网格/分区/重启签名、最终 step/time、停止原因和成功文件清单。
 
 人工接受前至少检查：所有输出有限且 \(\rho,p,T>0\)；最终时间为 0.2 且停止理由是
-`end_time`；初始激波足位于 1/6；下壁右段无穿透；顶面移动激波位置使用实际 RK 时间；块连接
+`physical_time_reached`；初始激波足位于 1/6；下壁右段无穿透；顶面移动激波位置使用实际 RK 时间；块连接
 两侧无接缝；三重点、滑移线和射流结构位置合理；网格加密时主要结构收敛；改变合法 rank 数
 后积分、残差和终场在规定容差内一致。可视化图像是必要的物理检查，但不能替代上述机器
 可读证据。
