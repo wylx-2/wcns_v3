@@ -86,5 +86,7 @@ output.statistics.every_steps = 20
 output.statistics.write_initial = true
 output.statistics.write_final = true
 output.statistics.quantities = total_mass,total_momentum_x,total_momentum_y,total_momentum_z,total_energy
+output.statistics.xz_planes.enabled = true
+output.statistics.xz_planes.cell_j_indices = 0,11,23,35,47
 
 output.checkpoint.enabled = false

@@ -127,6 +127,14 @@ struct SeriesOutputConfig {
     [[nodiscard]] std::string summary(const char* label) const;
 };
 
+struct XzPlaneStatisticsConfig {
+    bool enabled = false;
+    std::vector<int> cell_j_indices;
+
+    void validate(bool statistics_enabled) const;
+    [[nodiscard]] std::string summary() const;
+};
+
 struct CheckpointOutputConfig {
     bool enabled = false;
     OutputScheduleConfig schedule;
@@ -142,6 +150,7 @@ struct OutputConfig {
     FieldOutputConfig field;
     SeriesOutputConfig history;
     SeriesOutputConfig statistics;
+    XzPlaneStatisticsConfig xz_planes;
     CheckpointOutputConfig checkpoint;
 
     void validate() const;

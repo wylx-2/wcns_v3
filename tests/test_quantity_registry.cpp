@@ -164,6 +164,25 @@ void test_quantity_registry()
         cyclic.validate_selection({"cycle_a"}));
 
     auto statistics = wcns::StatisticRegistry::create_builtin();
+    wcns::register_xz_plane_statistics(statistics, {0, 3});
+    statistics.validate_selection({
+        "xz_mean_u_j0", "xz_mass_flow_x_j0",
+        "xz_mean_u_j3", "xz_mass_flow_x_j3"});
+    WCNS_REQUIRE(wcns::xz_plane_statistic_names({2})
+        == std::vector<std::string>({"xz_mean_u_j2", "xz_mass_flow_x_j2"}));
+    wcns::PartitionConfig partition_config;
+    partition_config.min_cells_per_active_direction = 1;
+    const auto partition = wcns::StructuredPartitionPlan::build(
+        {{0, "three-dimensional", 3, {4, 4, 4}}}, 1, partition_config);
+    wcns::validate_xz_plane_statistics({0, 3}, partition);
+    WCNS_REQUIRE_THROWS(
+        std::invalid_argument,
+        wcns::validate_xz_plane_statistics({4}, partition));
+    const auto two_dimensional = wcns::StructuredPartitionPlan::build(
+        {{0, "two-dimensional", 2, {4, 4, 1}}}, 1, partition_config);
+    WCNS_REQUIRE_THROWS(
+        std::invalid_argument,
+        wcns::validate_xz_plane_statistics({0}, two_dimensional));
     statistics.register_quantity(
         std::make_shared<ConstantStatisticQuantity>("custom_statistic"));
     statistics.validate_selection({"custom_statistic"});

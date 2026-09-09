@@ -99,6 +99,39 @@ void test_case_config()
         WCNS_REQUIRE(config.summary().find("Ma=") != std::string::npos);
     }
     {
+        auto monitored = valid_config();
+        const auto enabled = monitored.find("output.statistics.enabled = false");
+        monitored.replace(
+            enabled,
+            std::string("output.statistics.enabled = false").size(),
+            "output.statistics.enabled = true\n"
+            "output.statistics.every_steps = 2\n"
+            "output.statistics.quantities = total_mass\n"
+            "output.statistics.xz_planes.enabled = true\n"
+            "output.statistics.xz_planes.cell_j_indices = 0, 23, 47");
+        const auto config = wcns::CaseConfig::from_text(monitored);
+        WCNS_REQUIRE(config.output.xz_planes.enabled);
+        WCNS_REQUIRE(config.output.xz_planes.cell_j_indices
+            == std::vector<int>({0, 23, 47}));
+        WCNS_REQUIRE(config.output.statistics.quantities
+            == std::vector<std::string>({
+                "total_mass", "xz_mean_u_j0", "xz_mass_flow_x_j0",
+                "xz_mean_u_j23", "xz_mass_flow_x_j23",
+                "xz_mean_u_j47", "xz_mass_flow_x_j47"}));
+
+        auto duplicate = monitored;
+        const auto indices = duplicate.find(
+            "output.statistics.xz_planes.cell_j_indices = 0, 23, 47");
+        duplicate.replace(
+            indices,
+            std::string(
+                "output.statistics.xz_planes.cell_j_indices = 0, 23, 47").size(),
+            "output.statistics.xz_planes.cell_j_indices = 0, 23, 23");
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(duplicate));
+    }
+    {
         auto unsteady = valid_config();
         const auto mode = unsteady.find("run.mode = steady");
         unsteady.replace(mode, std::string("run.mode = steady").size(),

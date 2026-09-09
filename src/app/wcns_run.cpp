@@ -395,6 +395,10 @@ int main(int argc, char** argv)
             partition_zones(metadata),
             mpi.size(),
             config.partition);
+        if (config.output.xz_planes.enabled) {
+            wcns::validate_xz_plane_statistics(
+                config.output.xz_planes.cell_j_indices, plan);
+        }
         if (!mpi.all_equal(plan.digest())) {
             throw std::runtime_error(
                 "structured partition digest differs across MPI ranks");
@@ -498,6 +502,12 @@ int main(int argc, char** argv)
             metrics,
             quantity_context,
             mesh_name);
+        auto statistic_registry = wcns::StatisticRegistry::create_builtin();
+        if (config.output.xz_planes.enabled) {
+            wcns::register_xz_plane_statistics(
+                statistic_registry,
+                config.output.xz_planes.cell_j_indices);
+        }
         wcns::RuntimeOutputManager output(
             mpi,
             config,
@@ -515,7 +525,8 @@ int main(int argc, char** argv)
                     return checkpoint.write(state);
                 }
                 return {};
-            });
+            },
+            std::move(statistic_registry));
         wcns::CompositeSimulationObserver observer;
         observer.add(console);
         observer.add(output);

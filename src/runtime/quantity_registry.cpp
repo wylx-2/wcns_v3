@@ -7,9 +7,11 @@
 #include <array>
 #include <cmath>
 #include <functional>
+#include <limits>
 #include <set>
 #include <stdexcept>
 #include <tuple>
+#include <unordered_map>
 #include <utility>
 
 namespace wcns {
@@ -170,6 +172,10 @@ void QuantityDescriptor::validate() const
         && length_power != -1 && length_power <= 0) {
         throw std::invalid_argument(
             "length-power quantity requires a positive power or dimension sentinel");
+    }
+    if (integration_length_power < -1) {
+        throw std::invalid_argument(
+            "statistic integration length power must be -1 or non-negative");
     }
     std::set<std::string> unique;
     for (const auto& dependency : dependencies) {
@@ -475,7 +481,11 @@ Real StatisticRegistry::evaluate(
     const Real field_scale = quantity_scale_factor(
         iterator->second->descriptor(), context.quantities, dimension);
     return value * field_scale
-        * std::pow(context.quantities.reference.length(), dimension);
+        * std::pow(
+            context.quantities.reference.length(),
+            iterator->second->descriptor().integration_length_power < 0
+                ? dimension
+                : iterator->second->descriptor().integration_length_power);
 }
 
 void StatisticRegistry::validate_selection(
@@ -489,6 +499,137 @@ void StatisticRegistry::validate_selection(
         if (!contains(name)) {
             throw std::invalid_argument("unknown statistic quantity: " + name);
         }
+    }
+}
+
+std::vector<std::string> xz_plane_statistic_names(
+    const std::vector<int>& cell_j_indices)
+{
+    std::vector<std::string> result;
+    result.reserve(2 * cell_j_indices.size());
+    for (const int index : cell_j_indices) {
+        if (index < 0) {
+            throw std::invalid_argument("x-z plane cell-j index must be non-negative");
+        }
+        result.push_back("xz_mean_u_j" + std::to_string(index));
+        result.push_back("xz_mass_flow_x_j" + std::to_string(index));
+    }
+    return result;
+}
+
+void validate_xz_plane_statistics(
+    const std::vector<int>& cell_j_indices,
+    const StructuredPartitionPlan& partition)
+{
+    if (partition.zones().empty()) {
+        throw std::invalid_argument("x-z plane statistic partition has no zones");
+    }
+    std::set<int> unique;
+    for (const int target_j : cell_j_indices) {
+        if (target_j < 0 || !unique.insert(target_j).second) {
+            throw std::invalid_argument(
+                "x-z plane cell-j indices must be non-negative and unique");
+        }
+        for (const auto& zone : partition.zones()) {
+            if (zone.cell_dimension != 3) {
+                throw std::invalid_argument(
+                    "x-z plane statistics require three-dimensional source zones");
+            }
+            if (target_j >= zone.cell_extent.nj) {
+                throw std::invalid_argument(
+                    "x-z plane cell-j index lies outside source zone " + zone.name);
+            }
+        }
+    }
+}
+
+void register_xz_plane_statistics(
+    StatisticRegistry& registry,
+    const std::vector<int>& cell_j_indices)
+{
+    const auto accumulate = [](
+        const StatisticContext& context, int target_j, bool mass_flow) {
+        validate_xz_plane_statistics({target_j}, context.partition);
+        std::unordered_map<BlockId, const PartitionLeaf*> leaves;
+        for (const auto& leaf : context.partition.leaves()) {
+            leaves.emplace(leaf.block, &leaf);
+        }
+        Real local_area = 0.0;
+        Real local_integral = 0.0;
+        Real local_y_min = std::numeric_limits<Real>::infinity();
+        Real local_y_max = -std::numeric_limits<Real>::infinity();
+        for (const auto& block : context.local_blocks.blocks()) {
+            const auto leaf_iterator = leaves.find(block.id());
+            const auto metric_iterator = context.metrics.find(block.id());
+            if (leaf_iterator == leaves.end() || metric_iterator == context.metrics.end()) {
+                throw std::invalid_argument(
+                    "x-z plane statistic is missing partition or metric data");
+            }
+            const auto& leaf = *leaf_iterator->second;
+            if (target_j < leaf.cells.begin.j || target_j >= leaf.cells.end.j) {
+                continue;
+            }
+            const int local_j = target_j - leaf.cells.begin.j;
+            const auto& metric = metric_iterator->second;
+            const auto extent = block.cell_extent();
+            for (int k = 0; k < extent.nk; ++k) {
+                for (int i = 0; i < extent.ni; ++i) {
+                    const Real area = 0.5 * (
+                        metric.j_faces().area(i, local_j, k)
+                        + metric.j_faces().area(i, local_j + 1, k));
+                    const Real rho = block.flow.conservative(
+                        i, local_j, k, density);
+                    const Real rho_u = block.flow.conservative(
+                        i, local_j, k, momentum_x);
+                    const Real value = mass_flow ? rho_u : rho_u / rho;
+                    const Real y = metric.cell_coordinates().y(i, local_j, k);
+                    if (!std::isfinite(area) || area <= 0.0
+                        || !std::isfinite(rho) || rho <= context.quantities.floors.density
+                        || !std::isfinite(value) || !std::isfinite(y)) {
+                        throw PhysicsError("x-z plane statistic encountered invalid data");
+                    }
+                    local_area += area;
+                    local_integral += area * value;
+                    local_y_min = std::min(local_y_min, y);
+                    local_y_max = std::max(local_y_max, y);
+                }
+            }
+        }
+        const Real area = context.mpi.sum(local_area);
+        const Real integral = context.mpi.sum(local_integral);
+        const Real y_min = context.mpi.min(local_y_min);
+        const Real y_max = context.mpi.max(local_y_max);
+        if (!std::isfinite(area) || area <= 0.0
+            || !std::isfinite(integral)
+            || !std::isfinite(y_min) || !std::isfinite(y_max)) {
+            throw PhysicsError("x-z plane statistic has no finite global support");
+        }
+        const Real tolerance = 1.0e-10
+            * (1.0 + std::max(std::abs(y_min), std::abs(y_max)));
+        if (y_max - y_min > tolerance) {
+            throw PhysicsError(
+                "requested cell-j layer is not a geometrically planar x-z section");
+        }
+        return mass_flow ? integral : integral / area;
+    };
+
+    for (const int target_j : cell_j_indices) {
+        const auto names = xz_plane_statistic_names({target_j});
+        auto mean = make_descriptor(names[0], "m/s", QuantityScale::Velocity);
+        mean.integration_length_power = 0;
+        registry.register_quantity(statistic(
+            std::move(mean),
+            [accumulate, target_j](const StatisticContext& context) {
+                return accumulate(context, target_j, false);
+            }));
+        auto flow = make_descriptor(
+            names[1], "kg/s", QuantityScale::Momentum);
+        flow.integration_length_power = 2;
+        registry.register_quantity(statistic(
+            std::move(flow),
+            [accumulate, target_j](const StatisticContext& context) {
+                return accumulate(context, target_j, true);
+            }));
     }
 }
 

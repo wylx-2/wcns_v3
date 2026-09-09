@@ -35,6 +35,9 @@ struct QuantityDescriptor {
     std::string dimensional_unit = "1";
     QuantityScale scale = QuantityScale::Dimensionless;
     int length_power = 0;
+    // Statistics normally integrate over the full domain dimension.  A
+    // non-negative value overrides that exponent for means and plane integrals.
+    int integration_length_power = -1;
 
     void validate() const;
 };
@@ -118,6 +121,15 @@ public:
 private:
     std::unordered_map<std::string, std::shared_ptr<const IStatisticQuantity>> quantities_;
 };
+
+[[nodiscard]] std::vector<std::string> xz_plane_statistic_names(
+    const std::vector<int>& cell_j_indices);
+void validate_xz_plane_statistics(
+    const std::vector<int>& cell_j_indices,
+    const StructuredPartitionPlan& partition);
+void register_xz_plane_statistics(
+    StatisticRegistry& registry,
+    const std::vector<int>& cell_j_indices);
 
 [[nodiscard]] Real quantity_scale_factor(
     const QuantityDescriptor& descriptor,

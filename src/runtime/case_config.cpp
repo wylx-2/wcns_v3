@@ -1,4 +1,5 @@
 #include <wcns/runtime/case_config.hpp>
+#include <wcns/runtime/quantity_registry.hpp>
 
 #include <algorithm>
 #include <array>
@@ -268,6 +269,8 @@ const std::set<std::string>& fixed_keys()
         "output.statistics.every_steps", "output.statistics.every_time",
         "output.statistics.explicit_times", "output.statistics.write_initial",
         "output.statistics.write_final", "output.statistics.quantities",
+        "output.statistics.xz_planes.enabled",
+        "output.statistics.xz_planes.cell_j_indices",
         "output.checkpoint.enabled", "output.checkpoint.every_steps",
         "output.checkpoint.every_time", "output.checkpoint.explicit_times",
         "output.checkpoint.write_initial", "output.checkpoint.write_final",
@@ -378,6 +381,25 @@ std::vector<std::string> optional_string_list(
     const auto iterator = entries.find(key);
     return iterator == entries.end()
         ? std::vector<std::string> {} : split_list(iterator->second);
+}
+
+std::vector<int> optional_integer_list(
+    const EntryMap& entries,
+    const std::string& key)
+{
+    const auto iterator = entries.find(key);
+    if (iterator == entries.end()) return {};
+    std::vector<int> result;
+    for (const auto& item : split_list(iterator->second)) {
+        const auto value = parse_integer(item, key);
+        if (value < std::numeric_limits<int>::min()
+            || value > std::numeric_limits<int>::max()) {
+            throw CaseConfigurationError(
+                "configuration list item is outside int range: " + key);
+        }
+        result.push_back(static_cast<int>(value));
+    }
+    return result;
 }
 
 OutputScheduleConfig parse_schedule(
@@ -768,6 +790,38 @@ std::string SeriesOutputConfig::summary(const char* label) const
     return result.str();
 }
 
+void XzPlaneStatisticsConfig::validate(bool statistics_enabled) const
+{
+    std::set<int> unique;
+    for (const int index : cell_j_indices) {
+        if (index < 0 || !unique.insert(index).second) {
+            throw CaseConfigurationError(
+                "x-z plane cell-j indices must be non-negative and unique");
+        }
+    }
+    if (enabled && !statistics_enabled) {
+        throw CaseConfigurationError(
+            "x-z plane monitoring requires output.statistics.enabled=true");
+    }
+    if (enabled && cell_j_indices.empty()) {
+        throw CaseConfigurationError(
+            "enabled x-z plane monitoring requires at least one cell-j index");
+    }
+}
+
+std::string XzPlaneStatisticsConfig::summary() const
+{
+    std::ostringstream result;
+    result << "xz_planes(enabled=" << (enabled ? "true" : "false")
+           << ",cell_j_indices=";
+    for (std::size_t index = 0; index < cell_j_indices.size(); ++index) {
+        if (index != 0) result << ':';
+        result << cell_j_indices[index];
+    }
+    result << ')';
+    return result.str();
+}
+
 void CheckpointOutputConfig::validate() const
 {
     schedule.validate();
@@ -787,6 +841,7 @@ void OutputConfig::validate() const
     field.validate();
     history.validate("history");
     statistics.validate("statistics");
+    xz_planes.validate(statistics.enabled);
     checkpoint.validate();
 }
 
@@ -798,6 +853,7 @@ std::string OutputConfig::summary() const
            << ",dimensional=" << (dimensional ? "true" : "false")
            << ',' << field.summary() << ',' << history.summary("history")
            << ',' << statistics.summary("statistics") << ','
+           << xz_planes.summary() << ','
            << checkpoint.summary() << ')';
     return result.str();
 }
@@ -1036,6 +1092,16 @@ CaseConfig CaseConfig::from_text(const std::string& text)
         entries, "output.statistics", true);
     result.output.statistics.quantities = optional_string_list(
         entries, "output.statistics.quantities");
+    result.output.xz_planes.enabled = optional_bool(
+        entries, "output.statistics.xz_planes.enabled", false);
+    result.output.xz_planes.cell_j_indices = optional_integer_list(
+        entries, "output.statistics.xz_planes.cell_j_indices");
+    if (result.output.xz_planes.enabled) {
+        const auto names = xz_plane_statistic_names(
+            result.output.xz_planes.cell_j_indices);
+        result.output.statistics.quantities.insert(
+            result.output.statistics.quantities.end(), names.begin(), names.end());
+    }
 
     result.output.checkpoint.enabled = parse_bool(
         require(entries, "output.checkpoint.enabled"),
