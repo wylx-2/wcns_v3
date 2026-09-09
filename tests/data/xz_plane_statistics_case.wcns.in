@@ -1,5 +1,5 @@
 schema_version = 1
-case.name = xz-plane-statistics-smoke
+case.name = @WCNS_XZ_CASE_NAME@
 mesh.path = @CMAKE_CURRENT_BINARY_DIR@/xz_plane_statistics_mesh.cgns
 algorithm.profile = phenglei_wcns
 algorithm.reconstruction = zero_order
@@ -29,7 +29,7 @@ run.viscous = false
 run.cfl = 0.1
 run.max_steps = 20
 run.t_end = 1.0e-5
-output.directory = @CMAKE_CURRENT_BINARY_DIR@/xz-plane-statistics-smoke
+output.directory = @CMAKE_CURRENT_BINARY_DIR@/@WCNS_XZ_OUTPUT_DIRECTORY@
 output.allow_existing = true
 output.dimensional = false
 output.field.enabled = false

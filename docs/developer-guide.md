@@ -904,12 +904,16 @@ y 和面积。它检查：
 `tests/test_case_config.cpp` 验证开关、列表、自动列名、重复索引和父开关关系。
 `tests/test_quantity_registry.cpp` 构造解析均匀场，验证名称、公式、合法范围和二维拒绝。
 
-端到端测试由三步 CTest fixture 组成：
+串行端到端测试由三步 CTest fixture 组成：
 
 1. `wcns.generate_xz_plane_statistics_mesh` 生成 8×8×8 CGNS；
 2. `wcns.run.xz_plane_statistics.smoke.serial` 用正式 `wcns_run` 和 `zero_order` 推进一步；
 3. `wcns.check.xz_plane_statistics.serial` 用
    `tests/check_xz_statistics.py` 读取真实 statistics 文件，检查初/终记录的列和 0.2 解析值。
+
+MPI 构建另以独立输出目录执行 `wcns.run.xz_plane_statistics.smoke.2` 和
+`wcns.check.xz_plane_statistics.2`。两个 rank 会切分同一原 zone，检查器仍要求面积平均和
+质量积分为 0.2，从而直接覆盖原 zone J 索引到叶块局部索引的映射及 `MPI_Allreduce` 路径。
 
 运行：
 

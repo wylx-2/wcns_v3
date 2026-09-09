@@ -74,11 +74,22 @@ if(WCNS_ENABLE_CGNS)
         ${CMAKE_CURRENT_BINARY_DIR}/double_mach_reflection_case.wcns
         @ONLY
     )
+    set(WCNS_XZ_CASE_NAME xz-plane-statistics-smoke)
+    set(WCNS_XZ_OUTPUT_DIRECTORY xz-plane-statistics-smoke)
     configure_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/data/xz_plane_statistics_case.wcns.in
         ${CMAKE_CURRENT_BINARY_DIR}/xz_plane_statistics_case.wcns
         @ONLY
     )
+    if(WCNS_ENABLE_MPI)
+        set(WCNS_XZ_CASE_NAME xz-plane-statistics-smoke-mpi)
+        set(WCNS_XZ_OUTPUT_DIRECTORY xz-plane-statistics-smoke-mpi)
+        configure_file(
+            ${CMAKE_CURRENT_SOURCE_DIR}/data/xz_plane_statistics_case.wcns.in
+            ${CMAKE_CURRENT_BINARY_DIR}/xz_plane_statistics_mpi_case.wcns
+            @ONLY
+        )
+    endif()
     set(WCNS_PERIODIC_CASE periodic-translation-2d)
     set(WCNS_PERIODIC_MESH generated_periodic_2d.cgns)
     set(WCNS_PERIODIC_PARTITION auto_split)
@@ -712,6 +723,28 @@ if(WCNS_ENABLE_CGNS)
     set_tests_properties(wcns.geometry_plan.serial PROPERTIES FIXTURES_REQUIRED cgns_files)
 
     if(WCNS_ENABLE_MPI)
+        add_test(
+            NAME wcns.run.xz_plane_statistics.smoke.2
+            COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
+                $<TARGET_FILE:wcns_run>
+                --config ${CMAKE_CURRENT_BINARY_DIR}/xz_plane_statistics_mpi_case.wcns
+        )
+        set_tests_properties(
+            wcns.run.xz_plane_statistics.smoke.2
+            PROPERTIES
+                FIXTURES_REQUIRED xz_plane_statistics_mesh
+                FIXTURES_SETUP xz_plane_statistics_output_mpi
+        )
+        add_test(
+            NAME wcns.check.xz_plane_statistics.2
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/check_xz_statistics.py
+                ${CMAKE_CURRENT_BINARY_DIR}/xz-plane-statistics-smoke-mpi/xz-plane-statistics-smoke-mpi.statistics.r2.txt
+        )
+        set_tests_properties(
+            wcns.check.xz_plane_statistics.2
+            PROPERTIES FIXTURES_REQUIRED xz_plane_statistics_output_mpi
+        )
         add_test(
             NAME wcns.run.freestream.2
             COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
