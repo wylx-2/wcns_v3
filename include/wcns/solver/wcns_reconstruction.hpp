@@ -33,6 +33,7 @@ struct WcnsParameters {
 };
 
 enum class ReconstructionKind {
+    ZeroOrder,
     Linear5,
     WenoJs,
     WcnsJs = WenoJs,

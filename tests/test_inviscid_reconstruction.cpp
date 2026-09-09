@@ -88,7 +88,8 @@ void test_stage_l_algorithm_registries()
     auto reconstruction_registry = ReconstructionRegistry::with_builtins();
     WCNS_REQUIRE(reconstruction_registry.names()
         == std::vector<std::string>({
-            "linear5", "mdcd_hybrid", "mdcd_linear", "weno_js", "weno_z"}));
+            "linear5", "mdcd_hybrid", "mdcd_linear", "weno_js", "weno_z",
+            "zero_order"}));
     reconstruction_registry.register_scheme(
         "custom_average",
         [] { return std::make_unique<CustomAverageReconstruction>(); });
@@ -146,6 +147,16 @@ void test_stage_l_scalar_reconstruction_schemes()
 {
     using namespace wcns;
     const auto registry = ReconstructionRegistry::with_builtins();
+    const std::array<Real, 6> asymmetric {{-9.0, -3.0, 1.25, 7.5, 20.0, 80.0}};
+    const auto zero_order = registry.create("zero_order");
+    WCNS_REQUIRE(zero_order->stencil_requirement().point_count == 6);
+    WCNS_REQUIRE_NEAR(
+        zero_order->reconstruct_scalar(asymmetric, TraceSide::Left, {}),
+        asymmetric[2], 0.0);
+    WCNS_REQUIRE_NEAR(
+        zero_order->reconstruct_scalar(asymmetric, TraceSide::Right, {}),
+        asymmetric[3], 0.0);
+    WCNS_REQUIRE(reconstruction_name(ReconstructionKind::ZeroOrder) == "zero_order");
     const std::array<Real, 6> constant {{2.5, 2.5, 2.5, 2.5, 2.5, 2.5}};
     for (const auto* name : {"weno_js", "weno_z", "mdcd_linear", "mdcd_hybrid"}) {
         const auto scheme = registry.create(name);

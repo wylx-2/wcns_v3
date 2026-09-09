@@ -16,6 +16,8 @@ algorithm.profile = phenglei_wcns
 algorithm.reconstruction = weno_z
 algorithm.reconstruction_variables = characteristic
 algorithm.riemann = hllc
+algorithm.mdcd.disp = 0.04
+algorithm.mdcd.diss = 0.005
 gas.gamma = 1.4
 gas.molar_mass = 0.029
 reference.velocity = 340
@@ -71,6 +73,12 @@ void test_case_config()
             config.reconstruction.variables
             == wcns::ReconstructionVariables::Characteristic);
         WCNS_REQUIRE(config.riemann.scheme == "hllc");
+        WCNS_REQUIRE_NEAR(
+            config.reconstruction.nonlinear.mdcd_dispersion, 0.04, 1.0e-15);
+        WCNS_REQUIRE_NEAR(
+            config.reconstruction.nonlinear.mdcd_dissipation, 0.005, 1.0e-15);
+        WCNS_REQUIRE(config.restart_signature().find("mdcd_dispersion=0.04")
+            != std::string::npos);
         WCNS_REQUIRE(config.partition.mode == wcns::PartitionMode::AutoSplit);
         WCNS_REQUIRE(
             config.boundary_overrides.at("wall")
@@ -126,6 +134,15 @@ void test_case_config()
         WCNS_REQUIRE_THROWS(
             wcns::CaseConfigurationError,
             wcns::CaseConfig::from_text(valid_config() + "Re = 1000\n"));
+        auto invalid_mdcd = valid_config();
+        const auto diss_position = invalid_mdcd.find("algorithm.mdcd.diss = 0.005");
+        invalid_mdcd.replace(
+            diss_position,
+            std::string("algorithm.mdcd.diss = 0.005").size(),
+            "algorithm.mdcd.diss = 0.04");
+        WCNS_REQUIRE_THROWS(
+            std::invalid_argument,
+            wcns::CaseConfig::from_text(invalid_mdcd));
         WCNS_REQUIRE_THROWS(
             wcns::CaseConfigurationError,
             wcns::CaseConfig::from_text(

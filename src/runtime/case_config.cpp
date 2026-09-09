@@ -219,6 +219,7 @@ const std::set<std::string>& fixed_keys()
         "schema_version", "case.name", "mesh.path",
         "algorithm.profile", "algorithm.reconstruction",
         "algorithm.reconstruction_variables", "algorithm.riemann",
+        "algorithm.mdcd.disp", "algorithm.mdcd.diss",
         "gas.gamma", "gas.molar_mass", "gas.specific_gas_constant",
         "reference.velocity", "reference.density", "reference.temperature",
         "reference.length", "reference.viscosity",
@@ -851,6 +852,12 @@ CaseConfig CaseConfig::from_text(const std::string& text)
     result.reconstruction.scheme = require(entries, "algorithm.reconstruction");
     result.reconstruction.variables = parse_reconstruction_variables(
         require(entries, "algorithm.reconstruction_variables"));
+    result.reconstruction.nonlinear.mdcd_dispersion = optional_real(
+        entries, "algorithm.mdcd.disp",
+        result.reconstruction.nonlinear.mdcd_dispersion);
+    result.reconstruction.nonlinear.mdcd_dissipation = optional_real(
+        entries, "algorithm.mdcd.diss",
+        result.reconstruction.nonlinear.mdcd_dissipation);
     result.riemann.scheme = require(entries, "algorithm.riemann");
 
     result.gas.gamma = parse_real(require(entries, "gas.gamma"), "gas.gamma");

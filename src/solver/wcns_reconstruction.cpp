@@ -78,6 +78,28 @@ public:
     }
 };
 
+class ZeroOrderScheme final : public IReconstructionScheme {
+public:
+    [[nodiscard]] std::string_view name() const noexcept override
+    {
+        return "zero_order";
+    }
+
+    [[nodiscard]] StencilRequirement stencil_requirement() const noexcept override
+    {
+        return {};
+    }
+
+    [[nodiscard]] Real reconstruct_scalar(
+        ScalarStencilView stencil,
+        TraceSide side,
+        const ReconstructionContext&) const override
+    {
+        const auto values = checked_stencil(stencil);
+        return side == TraceSide::Left ? values[2] : values[3];
+    }
+};
+
 class WenoJsScheme final : public IReconstructionScheme {
 public:
     [[nodiscard]] std::string_view name() const noexcept override
@@ -619,6 +641,7 @@ std::vector<std::string> ReconstructionRegistry::names() const
 ReconstructionRegistry ReconstructionRegistry::with_builtins()
 {
     ReconstructionRegistry result;
+    result.register_scheme("zero_order", [] { return std::make_unique<ZeroOrderScheme>(); });
     result.register_scheme("linear5", [] { return std::make_unique<Linear5Scheme>(); });
     result.register_scheme("weno_js", [] { return std::make_unique<WenoJsScheme>(); });
     result.register_scheme("weno_z", [] { return std::make_unique<WenoZScheme>(); });
@@ -630,6 +653,7 @@ ReconstructionRegistry ReconstructionRegistry::with_builtins()
 std::string_view reconstruction_name(ReconstructionKind kind)
 {
     switch (kind) {
+    case ReconstructionKind::ZeroOrder: return "zero_order";
     case ReconstructionKind::Linear5: return "linear5";
     case ReconstructionKind::WenoJs: return "weno_js";
     case ReconstructionKind::WenoZ: return "weno_z";
@@ -1075,7 +1099,7 @@ EulerFaceStates reconstruct_thermodynamic_face(
     auto strategy_name = [&](std::string_view scheme, ReconstructionVariables variables) {
         return std::string(scheme) + ':' + variable_name(variables);
     };
-    if (config.scheme == "linear5") {
+    if (config.scheme == "linear5" || config.scheme == "zero_order") {
         ++diagnostics.linear_faces;
     } else {
         ++diagnostics.nonlinear_faces;
@@ -1109,7 +1133,7 @@ EulerFaceStates reconstruct_thermodynamic_face(
         config.variables == ReconstructionVariables::Conservative
             ? ReconstructionVariables::Conservative
             : ReconstructionVariables::Primitive);
-    if (config.scheme != "linear5") {
+    if (config.scheme != "linear5" && config.scheme != "zero_order") {
         ++diagnostics.linear_fallbacks;
         ++diagnostics.linear_faces;
         diagnostics.record_fallback(
