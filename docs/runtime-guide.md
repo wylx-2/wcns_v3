@@ -1,7 +1,9 @@
 # WCNS 运行、配置、输出与重启指南
 
-本文对应配置 `schema_version = 1` 和阶段 N 的正式生产入口 `wcns_run`。完整配置模板见
-[`examples/freestream.wcns`](../examples/freestream.wcns)，算法数学约定见
+本文对应配置 `schema_version = 1` 和阶段 N 的正式生产入口 `wcns_run`，定位为简明速查。
+逐步用户手册见 [`user-manual.md`](user-manual.md)，源码扩展指南见
+[`developer-guide.md`](developer-guide.md)，完整配置模板见
+[`examples/full_case_template.wcns`](../examples/full_case_template.wcns)，算法数学约定见
 [`算法补充.md`](../算法补充.md)。配置文件采用严格的 UTF-8 `key = value` 格式：空行和以
 `#` 开头的行被忽略，键不可重复；未知键、缺失必填键、非法枚举、`NaN/Inf` 和空列表项均在
 分配流场前失败。
@@ -80,7 +82,7 @@ Riemann 求解器；发生非法中间状态时按冻结的确定性回退链处
 
 | 键 | 含义 |
 |---|---|
-| `partition.mode` | `zones_only` 不切分；`auto_split` 在需要时切分；`force_split` 强制寻找叶块切分 |
+| `partition.mode` | `zones_only` 不切分；`auto_split` 与当前 `force_split` 均进入受约束切分流程；`force_split` 暂未提供额外的强制切分语义 |
 | `partition.allow_idle_ranks` | 不可形成足够合法叶块时是否允许空闲 rank |
 | `partition.max_load_ratio` | 最大/平均负载目标，必须不小于 1 |
 | `partition.min_cells_per_active_direction` | 每个叶块活动方向的最少单元数 |
