@@ -237,7 +237,9 @@ const std::set<std::string>& fixed_keys()
         "initial.lower_temperature", "initial.upper_temperature",
         "initial.temperature_curvature", "initial.velocity_curvature",
         "initial.beta", "initial.background_u", "initial.background_v",
-        "initial.period_x", "initial.period_y",
+        "initial.period_x", "initial.period_y", "initial.period_z",
+        "initial.z0", "initial.re_tau", "initial.bulk_velocity",
+        "initial.bulk_velocity_plus", "initial.perturbation_amplitude",
         "initial.left_rho", "initial.left_u", "initial.left_v", "initial.left_p",
         "initial.right_rho", "initial.right_u", "initial.right_v", "initial.right_p",
         "initial.ne_rho", "initial.ne_u", "initial.ne_v", "initial.ne_p",
@@ -515,7 +517,7 @@ void InitialConditionConfig::validate(int dimension) const
     static const std::set<std::string> valid_types {
         "uniform", "quadrant_riemann", "sod_x", "isentropic_vortex",
         "couette", "poiseuille", "linear_conduction", "manufactured_periodic",
-        "double_mach_reflection",
+        "double_mach_reflection", "turbulent_channel",
     };
     if (valid_types.find(type) == valid_types.end()) {
         throw CaseConfigurationError("unknown initial condition type: " + type);
@@ -542,6 +544,22 @@ void InitialConditionConfig::validate(int dimension) const
             || parameter("period_y", 0.0) < 0.0)) {
         throw CaseConfigurationError(
             "isentropic-vortex periods must be zero or positive");
+    }
+    if (type == "turbulent_channel") {
+        const Real y0 = parameter("y0", -1.0);
+        const Real y1 = parameter("y1", 1.0);
+        if (dimension != 3 || !(y1 > y0)
+            || parameter("re_tau", 0.0) <= 0.0
+            || parameter("bulk_velocity", 0.0) <= 0.0
+            || parameter("bulk_velocity_plus", 0.0) <= 0.0
+            || parameter("period_x", 2.0 * 3.14159265358979323846) <= 0.0
+            || parameter("period_z", 3.14159265358979323846) <= 0.0
+            || parameter("perturbation_amplitude", 0.05) < 0.0
+            || parameter("perturbation_amplitude", 0.05) > 0.5) {
+            throw CaseConfigurationError(
+                "turbulent-channel initial data require 3D, y1>y0, positive "
+                "Re_tau/bulk scales/periods and perturbation amplitude in [0,0.5]");
+        }
     }
     if (type == "couette" || type == "poiseuille"
         || type == "linear_conduction") {

@@ -193,4 +193,43 @@ void test_flow_initializer()
             0.8,
             1.0e-14);
     }
+    // 验证槽道湍流初场严格满足三维、壁面静止、x/z 周期和确定性低波数扰动契约。
+    {
+        constexpr Real channel_pi = 3.141592653589793238462643383279502884;
+        InitialConditionConfig config;
+        config.type = "turbulent_channel";
+        config.parameters = {
+            {"y0", -1.0}, {"y1", 1.0}, {"re_tau", 180.0},
+            {"bulk_velocity", 1.0}, {"bulk_velocity_plus", 15.481978793165828},
+            {"period_x", 2.0 * channel_pi}, {"period_z", channel_pi},
+            {"perturbation_amplitude", 0.05}, {"rho", 1.0},
+            {"temperature", 1.0},
+        };
+        const auto lower_wall = FlowInitializer::evaluate(
+            config, {0.37, -1.0, 0.21}, gas, reference, floors, 3);
+        const auto upper_wall = FlowInitializer::evaluate(
+            config, {0.37, 1.0, 0.21}, gas, reference, floors, 3);
+        for (int component = 1; component <= 3; ++component) {
+            WCNS_REQUIRE_NEAR(lower_wall[component], 0.0, 1.0e-14);
+            WCNS_REQUIRE_NEAR(upper_wall[component], 0.0, 1.0e-14);
+        }
+        const auto sample = FlowInitializer::evaluate(
+            config, {0.37, -0.25, 0.21}, gas, reference, floors, 3);
+        const auto periodic_x = FlowInitializer::evaluate(
+            config, {0.37 + 2.0 * channel_pi, -0.25, 0.21},
+            gas, reference, floors, 3);
+        const auto periodic_z = FlowInitializer::evaluate(
+            config, {0.37, -0.25, 0.21 + channel_pi},
+            gas, reference, floors, 3);
+        for (std::size_t component = 0; component < sample.size(); ++component) {
+            WCNS_REQUIRE_NEAR(sample[component], periodic_x[component], 2.0e-14);
+            WCNS_REQUIRE_NEAR(sample[component], periodic_z[component], 2.0e-14);
+        }
+        WCNS_REQUIRE(sample[0] > 0.0 && sample[4] > 0.0 && sample[1] > 0.0);
+        WCNS_REQUIRE_THROWS(
+            CaseConfigurationError, config.validate(2));
+        config.parameters["perturbation_amplitude"] = 0.75;
+        WCNS_REQUIRE_THROWS(
+            CaseConfigurationError, config.validate(3));
+    }
 }

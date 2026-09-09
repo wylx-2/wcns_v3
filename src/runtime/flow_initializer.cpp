@@ -1,6 +1,7 @@
 #include <wcns/runtime/flow_initializer.hpp>
 #include <wcns/physics/double_mach_reflection.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <string>
 
@@ -80,6 +81,94 @@ Real analytic_pressure(
     return config.parameter(
         "pressure",
         1.0 / (gas.gamma() * reference.mach() * reference.mach()));
+}
+
+Real reichardt_velocity_plus(Real y_plus)
+{
+    constexpr Real kappa = 0.41;
+    constexpr Real wake_amplitude = 7.8;
+    constexpr Real outer_scale = 11.0;
+    return std::log1p(kappa * y_plus) / kappa
+        + wake_amplitude * (
+            1.0 - std::exp(-y_plus / outer_scale)
+            - (y_plus / outer_scale) * std::exp(-y_plus / 3.0));
+}
+
+Real reichardt_velocity_plus_derivative(Real y_plus)
+{
+    constexpr Real kappa = 0.41;
+    constexpr Real wake_amplitude = 7.8;
+    constexpr Real outer_scale = 11.0;
+    return 1.0 / (1.0 + kappa * y_plus)
+        + wake_amplitude * (
+            std::exp(-y_plus / outer_scale) / outer_scale
+            - std::exp(-y_plus / 3.0) / outer_scale
+            + y_plus * std::exp(-y_plus / 3.0) / (3.0 * outer_scale));
+}
+
+TemperaturePrimitiveState turbulent_channel_state(
+    const InitialConditionConfig& config,
+    std::array<Real, 3> coordinates,
+    const GasModel& gas,
+    const ReferenceScales& reference,
+    const NumericalFloors& floors,
+    int dimension)
+{
+    if (dimension != 3) {
+        throw FlowInitializationError(
+            "turbulent-channel initial condition requires a three-dimensional mesh");
+    }
+    const Real y0 = config.parameter("y0", -1.0);
+    const Real y1 = config.parameter("y1", 1.0);
+    const Real half_height = 0.5 * (y1 - y0);
+    const Real center = 0.5 * (y0 + y1);
+    const Real centered_y = (coordinates[1] - center) / half_height;
+    Real wall_fraction = 1.0 - std::abs(centered_y);
+    constexpr Real coordinate_tolerance = 1.0e-12;
+    if (wall_fraction < -coordinate_tolerance
+        || wall_fraction > 1.0 + coordinate_tolerance) {
+        throw FlowInitializationError(
+            "turbulent-channel cell lies outside the configured wall interval");
+    }
+    wall_fraction = std::max(Real {0.0}, std::min(Real {1.0}, wall_fraction));
+
+    const Real re_tau = config.parameter("re_tau", 180.0);
+    const Real bulk_velocity = config.parameter("bulk_velocity", 1.0);
+    const Real bulk_velocity_plus = config.parameter("bulk_velocity_plus", 15.5);
+    const Real y_plus = re_tau * wall_fraction;
+    // The small eta^8 correction makes the mirrored wall-law profile have zero
+    // first derivative at the channel centre without disturbing the near-wall law.
+    const Real center_slope = re_tau
+        * reichardt_velocity_plus_derivative(re_tau);
+    const Real mean_plus = reichardt_velocity_plus(y_plus)
+        - center_slope * std::pow(wall_fraction, 8) / 8.0;
+    const Real mean_u = bulk_velocity * mean_plus / bulk_velocity_plus;
+
+    const Real period_x = config.parameter("period_x", 2.0 * pi);
+    const Real period_z = config.parameter("period_z", pi);
+    const Real phase_x = 2.0 * pi
+        * (coordinates[0] - config.parameter("x0", 0.0)) / period_x;
+    const Real phase_z = 2.0 * pi
+        * (coordinates[2] - config.parameter("z0", 0.0)) / period_z;
+    const Real envelope = std::pow(1.0 - centered_y * centered_y, 2);
+    const Real amplitude = config.parameter("perturbation_amplitude", 0.05)
+        * bulk_velocity * envelope;
+
+    // Integer low modes are periodic on the requested box, resolved by the
+    // 36x36 x-z grid, have zero plane mean and vanish at both no-slip walls.
+    const Real u = mean_u + amplitude * (
+        std::sin(2.0 * phase_x) * std::cos(phase_z)
+        + 0.5 * std::sin(3.0 * phase_x + 2.0 * phase_z));
+    const Real v = amplitude * (
+        std::sin(phase_x) * std::sin(phase_z)
+        + 0.5 * std::cos(2.0 * phase_x - phase_z));
+    const Real w = amplitude * (
+        std::cos(phase_x) * std::sin(2.0 * phase_z)
+        - 0.5 * std::sin(3.0 * phase_x - phase_z));
+    return from_temperature(
+        config.parameter("rho", 1.0), u, v, w,
+        config.parameter("temperature", 1.0),
+        gas, reference, floors, dimension);
 }
 
 TemperaturePrimitiveState couette_state(
@@ -367,6 +456,10 @@ TemperaturePrimitiveState FlowInitializer::evaluate(
         return poiseuille_state(
             config, coordinates[1],
             gas, reference, floors, dimension);
+    }
+    if (config.type == "turbulent_channel") {
+        return turbulent_channel_state(
+            config, coordinates, gas, reference, floors, dimension);
     }
     if (config.type == "linear_conduction") {
         return linear_conduction_state(

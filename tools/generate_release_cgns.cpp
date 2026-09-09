@@ -61,6 +61,16 @@ double parse_nonnegative_real(const char* text, const char* name)
     return value;
 }
 
+double parse_finite_real(const char* text, const char* name)
+{
+    std::size_t consumed = 0;
+    const double value = std::stod(text, &consumed);
+    if (consumed != std::string(text).size() || !std::isfinite(value)) {
+        throw std::invalid_argument(std::string(name) + " must be finite");
+    }
+    return value;
+}
+
 double clustered_unit_coordinate(double logical, double center, double strength)
 {
     if (!(center > 0.0 && center < 1.0) || !(strength > 0.0)) {
@@ -488,12 +498,14 @@ void generate_periodic_channel(
     double length_x,
     double length_y,
     double length_z,
-    double wall_cluster_strength)
+    double wall_cluster_strength,
+    double origin_y = 0.0)
 {
     if (cells_i % zones_i != 0 || cells_k % zones_k != 0
         || zones_i < 2 || zones_k < 2
         || !(length_x > 0.0) || !(length_y > 0.0) || !(length_z > 0.0)
-        || !std::isfinite(wall_cluster_strength) || wall_cluster_strength < 0.0) {
+        || !std::isfinite(wall_cluster_strength) || wall_cluster_strength < 0.0
+        || !std::isfinite(origin_y)) {
         throw std::invalid_argument(
             "periodic-channel requires divisible cell counts, at least two zones "
             "in each periodic direction, positive lengths and nonnegative clustering");
@@ -544,7 +556,7 @@ void generate_periodic_channel(
                             const auto index
                                 = static_cast<std::size_t>((k * nj + j) * ni + i);
                             x[index] = length_x * xi;
-                            y[index] = length_y
+                            y[index] = origin_y + length_y
                                 * wall_clustered_unit_coordinate(eta, wall_cluster_strength);
                             z[index] = length_z * zeta;
                         }
@@ -636,7 +648,7 @@ void generate_periodic_channel(
 
 int main(int argc, char** argv)
 {
-    if (argc != 12 && argc != 9 && argc != 8 && argc != 6 && argc != 5) {
+    if (argc != 13 && argc != 12 && argc != 9 && argc != 8 && argc != 6 && argc != 5) {
         std::cerr
             << "usage: wcns_generate_release_cgns <output.cgns> <dimension> "
                "<cells_i> <cells_j> <cells_k> <zones_i> <warp> <periodic_x>\n"
@@ -655,7 +667,7 @@ int main(int argc, char** argv)
                "   or: wcns_generate_release_cgns periodic-channel "
                "<output.cgns> <cells_i> <cells_j> <cells_k> "
                "<zones_i> <zones_k> <length_x> <length_y> <length_z> "
-               "<wall_cluster_strength>\n"
+               "<wall_cluster_strength> [origin_y]\n"
                "   or: wcns_generate_release_cgns invalid-one-sided "
                "<output.cgns> <cells_i> <cells_j>\n";
         return EXIT_FAILURE;
@@ -687,7 +699,8 @@ int main(int argc, char** argv)
                 parse_positive_real(argv[5], "length"),
                 parse_nonnegative_real(argv[6], "x_warp_amplitude"),
                 parse_nonnegative_real(argv[7], "y_warp_amplitude"));
-        } else if (argc == 12 && std::string(argv[1]) == "periodic-channel") {
+        } else if ((argc == 12 || argc == 13)
+                   && std::string(argv[1]) == "periodic-channel") {
             output = argv[2];
             generate_periodic_channel(
                 output,
@@ -699,7 +712,8 @@ int main(int argc, char** argv)
                 parse_positive_real(argv[8], "length_x"),
                 parse_positive_real(argv[9], "length_y"),
                 parse_positive_real(argv[10], "length_z"),
-                parse_nonnegative_real(argv[11], "wall_cluster_strength"));
+                parse_nonnegative_real(argv[11], "wall_cluster_strength"),
+                argc == 13 ? parse_finite_real(argv[12], "origin_y") : 0.0);
         } else if (argc == 12 && std::string(argv[1]) == "clustered-rectangle") {
             output = argv[2];
             const double length_x = parse_positive_real(argv[6], "length_x");
