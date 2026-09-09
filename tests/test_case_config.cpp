@@ -1,7 +1,10 @@
 #include "test_support.hpp"
 
 #include <wcns/runtime/case_config.hpp>
+#include <wcns/runtime/quantity_registry.hpp>
 
+#include <algorithm>
+#include <cstddef>
 #include <string>
 
 namespace {
@@ -149,6 +152,55 @@ void test_case_config()
         WCNS_REQUIRE_THROWS(
             wcns::CaseConfigurationError,
             wcns::CaseConfig::from_text(missing_end));
+    }
+    // 验证槽道壁面统计会自动注册全部派生列，并拒绝无粘或非法几何配置。
+    {
+        auto channel = valid_config();
+        const auto viscous = channel.find("run.viscous = false");
+        channel.replace(
+            viscous, std::string("run.viscous = false").size(),
+            "run.viscous = true");
+        const auto statistics = channel.find("output.statistics.enabled = false");
+        channel.replace(
+            statistics,
+            std::string("output.statistics.enabled = false").size(),
+            "output.statistics.enabled = true\n"
+            "output.statistics.quantities = total_mass\n"
+            "output.statistics.channel_walls.enabled = true\n"
+            "output.statistics.channel_walls.lower_patch = bottom\n"
+            "output.statistics.channel_walls.upper_patch = top\n"
+            "output.statistics.channel_walls.half_height = 1.0");
+        const auto config = wcns::CaseConfig::from_text(channel);
+        WCNS_REQUIRE(config.output.channel_walls.enabled);
+        WCNS_REQUIRE(config.output.channel_walls.lower_patch == "bottom");
+        WCNS_REQUIRE(config.output.channel_walls.upper_patch == "top");
+        WCNS_REQUIRE_NEAR(
+            config.output.channel_walls.half_height, 1.0, 1.0e-15);
+        const auto expected_names = wcns::channel_wall_statistic_names();
+        WCNS_REQUIRE(std::equal(
+            expected_names.begin(), expected_names.end(),
+            config.output.statistics.quantities.end()
+                - static_cast<std::ptrdiff_t>(expected_names.size())));
+
+        auto inviscid = channel;
+        const auto enabled_viscous = inviscid.find("run.viscous = true");
+        inviscid.replace(
+            enabled_viscous, std::string("run.viscous = true").size(),
+            "run.viscous = false");
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(inviscid));
+        auto invalid_height = channel;
+        const auto height = invalid_height.find(
+            "output.statistics.channel_walls.half_height = 1.0");
+        invalid_height.replace(
+            height,
+            std::string(
+                "output.statistics.channel_walls.half_height = 1.0").size(),
+            "output.statistics.channel_walls.half_height = 0.0");
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(invalid_height));
     }
     {
         auto reordered = valid_config();

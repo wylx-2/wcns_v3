@@ -4,6 +4,7 @@
 #include <wcns/runtime/structured_partition.hpp>
 #include <wcns/mesh/conservation_weights.hpp>
 #include <wcns/solver/inviscid_wcns_solver.hpp>
+#include <wcns/solver/physical_boundary.hpp>
 #include <wcns/solver/transport_model.hpp>
 
 #include <functional>
@@ -97,6 +98,8 @@ struct StatisticContext {
     const GlobalConservationWeights& conservation_weights;
     AlgorithmProfile profile;
     QuantityContext quantities;
+    const BlockBoundaryDataMap* boundary_data = nullptr;
+    bool viscous = false;
 };
 
 class IStatisticQuantity {
@@ -130,6 +133,13 @@ void validate_xz_plane_statistics(
 void register_xz_plane_statistics(
     StatisticRegistry& registry,
     const std::vector<int>& cell_j_indices);
+
+[[nodiscard]] std::vector<std::string> channel_wall_statistic_names();
+void register_channel_wall_statistics(
+    StatisticRegistry& registry,
+    std::string lower_patch,
+    std::string upper_patch,
+    Real half_height);
 
 [[nodiscard]] Real quantity_scale_factor(
     const QuantityDescriptor& descriptor,

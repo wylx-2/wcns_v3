@@ -2,6 +2,7 @@
 
 #include <wcns/mesh/conservation_weights.hpp>
 #include <wcns/solver/euler.hpp>
+#include <wcns/solver/viscous_boundary.hpp>
 
 #include <algorithm>
 #include <array>
@@ -157,6 +158,166 @@ Real weighted_conservative_integral(
         }
     }
     return context.mpi.sum(local);
+}
+
+struct ChannelWallAverage {
+    Real area = 0.0;
+    Real shear = 0.0;
+    Real density = 0.0;
+    Real viscosity_ratio = 0.0;
+};
+
+ChannelWallAverage channel_wall_average(
+    const StatisticContext& context,
+    const std::string& patch_name,
+    Side expected_side)
+{
+    if (!context.viscous || context.boundary_data == nullptr) {
+        throw PhysicsError(
+            "channel-wall statistics require a viscous run and boundary data");
+    }
+    Real local_area = 0.0;
+    Real local_shear = 0.0;
+    Real local_density = 0.0;
+    Real local_viscosity = 0.0;
+    for (const auto& block : context.local_blocks.blocks()) {
+        if (block.cell_dimension() != 3) {
+            throw PhysicsError("channel-wall statistics require a 3D mesh");
+        }
+        const auto metric_iterator = context.metrics.find(block.id());
+        const auto data_block_iterator = context.boundary_data->find(block.id());
+        if (metric_iterator == context.metrics.end()
+            || data_block_iterator == context.boundary_data->end()) {
+            throw PhysicsError(
+                "channel-wall statistics are missing metric or boundary data");
+        }
+        const auto& metric = metric_iterator->second;
+        for (const auto& patch : block.boundaries) {
+            if (patch.name != patch_name) continue;
+            if (patch.type != BoundaryType::NoSlipIsothermalWall
+                || patch.face.axis != Axis::J || patch.face.side != expected_side) {
+                throw PhysicsError(
+                    "channel-wall statistic patch is not the requested isothermal J wall");
+            }
+            const auto data_iterator = data_block_iterator->second.find(patch.name);
+            if (data_iterator == data_block_iterator->second.end()
+                || !data_iterator->second.wall_temperature) {
+                throw PhysicsError(
+                    "channel-wall statistic is missing isothermal wall data");
+            }
+            const auto& wall_data = data_iterator->second;
+            const int stencil_count = context.profile.kind()
+                    == AlgorithmProfileKind::PhengleiWcns
+                ? 4 : 6;
+            if (block.cell_extent().nj < stencil_count) {
+                throw ProfileError(
+                    "channel-wall derivative stencil does not fit the block");
+            }
+            const auto counts = patch.boundary_face_range.counts();
+            for (int ok = 0; ok < counts.nk; ++ok) {
+                for (int oj = 0; oj < counts.nj; ++oj) {
+                    for (int oi = 0; oi < counts.ni; ++oi) {
+                        const auto face = patch.boundary_face_range.at({oi, oj, ok});
+                        const auto& faces = metric.j_faces();
+                        const Real area = faces.area(face.i, face.j, face.k);
+                        const Real inward_sign
+                            = expected_side == Side::Lower ? 1.0 : -1.0;
+                        const std::array<Real, 3> inward {{
+                            inward_sign * faces.x(face.i, face.j, face.k) / area,
+                            inward_sign * faces.y(face.i, face.j, face.k) / area,
+                            inward_sign * faces.z(face.i, face.j, face.k) / area,
+                        }};
+                        if (std::abs(inward[0]) > 1.0e-10
+                            || std::abs(inward[2]) > 1.0e-10
+                            || std::abs(std::abs(inward[1]) - 1.0) > 1.0e-10) {
+                            throw PhysicsError(
+                                "channel-wall statistics require planar x-z walls");
+                        }
+                        auto first = face;
+                        first.j = expected_side == Side::Lower
+                            ? 0 : block.cell_extent().nj - 1;
+                        const auto wall = boundary_face_coordinates(block, patch, face);
+                        const auto& centers = metric.cell_coordinates();
+                        const std::array<Real, 3> delta {{
+                            centers.x(first.i, first.j, first.k) - wall[0],
+                            centers.y(first.i, first.j, first.k) - wall[1],
+                            centers.z(first.i, first.j, first.k) - wall[2],
+                        }};
+                        const Real distance = delta[0] * inward[0]
+                            + delta[1] * inward[1] + delta[2] * inward[2];
+                        if (!std::isfinite(area) || area <= 0.0
+                            || !std::isfinite(distance) || distance <= 0.0) {
+                            throw PhysicsError(
+                                "channel-wall statistic encountered invalid geometry");
+                        }
+                        std::vector<Real> velocities;
+                        velocities.reserve(static_cast<std::size_t>(stencil_count));
+                        for (int ordinal = 0; ordinal < stencil_count; ++ordinal) {
+                            auto cell = face;
+                            cell.j = expected_side == Side::Lower
+                                ? ordinal : block.cell_extent().nj - 1 - ordinal;
+                            velocities.push_back(block.flow.temperature_primitive(
+                                cell.i, cell.j, cell.k, temperature_velocity_x));
+                        }
+                        const Real inward_derivative = 0.5 / distance
+                            * wall_dirichlet_computational_derivative(
+                                wall_data.wall_velocity[0],
+                                velocities,
+                                context.profile);
+                        const Real wall_temperature = *wall_data.wall_temperature;
+                        const Real wall_pressure = interpolate_internal_pressure_trace(
+                            block, context.profile, Axis::J, face);
+                        const Real wall_density = context.quantities.gas.gamma()
+                            * context.quantities.reference.mach()
+                            * context.quantities.reference.mach()
+                            * wall_pressure / wall_temperature;
+                        const Real viscosity_ratio
+                            = context.quantities.transport.viscosity(wall_temperature);
+                        const Real shear = viscosity_ratio
+                            / context.quantities.reference.reynolds()
+                            * inward_derivative;
+                        if (!std::isfinite(wall_density) || wall_density <= 0.0
+                            || !std::isfinite(shear)) {
+                            throw PhysicsError(
+                                "channel-wall statistic encountered invalid physics");
+                        }
+                        local_area += area;
+                        local_shear += area * std::abs(shear);
+                        local_density += area * wall_density;
+                        local_viscosity += area * viscosity_ratio;
+                    }
+                }
+            }
+        }
+    }
+    ChannelWallAverage result;
+    result.area = context.mpi.sum(local_area);
+    result.shear = context.mpi.sum(local_shear);
+    result.density = context.mpi.sum(local_density);
+    result.viscosity_ratio = context.mpi.sum(local_viscosity);
+    if (!std::isfinite(result.area) || result.area <= 0.0) {
+        throw PhysicsError(
+            "channel-wall statistic patch has no finite global support: "
+            + patch_name);
+    }
+    result.shear /= result.area;
+    result.density /= result.area;
+    result.viscosity_ratio /= result.area;
+    return result;
+}
+
+ChannelWallAverage combined_channel_walls(
+    const ChannelWallAverage& lower,
+    const ChannelWallAverage& upper)
+{
+    const Real area = lower.area + upper.area;
+    return {
+        area,
+        (lower.area * lower.shear + upper.area * upper.shear) / area,
+        (lower.area * lower.density + upper.area * upper.density) / area,
+        (lower.area * lower.viscosity_ratio
+            + upper.area * upper.viscosity_ratio) / area,
+    };
 }
 
 } // namespace
@@ -631,6 +792,78 @@ void register_xz_plane_statistics(
                 return accumulate(context, target_j, true);
             }));
     }
+}
+
+std::vector<std::string> channel_wall_statistic_names()
+{
+    return {
+        "channel_wall_shear_lower",
+        "channel_wall_shear_upper",
+        "channel_wall_shear_mean",
+        "channel_friction_velocity",
+        "channel_re_tau",
+    };
+}
+
+void register_channel_wall_statistics(
+    StatisticRegistry& registry,
+    std::string lower_patch,
+    std::string upper_patch,
+    Real half_height)
+{
+    if (lower_patch.empty() || upper_patch.empty() || lower_patch == upper_patch
+        || !std::isfinite(half_height) || half_height <= 0.0) {
+        throw std::invalid_argument("channel-wall statistic definition is invalid");
+    }
+    const auto average = [lower_patch, upper_patch](
+        const StatisticContext& context) {
+        return combined_channel_walls(
+            channel_wall_average(context, lower_patch, Side::Lower),
+            channel_wall_average(context, upper_patch, Side::Upper));
+    };
+    const auto names = channel_wall_statistic_names();
+    auto lower = make_descriptor(names[0], "Pa", QuantityScale::Pressure);
+    lower.integration_length_power = 0;
+    registry.register_quantity(statistic(
+        std::move(lower),
+        [lower_patch](const StatisticContext& context) {
+            return channel_wall_average(
+                context, lower_patch, Side::Lower).shear;
+        }));
+    auto upper = make_descriptor(names[1], "Pa", QuantityScale::Pressure);
+    upper.integration_length_power = 0;
+    registry.register_quantity(statistic(
+        std::move(upper),
+        [upper_patch](const StatisticContext& context) {
+            return channel_wall_average(
+                context, upper_patch, Side::Upper).shear;
+        }));
+    auto mean = make_descriptor(names[2], "Pa", QuantityScale::Pressure);
+    mean.integration_length_power = 0;
+    registry.register_quantity(statistic(
+        std::move(mean),
+        [average](const StatisticContext& context) {
+            return average(context).shear;
+        }));
+    auto friction = make_descriptor(names[3], "m/s", QuantityScale::Velocity);
+    friction.integration_length_power = 0;
+    registry.register_quantity(statistic(
+        std::move(friction),
+        [average](const StatisticContext& context) {
+            const auto wall = average(context);
+            return std::sqrt(wall.shear / wall.density);
+        }));
+    auto re_tau = make_descriptor(names[4], "1", QuantityScale::Dimensionless);
+    re_tau.integration_length_power = 0;
+    registry.register_quantity(statistic(
+        std::move(re_tau),
+        [average, half_height](const StatisticContext& context) {
+            const auto wall = average(context);
+            const Real friction_velocity = std::sqrt(wall.shear / wall.density);
+            return wall.density * friction_velocity * half_height
+                * context.quantities.reference.reynolds()
+                / wall.viscosity_ratio;
+        }));
 }
 
 } // namespace wcns

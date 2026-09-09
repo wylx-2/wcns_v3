@@ -277,6 +277,10 @@ const std::set<std::string>& fixed_keys()
         "output.statistics.write_final", "output.statistics.quantities",
         "output.statistics.xz_planes.enabled",
         "output.statistics.xz_planes.cell_j_indices",
+        "output.statistics.channel_walls.enabled",
+        "output.statistics.channel_walls.lower_patch",
+        "output.statistics.channel_walls.upper_patch",
+        "output.statistics.channel_walls.half_height",
         "output.checkpoint.enabled", "output.checkpoint.every_steps",
         "output.checkpoint.every_time", "output.checkpoint.explicit_times",
         "output.checkpoint.write_initial", "output.checkpoint.write_final",
@@ -387,6 +391,15 @@ std::vector<std::string> optional_string_list(
     const auto iterator = entries.find(key);
     return iterator == entries.end()
         ? std::vector<std::string> {} : split_list(iterator->second);
+}
+
+std::string optional_string(
+    const EntryMap& entries,
+    const std::string& key,
+    std::string default_value)
+{
+    const auto iterator = entries.find(key);
+    return iterator == entries.end() ? std::move(default_value) : iterator->second;
 }
 
 std::vector<int> optional_integer_list(
@@ -846,6 +859,30 @@ std::string XzPlaneStatisticsConfig::summary() const
     return result.str();
 }
 
+void ChannelWallStatisticsConfig::validate(bool statistics_enabled) const
+{
+    if (lower_patch.empty() || upper_patch.empty() || lower_patch == upper_patch
+        || !std::isfinite(half_height) || half_height <= 0.0) {
+        throw CaseConfigurationError(
+            "channel-wall monitoring requires two distinct patch names and "
+            "a positive finite half height");
+    }
+    if (enabled && !statistics_enabled) {
+        throw CaseConfigurationError(
+            "channel-wall monitoring requires output.statistics.enabled=true");
+    }
+}
+
+std::string ChannelWallStatisticsConfig::summary() const
+{
+    std::ostringstream result;
+    result << "channel_walls(enabled=" << (enabled ? "true" : "false")
+           << ",lower_patch=" << lower_patch
+           << ",upper_patch=" << upper_patch
+           << ",half_height=" << std::setprecision(17) << half_height << ')';
+    return result.str();
+}
+
 void CheckpointOutputConfig::validate() const
 {
     schedule.validate();
@@ -866,6 +903,7 @@ void OutputConfig::validate() const
     history.validate("history");
     statistics.validate("statistics");
     xz_planes.validate(statistics.enabled);
+    channel_walls.validate(statistics.enabled);
     checkpoint.validate();
 }
 
@@ -877,7 +915,7 @@ std::string OutputConfig::summary() const
            << ",dimensional=" << (dimensional ? "true" : "false")
            << ',' << field.summary() << ',' << history.summary("history")
            << ',' << statistics.summary("statistics") << ','
-           << xz_planes.summary() << ','
+           << xz_planes.summary() << ',' << channel_walls.summary() << ','
            << checkpoint.summary() << ')';
     return result.str();
 }
@@ -1126,6 +1164,19 @@ CaseConfig CaseConfig::from_text(const std::string& text)
         result.output.statistics.quantities.insert(
             result.output.statistics.quantities.end(), names.begin(), names.end());
     }
+    result.output.channel_walls.enabled = optional_bool(
+        entries, "output.statistics.channel_walls.enabled", false);
+    result.output.channel_walls.lower_patch = optional_string(
+        entries, "output.statistics.channel_walls.lower_patch", "bottom");
+    result.output.channel_walls.upper_patch = optional_string(
+        entries, "output.statistics.channel_walls.upper_patch", "top");
+    result.output.channel_walls.half_height = optional_real(
+        entries, "output.statistics.channel_walls.half_height", 1.0);
+    if (result.output.channel_walls.enabled) {
+        const auto names = channel_wall_statistic_names();
+        result.output.statistics.quantities.insert(
+            result.output.statistics.quantities.end(), names.begin(), names.end());
+    }
 
     result.output.checkpoint.enabled = parse_bool(
         require(entries, "output.checkpoint.enabled"),
@@ -1170,6 +1221,10 @@ void CaseConfig::validate() const
     initial.validate();
     run.validate();
     output.validate();
+    if (output.channel_walls.enabled && !run.viscous) {
+        throw CaseConfigurationError(
+            "channel-wall friction monitoring requires run.viscous=true");
+    }
     if (run.max_wall_time > 0.0 && !output.checkpoint.enabled) {
         throw CaseConfigurationError(
             "positive max_wall_time requires checkpoint output");

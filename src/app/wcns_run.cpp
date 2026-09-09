@@ -497,6 +497,8 @@ int main(int argc, char** argv)
             conservation_weights,
             profile,
             quantity_context,
+            &boundary_data,
+            config.run.viscous,
         };
         wcns::ProductionFieldWriter field_writer(
             mpi,
@@ -511,6 +513,13 @@ int main(int argc, char** argv)
             wcns::register_xz_plane_statistics(
                 statistic_registry,
                 config.output.xz_planes.cell_j_indices);
+        }
+        if (config.output.channel_walls.enabled) {
+            wcns::register_channel_wall_statistics(
+                statistic_registry,
+                config.output.channel_walls.lower_patch,
+                config.output.channel_walls.upper_patch,
+                config.output.channel_walls.half_height);
         }
         wcns::RuntimeOutputManager output(
             mpi,

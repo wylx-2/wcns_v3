@@ -135,6 +135,16 @@ struct XzPlaneStatisticsConfig {
     [[nodiscard]] std::string summary() const;
 };
 
+struct ChannelWallStatisticsConfig {
+    bool enabled = false;
+    std::string lower_patch = "bottom";
+    std::string upper_patch = "top";
+    Real half_height = 1.0;
+
+    void validate(bool statistics_enabled) const;
+    [[nodiscard]] std::string summary() const;
+};
+
 struct CheckpointOutputConfig {
     bool enabled = false;
     OutputScheduleConfig schedule;
@@ -151,6 +161,7 @@ struct OutputConfig {
     SeriesOutputConfig history;
     SeriesOutputConfig statistics;
     XzPlaneStatisticsConfig xz_planes;
+    ChannelWallStatisticsConfig channel_walls;
     CheckpointOutputConfig checkpoint;
 
     void validate() const;

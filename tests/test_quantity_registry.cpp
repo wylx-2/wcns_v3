@@ -183,6 +183,14 @@ void test_quantity_registry()
     WCNS_REQUIRE_THROWS(
         std::invalid_argument,
         wcns::validate_xz_plane_statistics({0}, two_dimensional));
+    wcns::register_channel_wall_statistics(
+        statistics, "bottom", "top", 1.0);
+    statistics.validate_selection(wcns::channel_wall_statistic_names());
+    WCNS_REQUIRE(wcns::channel_wall_statistic_names()
+        == std::vector<std::string>({
+            "channel_wall_shear_lower", "channel_wall_shear_upper",
+            "channel_wall_shear_mean", "channel_friction_velocity",
+            "channel_re_tau"}));
     statistics.register_quantity(
         std::make_shared<ConstantStatisticQuantity>("custom_statistic"));
     statistics.validate_selection({"custom_statistic"});
