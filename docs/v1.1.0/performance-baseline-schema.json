@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "stage": "P",
+  "program_version": "1.0.0-baseline-for-1.1.0",
+  "machine": {
+    "os": "required",
+    "cpu": "required",
+    "logical_cpus": 0,
+    "compiler": "required",
+    "build_type": "Release",
+    "mpi": "required-for-mpi-runs",
+    "rank_binding": "required-for-mpi-runs"
+  },
+  "protocol": {
+    "warmups": 1,
+    "repetitions": 5,
+    "maximum_cv": 0.05,
+    "intermediate_output": false
+  },
+  "cases": [
+    {
+      "id": "vortex-2d-100x100",
+      "grid": [100, 100, 1],
+      "wall_seconds": [],
+      "peak_process_tree_rss_bytes": [],
+      "median_wall_seconds": null,
+      "coefficient_of_variation": null
+    },
+    {
+      "id": "case07-cylinder-4zone-48x32",
+      "grid": [48, 32, 1],
+      "zones": 4,
+      "wall_seconds": [],
+      "peak_process_tree_rss_bytes": [],
+      "median_wall_seconds": null,
+      "coefficient_of_variation": null
+    },
+    {
+      "id": "viscous-3d-36x48x36",
+      "grid": [36, 48, 36],
+      "wall_seconds": [],
+      "peak_process_tree_rss_bytes": [],
+      "median_wall_seconds": null,
+      "coefficient_of_variation": null
+    }
+  ]
+}

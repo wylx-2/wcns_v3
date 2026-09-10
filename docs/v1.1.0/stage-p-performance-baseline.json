@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "stage": "P",
+  "program_version": "1.0.0-baseline-for-1.1.0",
+  "machine": {
+    "os": "Windows-11-10.0.26200-SP0",
+    "cpu": "Intel64 Family 6 Model 151 Stepping 2, GenuineIntel",
+    "logical_cpus": 12,
+    "python": "3.14.5",
+    "cmake": "cmake version 3.28.0",
+    "build_type": "Release"
+  },
+  "protocol": {
+    "warmups": 1,
+    "repetitions": 5,
+    "maximum_cv": 0.05,
+    "intermediate_output": false
+  },
+  "cases": [
+    {
+      "id": "vortex-2d-100x100",
+      "grid": [100, 100, 1],
+      "zones": 1,
+      "wall_seconds": [
+        4.503381400019862,
+        4.512345600000117,
+        4.541855799994664,
+        4.498720899980981,
+        4.501291900000069
+      ],
+      "peak_process_tree_rss_bytes": [
+        50503680,
+        50503680,
+        50368512,
+        50294784,
+        50573312
+      ],
+      "median_wall_seconds": 4.503381400019862,
+      "mean_wall_seconds": 4.5115191199991385,
+      "standard_deviation_wall_seconds": 0.015846830429752202,
+      "coefficient_of_variation": 0.0035125264923525864
+    },
+    {
+      "id": "case07-cylinder-4zone-48x32",
+      "grid": [48, 32, 1],
+      "zones": 4,
+      "wall_seconds": [
+        0.5167742999910843,
+        0.5177693000005092,
+        0.5197208999888971,
+        0.519348000001628,
+        0.4981669000117108
+      ],
+      "peak_process_tree_rss_bytes": [
+        17244160,
+        17240064,
+        17235968,
+        17244160,
+        17244160
+      ],
+      "median_wall_seconds": 0.5177693000005092,
+      "mean_wall_seconds": 0.5143558799987659,
+      "standard_deviation_wall_seconds": 0.00816441015635912,
+      "coefficient_of_variation": 0.015873076354019147
+    },
+    {
+      "id": "viscous-3d-36x48x36",
+      "grid": [36, 48, 36],
+      "zones": 4,
+      "wall_seconds": [
+        67.95832909998717,
+        68.47462919997633,
+        67.95443319997867,
+        67.67332339999848,
+        68.15012430000934
+      ],
+      "peak_process_tree_rss_bytes": [
+        151310336,
+        151310336,
+        151310336,
+        151310336,
+        151310336
+      ],
+      "median_wall_seconds": 67.95832909998717,
+      "mean_wall_seconds": 68.04216783999,
+      "standard_deviation_wall_seconds": 0.26436714903216524,
+      "coefficient_of_variation": 0.0038853428311375815
+    }
+  ]
+}
