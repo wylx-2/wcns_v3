@@ -68,7 +68,7 @@ mpiexec -n 4 build-mpi\wcns_run.exe --config examples\freestream.wcns
 低 Mach 预处理尚未实现，配置中不存在可误开启的不完整预处理键。无粘界面通量只走所选
 Riemann 求解器；发生非法中间状态时按冻结的确定性回退链处理并计数。稳健化开启后按
 “原方案、同重构 primitive、linear5/primitive、zero_order/conservative+Rusanov”的有效去重
-梯子升级真实残差支持面；候选始终在独立缓冲区验证，失败整步不推进时间。详细数学定义见
+梯子升级真实残差直接支持及一层转置支持保护面；候选始终在独立缓冲区验证，失败整步不推进时间。详细数学定义见
 [`../算法补充.md`](../算法补充.md) 11.2.3。
 
 ### 2.2 气体和参考量
