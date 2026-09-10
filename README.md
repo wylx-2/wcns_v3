@@ -4,10 +4,11 @@
 
 当前正式版本为 **WCNS v1.0.0**。程序在自动发布矩阵基础上，已经过二维 Riemann、三维泊肃叶流、扭曲网格等熵涡、双马赫反射、三维槽道流迁移/长算和二维圆柱低速/高超声速绕流等人工算例检查。数学与算法约定见 [`算法补充.md`](算法补充.md)，完整使用方法见 [`docs/user-manual.md`](docs/user-manual.md)，源码扩展方法见 [`docs/developer-guide.md`](docs/developer-guide.md)，正式版本说明见 [`docs/release-notes-1.0.0.md`](docs/release-notes-1.0.0.md)。当前能力边界与许可状态分别见 [`docs/known-limitations.md`](docs/known-limitations.md) 和 [`LICENSE.md`](LICENSE.md)。
 
-下一版本 **v1.1.0** 当前处于规划草案和人工冻结阶段。详细范围、P--U 阶段、逐阶段自动卡口、
-人工判断及 Git 闭环见 [`docs/v1.1.0-development-plan.md`](docs/v1.1.0-development-plan.md)；
+下一版本 **v1.1.0** 已进入 P/Q 连续开发：P 自动验收后直接进入 Q，Q 完成后在进入 R 前人工
+验收；P 明确包含 Case07、暂不包含 NACA0012。详细范围、P--U 阶段、自动卡口、人工判断及
+Git 闭环见 [`docs/v1.1.0-development-plan.md`](docs/v1.1.0-development-plan.md)；
 拟新增的物理容许性、局部通量降阶、壁面载荷/热流、输运和性能公式见
-[`算法补充.md`](算法补充.md) 第 11 节。计划未获项目负责人批准前不开始生产实现。
+[`算法补充.md`](算法补充.md) 第 11 节；阶段 P/Q 的实现状态以对应设计和验收报告为准。
 
 本开发仓库保留阶段设计、自动测试、人工算例及验收证据；面向使用者的精简源码发行版位于独立的 `wcns_v3_release` 仓库。
 
