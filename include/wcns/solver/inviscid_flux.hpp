@@ -2,6 +2,7 @@
 
 #include <wcns/mesh/algorithm_profile.hpp>
 #include <wcns/mesh/high_order_metrics.hpp>
+#include <wcns/mesh/linear_operators.hpp>
 #include <wcns/mesh/structured_mesh.hpp>
 #include <wcns/parallel/mpi_runtime.hpp>
 #include <wcns/solver/physical_boundary.hpp>
@@ -13,6 +14,9 @@
 #include <vector>
 
 namespace wcns {
+
+class FaceRobustnessField;
+class RobustnessLadder;
 
 enum class FluxDifferenceMode {
     Profile,
@@ -76,6 +80,18 @@ struct FaceFluxExchangeDescriptor {
     const ConservativeState& donor,
     const FaceFluxExchangeDescriptor& descriptor);
 
+[[nodiscard]] bool is_non_owned_connection_face(
+    const StructuredBlock& block,
+    Axis axis,
+    Index3 face);
+
+[[nodiscard]] StencilRow inviscid_residual_stencil(
+    const StructuredBlock& block,
+    const AlgorithmProfile& profile,
+    FluxDifferenceMode mode,
+    Axis axis,
+    Index3 cell);
+
 class FaceFluxHaloPlan {
 public:
     [[nodiscard]] static FaceFluxHaloPlan build(
@@ -133,7 +149,10 @@ private:
     ReconstructionDiagnostics& diagnostics,
     RiemannDiagnostics* riemann_diagnostics = nullptr,
     int rk_stage = 0,
-    Real stage_time = 0.0);
+    Real stage_time = 0.0,
+    const FaceRobustnessField* robustness_levels = nullptr,
+    const RobustnessLadder* robustness_ladder = nullptr,
+    const RiemannSolver* robust_riemann = nullptr);
 
 void compute_wcns_inviscid_residual(
     StructuredBlock& block,

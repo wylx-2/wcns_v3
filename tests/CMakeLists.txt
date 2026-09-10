@@ -26,6 +26,7 @@ add_executable(wcns_unit_tests
     test_viscous_flux.cpp
     test_viscous_gradient.cpp
     test_viscous_boundary.cpp
+    test_robustness.cpp
     test_case_config.cpp
     test_simulation_driver.cpp
     test_stop_controller.cpp
@@ -1133,6 +1134,13 @@ endif()
 
 add_test(NAME wcns.unit COMMAND wcns_unit_tests)
 
+add_executable(wcns_robustness_tests test_robustness_mpi.cpp)
+target_link_libraries(
+    wcns_robustness_tests
+    PRIVATE wcns::parallel wcns::solver wcns::mesh
+)
+add_test(NAME wcns.robustness.serial COMMAND wcns_robustness_tests)
+
 add_executable(wcns_mpi_runtime_tests test_mpi_runtime.cpp)
 target_link_libraries(wcns_mpi_runtime_tests PRIVATE wcns::parallel)
 add_test(NAME wcns.mpi_runtime.serial COMMAND wcns_mpi_runtime_tests)
@@ -1168,5 +1176,15 @@ if(WCNS_ENABLE_MPI)
         NAME wcns.stage_k_solver.2
         COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
             $<TARGET_FILE:wcns_stage_k_solver_tests>
+    )
+    add_test(
+        NAME wcns.robustness.2
+        COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
+            $<TARGET_FILE:wcns_robustness_tests>
+    )
+    add_test(
+        NAME wcns.robustness.4
+        COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 4
+            $<TARGET_FILE:wcns_robustness_tests>
     )
 endif()
