@@ -110,12 +110,13 @@ void write_boundary(
     int base,
     int zone,
     const std::string& name,
-    const std::vector<cgsize_t>& range)
+    const std::vector<cgsize_t>& range,
+    BCType_t type = BCFarfield)
 {
     int boundary = 0;
     check_cgns(
         cg_boco_write(
-            file, base, zone, name.c_str(), BCFarfield,
+            file, base, zone, name.c_str(), type,
             PointRange, 2, range.data(), &boundary),
         "cg_boco_write release grid");
     check_cgns(
@@ -644,6 +645,126 @@ void generate_periodic_channel(
     }
 }
 
+double cylinder_radial_coordinate(double logical, double strength)
+{
+    if (strength == 0.0) return logical;
+    if (!std::isfinite(strength) || strength < 0.0) {
+        throw std::invalid_argument(
+            "cylinder radial-cluster strength must be finite and nonnegative");
+    }
+    return std::expm1(strength * logical) / std::expm1(strength);
+}
+
+void generate_cylinder_o_grid(
+    const std::string& path,
+    int cells_theta,
+    int cells_radial,
+    int zones_theta,
+    double diameter,
+    double outer_radius,
+    double radial_cluster_strength)
+{
+    if (zones_theta < 2 || cells_theta % zones_theta != 0
+        || cells_theta / zones_theta < 1 || cells_radial < 1
+        || !std::isfinite(diameter) || diameter <= 0.0
+        || !std::isfinite(outer_radius) || outer_radius <= 0.5 * diameter
+        || !std::isfinite(radial_cluster_strength)
+        || radial_cluster_strength < 0.0) {
+        throw std::invalid_argument(
+            "cylinder-o requires at least two equal angular zones, positive cell "
+            "counts and diameter, outer_radius > diameter/2, and nonnegative "
+            "radial clustering");
+    }
+
+    constexpr double pi = 3.141592653589793238462643383279502884;
+    const double cylinder_radius = 0.5 * diameter;
+    const int local_cells_theta = cells_theta / zones_theta;
+    const int ni = local_cells_theta + 1;
+    const int nj = cells_radial + 1;
+    const auto cylinder_zone_name = [](int zone_index) {
+        return "CylinderZone" + std::to_string(zone_index + 1);
+    };
+
+    int file = 0;
+    check_cgns(cg_open(path.c_str(), CG_MODE_WRITE, &file), "cg_open cylinder O-grid");
+    try {
+        int base = 0;
+        check_cgns(
+            cg_base_write(file, "WCNSCylinderOGrid", 2, 2, &base),
+            "cg_base_write cylinder O-grid");
+        for (int zone_index = 0; zone_index < zones_theta; ++zone_index) {
+            cgsize_t size[6] = {
+                static_cast<cgsize_t>(ni), static_cast<cgsize_t>(nj),
+                static_cast<cgsize_t>(local_cells_theta),
+                static_cast<cgsize_t>(cells_radial), 0, 0,
+            };
+            int zone = 0;
+            const auto name = cylinder_zone_name(zone_index);
+            check_cgns(
+                cg_zone_write(
+                    file, base, name.c_str(), size, Structured, &zone),
+                "cg_zone_write cylinder O-grid");
+
+            const auto count = static_cast<std::size_t>(ni)
+                * static_cast<std::size_t>(nj);
+            std::vector<double> x(count);
+            std::vector<double> y(count);
+            for (int j = 0; j < nj; ++j) {
+                const double eta
+                    = static_cast<double>(j) / static_cast<double>(cells_radial);
+                const double radial_fraction = cylinder_radial_coordinate(
+                    eta, radial_cluster_strength);
+                const double radius = cylinder_radius
+                    + (outer_radius - cylinder_radius) * radial_fraction;
+                for (int i = 0; i < ni; ++i) {
+                    const int global_i = zone_index * local_cells_theta + i;
+                    // Clockwise theta makes J=partial(x,y)/partial(i,j) positive
+                    // while the radial index grows from the cylinder to farfield.
+                    const double theta = -2.0 * pi
+                        * static_cast<double>(global_i)
+                        / static_cast<double>(cells_theta);
+                    const auto index = static_cast<std::size_t>(j * ni + i);
+                    x[index] = radius * std::cos(theta);
+                    y[index] = radius * std::sin(theta);
+                }
+            }
+            int coordinate = 0;
+            check_cgns(
+                cg_coord_write(
+                    file, base, zone, RealDouble,
+                    "CoordinateX", x.data(), &coordinate),
+                "cg_coord_write cylinder O-grid X");
+            check_cgns(
+                cg_coord_write(
+                    file, base, zone, RealDouble,
+                    "CoordinateY", y.data(), &coordinate),
+                "cg_coord_write cylinder O-grid Y");
+
+            write_boundary(
+                file, base, zone, "cylinder", {1, 1, ni, 1}, BCWall);
+            write_boundary(
+                file, base, zone, "farfield", {1, nj, ni, nj}, BCFarfield);
+        }
+
+        for (int zone_index = 0; zone_index < zones_theta; ++zone_index) {
+            const int zone = zone_index + 1;
+            const int previous = (zone_index + zones_theta - 1) % zones_theta;
+            const int next = (zone_index + 1) % zones_theta;
+            write_connection(
+                file, base, zone, "theta-min", cylinder_zone_name(previous),
+                {1, 1, 1, nj}, {ni, 1, ni, nj}, 2);
+            write_connection(
+                file, base, zone, "theta-max", cylinder_zone_name(next),
+                {ni, 1, ni, nj}, {1, 1, 1, nj}, 2);
+        }
+        check_cgns(cg_close(file), "cg_close cylinder O-grid");
+        file = 0;
+    } catch (...) {
+        if (file != 0) cg_close(file);
+        throw;
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -668,6 +789,9 @@ int main(int argc, char** argv)
                "<output.cgns> <cells_i> <cells_j> <cells_k> "
                "<zones_i> <zones_k> <length_x> <length_y> <length_z> "
                "<wall_cluster_strength> [origin_y]\n"
+               "   or: wcns_generate_release_cgns cylinder-o <output.cgns> "
+               "<cells_theta> <cells_radial> <zones_theta> <diameter> "
+               "<outer_radius> <radial_cluster_strength>\n"
                "   or: wcns_generate_release_cgns invalid-one-sided "
                "<output.cgns> <cells_i> <cells_j>\n";
         return EXIT_FAILURE;
@@ -727,6 +851,16 @@ int main(int argc, char** argv)
                 parse_positive_real(argv[8], "cluster_x"),
                 parse_positive_real(argv[9], "cluster_y"),
                 parse_positive_real(argv[10], "strength"));
+        } else if (argc == 9 && std::string(argv[1]) == "cylinder-o") {
+            output = argv[2];
+            generate_cylinder_o_grid(
+                output,
+                parse_positive(argv[3], "cells_theta"),
+                parse_positive(argv[4], "cells_radial"),
+                parse_positive(argv[5], "zones_theta"),
+                parse_positive_real(argv[6], "diameter"),
+                parse_positive_real(argv[7], "outer_radius"),
+                parse_nonnegative_real(argv[8], "radial_cluster_strength"));
         } else if (argc == 9 && std::string(argv[1]) == "rectangle") {
             output = argv[2];
             generate(

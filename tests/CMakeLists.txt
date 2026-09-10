@@ -70,6 +70,11 @@ if(WCNS_ENABLE_CGNS)
         @ONLY
     )
     configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/cylinder_o_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/cylinder_o_case.wcns
+        @ONLY
+    )
+    configure_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/data/double_mach_reflection_case.wcns.in
         ${CMAKE_CURRENT_BINARY_DIR}/double_mach_reflection_case.wcns
         @ONLY
@@ -251,6 +256,26 @@ if(WCNS_ENABLE_CGNS)
     set_tests_properties(
         wcns.generate_xz_plane_statistics_mesh
         PROPERTIES FIXTURES_SETUP xz_plane_statistics_mesh
+    )
+    add_test(
+        NAME wcns.generate_cylinder_o_mesh
+        COMMAND wcns_generate_release_cgns cylinder-o
+            ${CMAKE_CURRENT_BINARY_DIR}/cylinder_o_smoke.cgns
+            32 20 4 1.0 8.0 2.5
+    )
+    set_tests_properties(
+        wcns.generate_cylinder_o_mesh
+        PROPERTIES FIXTURES_SETUP cylinder_o_mesh
+    )
+    add_test(
+        NAME wcns.run.cylinder_o.dry_run.serial
+        COMMAND wcns_run
+            --config ${CMAKE_CURRENT_BINARY_DIR}/cylinder_o_case.wcns
+            --dry-run
+    )
+    set_tests_properties(
+        wcns.run.cylinder_o.dry_run.serial
+        PROPERTIES FIXTURES_REQUIRED cylinder_o_mesh
     )
     add_test(
         NAME wcns.run.xz_plane_statistics.smoke.serial

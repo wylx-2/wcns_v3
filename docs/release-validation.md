@@ -22,6 +22,7 @@ wcns_generate_release_cgns warped-periodic-square output.cgns cells_i cells_j le
 wcns_generate_release_cgns rectangle output.cgns cells_i cells_j zones_i length_x length_y periodic_x
 wcns_generate_release_cgns clustered-rectangle output.cgns cells_i cells_j zones_i length_x length_y cluster_x cluster_y strength periodic_x
 wcns_generate_release_cgns periodic-channel output.cgns cells_i cells_j cells_k zones_i zones_k length_x length_y length_z wall_cluster_strength [origin_y]
+wcns_generate_release_cgns cylinder-o output.cgns cells_theta cells_radial zones_theta diameter outer_radius radial_cluster_strength
 wcns_generate_release_cgns invalid-one-sided output.cgns cells_i cells_j
 ```
 
