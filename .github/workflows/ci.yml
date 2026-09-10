@@ -1,0 +1,134 @@
+name: wcns-ci
+
+on:
+  push:
+    branches:
+      - main
+      - release/**
+      - stage/**
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-serial:
+    name: Linux ${{ matrix.compiler }} serial Release
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        include:
+          - compiler: gcc
+            cc: gcc
+            cxx: g++
+          - compiler: clang
+            cc: clang
+            cxx: clang++
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+      - name: Configure
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: cmake -S . -B build-ci -G Ninja -DCMAKE_BUILD_TYPE=Release -DWCNS_ENABLE_CGNS=ON -DWCNS_ENABLE_MPI=OFF -DWCNS_BUILD_TESTS=ON
+      - name: Build
+        run: cmake --build build-ci --parallel 2
+      - name: Verify algorithm specification
+        run: python3 tools/verify_algorithm_spec.py
+      - name: Test
+        run: ctest --test-dir build-ci --output-on-failure --output-junit serial-${{ matrix.compiler }}.xml
+      - name: Preserve failed test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: serial-${{ matrix.compiler }}-failure
+          path: |
+            build-ci/Testing/Temporary/
+            build-ci/serial-${{ matrix.compiler }}.xml
+
+  linux-openmpi:
+    name: Linux GCC OpenMPI Release (2/4 ranks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools and OpenMPI
+        run: sudo apt-get update && sudo apt-get install -y ninja-build openmpi-bin libopenmpi-dev
+      - name: Configure
+        env:
+          CC: gcc
+          CXX: g++
+        run: cmake -S . -B build-ci-mpi -G Ninja -DCMAKE_BUILD_TYPE=Release -DWCNS_ENABLE_CGNS=ON -DWCNS_ENABLE_MPI=ON -DWCNS_BUILD_TESTS=ON
+      - name: Build
+        run: cmake --build build-ci-mpi --parallel 2
+      - name: Test serial, 2-rank and 4-rank matrix
+        run: ctest --test-dir build-ci-mpi --output-on-failure --output-junit openmpi.xml
+      - name: Preserve failed test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openmpi-failure
+          path: |
+            build-ci-mpi/Testing/Temporary/
+            build-ci-mpi/openmpi.xml
+
+  windows-serial:
+    name: Windows MSVC serial Release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build-ci -A x64 -DWCNS_ENABLE_CGNS=ON -DWCNS_ENABLE_MPI=OFF -DWCNS_BUILD_TESTS=ON
+      - name: Build
+        run: cmake --build build-ci --config Release --parallel 2
+      - name: Verify algorithm specification
+        run: python tools/verify_algorithm_spec.py
+      - name: Test
+        run: ctest --test-dir build-ci -C Release --output-on-failure --output-junit windows-msvc.xml
+      - name: Preserve failed test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msvc-failure
+          path: |
+            build-ci/Testing/Temporary/
+            build-ci/windows-msvc.xml
+
+  linux-sanitizers:
+    name: Linux Clang ASan+UBSan Debug
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build clang
+      - name: Configure
+        env:
+          CC: clang
+          CXX: clang++
+        run: >-
+          cmake -S . -B build-ci-sanitize -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DWCNS_ENABLE_CGNS=ON
+          -DWCNS_ENABLE_MPI=OFF
+          -DWCNS_BUILD_TESTS=ON
+          -DCMAKE_C_FLAGS=-fsanitize=address,undefined\ -fno-omit-frame-pointer
+          -DCMAKE_CXX_FLAGS=-fsanitize=address,undefined\ -fno-omit-frame-pointer
+          -DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined
+      - name: Build
+        run: cmake --build build-ci-sanitize --parallel 2
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:strict_string_checks=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build-ci-sanitize --output-on-failure --output-junit sanitizers.xml
+      - name: Preserve failed test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanitizers-failure
+          path: |
+            build-ci-sanitize/Testing/Temporary/
+            build-ci-sanitize/sanitizers.xml
