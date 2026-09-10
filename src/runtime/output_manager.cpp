@@ -278,7 +278,13 @@ void RuntimeOutputManager::prepare_directory()
             }
             history_stream_
                 << ",\"consecutive\",\"reconstruction_fallbacks\","
-                   "\"riemann_fallbacks\",\"residual_checked\","
+                   "\"riemann_fallbacks\",\"robustness_level0_faces\","
+                   "\"robustness_level1_faces\",\"robustness_level2_faces\","
+                   "\"robustness_level3_faces\",\"troubled_cells\","
+                   "\"local_recomputations\",\"step_retries\","
+                   "\"proposed_dt\",\"accepted_dt\",\"minimum_rho\","
+                   "\"minimum_p\",\"minimum_T\",\"minimum_e\","
+                   "\"residual_checked\","
                    "\"stop_reason_code\"\n"
                    "AUXDATA STOP_REASON_CODES=\"0=running;1=steady_converged;"
                    "2=physical_time_reached;3=maximum_steps;"
@@ -296,6 +302,10 @@ void RuntimeOutputManager::prepare_directory()
             }
             history_stream_
                 << " consecutive reconstruction_fallbacks riemann_fallbacks "
+                   "robustness_level0_faces robustness_level1_faces "
+                   "robustness_level2_faces robustness_level3_faces "
+                   "troubled_cells local_recomputations step_retries "
+                   "proposed_dt accepted_dt minimum_rho minimum_p minimum_T minimum_e "
                    "residual_checked stop_reason\n";
         }
     }
@@ -416,7 +426,22 @@ void RuntimeOutputManager::write_history(
     }
     history_stream_ << ' ' << state.steady.consecutive_passes
                     << ' ' << state.diagnostics.reconstruction_fallbacks
-                    << ' ' << state.diagnostics.riemann_fallbacks
+                    << ' ' << state.diagnostics.riemann_fallbacks;
+    for (const auto count : state.diagnostics.robustness_face_levels) {
+        history_stream_ << ' ' << count;
+    }
+    const auto finite_or_nan = [nan](Real value) {
+        return std::isfinite(value) ? value : nan;
+    };
+    history_stream_ << ' ' << state.diagnostics.robustness_troubled_cells
+                    << ' ' << state.diagnostics.robustness_local_recomputations
+                    << ' ' << state.diagnostics.robustness_step_retries
+                    << ' ' << state.diagnostics.robustness_proposed_time_step
+                    << ' ' << state.diagnostics.robustness_accepted_time_step
+                    << ' ' << finite_or_nan(state.diagnostics.minimum_density)
+                    << ' ' << finite_or_nan(state.diagnostics.minimum_pressure)
+                    << ' ' << finite_or_nan(state.diagnostics.minimum_temperature)
+                    << ' ' << finite_or_nan(state.diagnostics.minimum_internal_energy)
                     << ' ' << (residual_checked ? 1 : 0) << ' ';
     if (config_.output.history.format == SeriesOutputFormat::Tecplot) {
         history_stream_ << static_cast<int>(state.stop_reason);
@@ -555,6 +580,29 @@ void RuntimeOutputManager::write_manifest(const SimulationState& state)
            << "stop_reason=" << stop_reason_name(state.stop_reason) << '\n'
            << "config_summary=" << config_.summary() << '\n'
            << "partition_summary=" << partition_.summary() << '\n';
+    for (std::size_t level = 0;
+         level < state.diagnostics.robustness_face_levels.size(); ++level) {
+        output << "robustness_level" << level << "_faces="
+               << state.diagnostics.robustness_face_levels[level] << '\n';
+    }
+    output << "robustness_troubled_cells="
+           << state.diagnostics.robustness_troubled_cells << '\n'
+           << "robustness_local_recomputations="
+           << state.diagnostics.robustness_local_recomputations << '\n'
+           << "robustness_step_retries="
+           << state.diagnostics.robustness_step_retries << '\n'
+           << "robustness_proposed_dt="
+           << state.diagnostics.robustness_proposed_time_step << '\n'
+           << "robustness_accepted_dt="
+           << state.diagnostics.robustness_accepted_time_step << '\n'
+           << "robustness_minimum_rho="
+           << state.diagnostics.minimum_density << '\n'
+           << "robustness_minimum_p="
+           << state.diagnostics.minimum_pressure << '\n'
+           << "robustness_minimum_T="
+           << state.diagnostics.minimum_temperature << '\n'
+           << "robustness_minimum_e="
+           << state.diagnostics.minimum_internal_energy << '\n';
     for (const auto& file : files_) output << "file=" << file << '\n';
     output.close();
     if (!output) throw std::runtime_error("failed to write manifest: " + temporary);

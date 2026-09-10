@@ -35,6 +35,15 @@ algorithm.reconstruction_variables = characteristic
 # 可选：rusanov | hllc | roe
 algorithm.riemann = hllc
 
+# SSPRK 事后物理容许性与局部离散支持降阶。默认关闭，关闭时保持 v1.0 数值路径。
+# 开启后依次尝试：原方案 -> 同方案 primitive -> linear5/primitive
+# -> zero_order/conservative + Rusanov；相邻重复层会自动去重。
+robustness.enabled = false
+robustness.max_local_recomputations = 3
+robustness.max_step_retries = 4
+robustness.time_step_reduction = 0.5
+robustness.minimum_time_step = 1e-12
+
 # 热完全理想气体。
 gas.gamma = 1.4
 
