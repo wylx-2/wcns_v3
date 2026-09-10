@@ -1,6 +1,8 @@
 # WCNS 用户自定义开发指南
 
-本文面向需要修改或扩展 WCNS 的开发者，对应当前 `0.1.0`/schema 1 源码。目标不是只告诉读者“改哪个文件”，而是说明一次扩展必须穿过哪些数据、验证、并行、重启、输出和测试路径，避免新增代码在串行小算例中可运行、到多块/MPI/重启时失效。
+本文面向需要修改或扩展 WCNS 的开发者，对应当前 `1.0.0`/schema 1 源码。目标不是只告诉读者“改哪个文件”，而是说明一次扩展必须穿过哪些数据、验证、并行、重启、输出和测试路径，避免新增代码在串行小算例中可运行、到多块/MPI/重启时失效。
+
+精简的 `wcns_v3_release` 仓库按发布要求不携带开发仓库中的完整 `tests/`、人工算例结果和阶段记录。本文中涉及这些目录的回归方法仍用于说明扩展应达到的验证层级；需要复现项目完整历史矩阵时，应使用 `wcns_v3` 开发仓库。精简仓库中的 `examples/` 可用于最小端到端检查。
 
 先按 [`user-manual.md`](user-manual.md) 完成串行与 MPI 构建，并阅读[`算法补充.md`](../算法补充.md) 和 [`known-limitations.md`](known-limitations.md)。本项目目前没有稳定的对外 ABI；“接口”是源码扩展点，不是无需重编译的动态插件接口。
 
@@ -581,11 +583,7 @@ algorithm.mdcd.disp = 0.0463783
 algorithm.mdcd.diss = 0.01
 ```
 
-二者是可选实数键。省略时保持以上默认值；`disp` 映射
-`WcnsParameters::mdcd_dispersion`，`diss` 映射
-`WcnsParameters::mdcd_dissipation`。它们共同影响 `mdcd_linear` 和 `mdcd_hybrid` 中使用的
-MDCD 线性候选。选择 WENO、`linear5` 或 `zero_order` 时不会消费其结果，但任何显式写出的
-非法值仍会在启动阶段失败，不能让“休眠配置”携带无效数据。
+二者是可选实数键。省略时保持以上默认值；`disp` 映射 `WcnsParameters::mdcd_dispersion`，`diss` 映射 `WcnsParameters::mdcd_dissipation`。它们共同影响 `mdcd_linear` 和 `mdcd_hybrid` 中使用的MDCD线性候选。选择 WENO、`linear5` 或 `zero_order` 时不会消费其结果，但任何显式写出的非法值仍会在启动阶段失败，不能让“休眠配置”携带无效数据。
 
 当前合法域为
 
@@ -595,16 +593,11 @@ MDCD 线性候选。选择 WENO、`linear5` 或 `zero_order` 时不会消费其�
 3\,\mathrm{disp}+9\,\mathrm{diss}<1,
 \]
 
-且二者都必须有限。最后一个不等式保证实现中相应系数组合留在已定义的稳定参数区域。不要
-在 parser 中静默截断、取绝对值或回退默认值；用户输入错误必须携带参数上下文明确失败。
+且二者都必须有限。最后一个不等式保证实现中相应系数组合留在已定义的稳定参数区域。不要在 parser 中静默截断、取绝对值或回退默认值；用户输入错误必须携带参数上下文明确失败。
 
 ### 21.2 数据结构为什么放在 `WcnsParameters`
 
-数值参数已经由 `ReconstructionContext::parameters` 统一送入每个
-`IReconstructionScheme::reconstruct_scalar`。因此扩展已有
-`include/wcns/solver/wcns_reconstruction.hpp` 中的 `WcnsParameters`，可以避免给 MDCD 另开一条
-旁路，也保证单元测试可直接构造不同参数。配置层的 `ReconstructionConfig::nonlinear` 复用
-同一结构；正式装配无需复制两份默认值。
+数值参数已经由 `ReconstructionContext::parameters` 统一送入每个`IReconstructionScheme::reconstruct_scalar`。因此扩展已有`include/wcns/solver/wcns_reconstruction.hpp` 中的 `WcnsParameters`，可以避免给 MDCD 另开一条旁路，也保证单元测试可直接构造不同参数。配置层的 `ReconstructionConfig::nonlinear` 复用同一结构；正式装配无需复制两份默认值。
 
 设计检查顺序如下：
 
@@ -620,8 +613,7 @@ MDCD 线性候选。选择 WENO、`linear5` 或 `zero_order` 时不会消费其�
 1. 把两个精确键加入固定 schema 集合；否则严格配置会先报 unknown key；
 2. 在解析完重构名称和变量空间后调用 `optional_real`；
 3. 以 `result.reconstruction.nonlinear` 当前值作为缺省值；
-4. 继续走 `CaseConfig::validate()` → `InviscidWcnsConfig::validate()` →
-   `WcnsParameters::validate()`，不在 parser 重复数学规则。
+4. 继续走 `CaseConfig::validate()` → `InviscidWcnsConfig::validate()` →  `WcnsParameters::validate()`，不在 parser 重复数学规则。
 
 核心数据流等价于：
 
@@ -632,17 +624,13 @@ parameters.mdcd_dissipation = optional_real(
     entries, "algorithm.mdcd.diss", parameters.mdcd_dissipation);
 ```
 
-如果以后增加另一项可选重构实数，照搬代码前必须回答三个问题：它是否应对所有重构验证；
-默认值是否属于算法定义；改变它是否会改变 checkpoint 后续数值轨迹。第三个问题为“是”时必须
-进入重启签名。
+如果以后增加另一项可选重构实数，照搬代码前必须回答三个问题：它是否应对所有重构验证；默认值是否属于算法定义；改变它是否会改变 checkpoint 后续数值轨迹。第三个问题为“是”时必须进入重启签名。
 
 ### 21.4 数值核、摘要和重启兼容
 
-`src/solver/wcns_reconstruction.cpp` 中 MDCD 的两条实现都从传入参数读取最终值，不再依赖
-局部硬编码。`WcnsParameters::validate()` 同时检查有限性和上述三个不等式。
+`src/solver/wcns_reconstruction.cpp` 中 MDCD 的两条实现都从传入参数读取最终值，不再依赖局部硬编码。`WcnsParameters::validate()` 同时检查有限性和上述三个不等式。
 
-`ReconstructionConfig::summary()` 输出最终 `mdcd_dispersion`、`mdcd_dissipation`；
-`restart_signature()` 也包含它们。结果是：
+`ReconstructionConfig::summary()` 输出最终 `mdcd_dispersion`、`mdcd_dissipation`；`restart_signature()` 也包含它们。结果是：
 
 - 日志能复核实际采用的值；
 - 输入省略时记录默认值，而不是记录“空”；
@@ -658,16 +646,14 @@ parameters.mdcd_dissipation = optional_real(
 - 令 `diss==disp` 会确定性失败；
 - 原有不写新键的生产配置继续使用默认值。
 
-`tests/test_inviscid_reconstruction.cpp` 直接改变 `WcnsParameters`，确认 MDCD 数值核实际消费参数，
-而不是仅由 parser 接受但计算忽略。复现最小测试：
+`tests/test_inviscid_reconstruction.cpp` 直接改变 `WcnsParameters`，确认 MDCD 数值核实际消费参数，而不是仅由 parser 接受但计算忽略。复现最小测试：
 
 ```powershell
 cmake --build build-dev-serial --parallel 4
 ctest --test-dir build-dev-serial -R wcns.unit --output-on-failure
 ```
 
-人工配置测试还应做三次独立运行：默认参数、一个合法自定义组合、一个非法组合。前两次比较
-启动摘要及重构结果差异；第三次必须在读初场/推进前失败。不要只看“配置能读”。
+人工配置测试还应做三次独立运行：默认参数、一个合法自定义组合、一个非法组合。前两次比较启动摘要及重构结果差异；第三次必须在读初场/推进前失败。不要只看“配置能读”。
 
 ### 21.6 同步的文档位置
 
@@ -724,8 +710,7 @@ const auto values = checked_stencil(stencil);
 return side == TraceSide::Left ? values[2] : values[3];
 ```
 
-没有另加 limiter，也不把它伪装成一阶外推。它是分片常数的左右单元迹值；Riemann 求解器仍
-负责由这两个状态产生面通量。
+没有另加 limiter，也不把它伪装成一阶外推。它是分片常数的左右单元迹值；Riemann 求解器仍负责由这两个状态产生面通量。
 
 ### 22.3 注册表和生产装配如何连通
 
@@ -735,13 +720,9 @@ return side == TraceSide::Left ? values[2] : values[3];
 algorithm.reconstruction = zero_order
 ```
 
-先作为规范字符串进入 `ReconstructionConfig`，生产装配再从 built-in registry 创建策略。
-未知拼写必须由 registry 报错，不能回退到 WENO 或 linear。通用面循环只依赖
-`IReconstructionScheme`，因此没有在 Euler 残差中增加 `if (zero_order)` 分支。
+先作为规范字符串进入 `ReconstructionConfig`，生产装配再从 built-in registry 创建策略。未知拼写必须由 registry 报错，不能回退到 WENO 或 linear。通用面循环只依赖`IReconstructionScheme`，因此没有在 Euler 残差中增加 `if (zero_order)` 分支。
 
-降阶诊断把 `zero_order` 视作用户主动选择的线性/低阶基线，而不是“高阶失败后又回退到
-linear5”。否则每个面都会产生虚假的降阶计数。真正的非法热力学状态和 Riemann 回退仍按
-公共诊断记录。
+降阶诊断把 `zero_order` 视作用户主动选择的线性/低阶基线，而不是“高阶失败后又回退到linear5”。否则每个面都会产生虚假的降阶计数。真正的非法热力学状态和 Riemann 回退仍按公共诊断记录。
 
 ### 22.4 测试为什么必须使用非对称数据
 
@@ -754,12 +735,9 @@ linear5”。否则每个面都会产生虚假的降阶计数。真正的非法�
 - 枚举名称映射正确；
 - 错误模板长度仍失败。
 
-若用常数模板，取错任何点都可能通过；若用对称模板，也可能掩盖左右反转。因此新增模板算法
-时，应专门构造“每个位置可辨识”的数据，例如 `{11,22,33,44,55,66}`。
+若用常数模板，取错任何点都可能通过；若用对称模板，也可能掩盖左右反转。因此新增模板算法时，应专门构造“每个位置可辨识”的数据，例如 `{11,22,33,44,55,66}`。
 
-端到端 x-z 统计 smoke 配置也选择 `zero_order`，这额外证明正式配置、生产 registry、完整
-残差装配和输出路径都接受它。这个 smoke 的目的不是证明零阶有高精度，而是防止“单元测试
-注册了、生产程序没注册”的断链。
+端到端 x-z 统计 smoke 配置也选择 `zero_order`，这额外证明正式配置、生产 registry、完整残差装配和输出路径都接受它。这个 smoke 的目的不是证明零阶有高精度，而是防止“单元测试注册了、生产程序没注册”的断链。
 
 ### 22.5 用户何时可以使用它
 
@@ -769,13 +747,11 @@ linear5”。否则每个面都会产生虚假的降阶计数。真正的非法�
 - 做强耗散基线；
 - 构造端到端装配测试。
 
-它不适合用来宣称 WCNS 的光滑高阶精度，也不应作为双马赫反射等正式结果的默认算法。切换
-算法后必须换输出目录并保留配置/manifest，不能覆盖高阶结果。
+它不适合用来宣称 WCNS 的光滑高阶精度，也不应作为双马赫反射等正式结果的默认算法。切换算法后必须换输出目录并保留配置/manifest，不能覆盖高阶结果。
 
 ## 23. 实战三：可开关、多截面的 x-z 平面监测
 
-主体实现提交为 `eb56dcd`，正式入口端到端测试提交为 `93bb56a`。需求面向泊肃叶流和槽道
-湍流：按若干 y 层持续监测流向平均速度以及 x 向质量通量密度在 x-z 平面上的积分。
+主体实现提交为 `eb56dcd`，正式入口端到端测试提交为 `93bb56a`。需求面向泊肃叶流和槽道湍流：按若干 y 层持续监测流向平均速度以及 x 向质量通量密度在 x-z 平面上的积分。
 
 ### 23.1 先澄清“截面”和“流量”定义
 
@@ -794,10 +770,7 @@ M_x(j)=\sum_{c\in j}A_c\rho_cu_c.
 A_c=\frac12\left(|\boldsymbol S_{j-1/2}|+|\boldsymbol S_{j+1/2}|\right).
 \]
 
-在平直笛卡尔通道中这就是单元对应的 x-z 面积。`M_x` 的 SI 量纲是 kg/s，但 x-z 面的法向
-是 y，所以它不是“穿过 x-z 面的法向质量流率”；它是壁平行层上对流向质量通量密度
-`rho*u` 的面积积分。这个量适合比较不同 y 层、不同时间或不同网格的流向输运强度。若要
-真正测量入口 y-z 截面的穿面流量，应另建 y-z 统计并使用面法向通量，不能改标签不改公式。
+在平直笛卡尔通道中这就是单元对应的 x-z 面积。`M_x` 的 SI 量纲是 kg/s，但 x-z 面的法向是 y，所以它不是“穿过 x-z 面的法向质量流率”；它是壁平行层上对流向质量通量密度`rho*u` 的面积积分。这个量适合比较不同 y 层、不同时间或不同网格的流向输运强度。若要真正测量入口 y-z 截面的穿面流量，应另建 y-z 统计并使用面法向通量，不能改标签不改公式。
 
 ### 23.2 外部配置契约
 
@@ -810,8 +783,7 @@ output.statistics.xz_planes.enabled = true
 output.statistics.xz_planes.cell_j_indices = 0,11,23,35,47
 ```
 
-索引是原始 CGNS zone 的零基单元 J 索引，不是顶点编号、CGNS 一基编号、MPI rank 局部编号
-或自动切分后的叶块编号。打开子开关时：
+索引是原始 CGNS zone 的零基单元 J 索引，不是顶点编号、CGNS 一基编号、MPI rank 局部编号或自动切分后的叶块编号。打开子开关时：
 
 - 父级 `output.statistics.enabled` 必须为 true；
 - 列表不能为空；
@@ -827,14 +799,11 @@ xz_mean_u_jN
 xz_mass_flow_x_jN
 ```
 
-用户不需要、也不应在 `output.statistics.quantities` 重复写这些名字；自动追加后重复选择会由
-registry 校验拒绝。关闭子开关时不注册、不计算、不产生集合通信，也不改变原统计文件。
+用户不需要、也不应在 `output.statistics.quantities` 重复写这些名字；自动追加后重复选择会由registry 校验拒绝。关闭子开关时不注册、不计算、不产生集合通信，也不改变原统计文件。
 
 ### 23.3 配置数据结构和启动前验证
 
-`include/wcns/runtime/case_config.hpp` 增加 `XzPlaneStatisticsConfig`，并作为
-`OutputConfig::xz_planes` 的成员。它保存 `enabled` 和 `cell_j_indices`，负责父开关、空列表、
-非负和重复值等不依赖网格的验证。
+`include/wcns/runtime/case_config.hpp` 增加 `XzPlaneStatisticsConfig`，并作为`OutputConfig::xz_planes` 的成员。它保存 `enabled` 和 `cell_j_indices`，负责父开关、空列表、非负和重复值等不依赖网格的验证。
 
 `src/runtime/case_config.cpp` 完成四件事：
 
@@ -843,9 +812,7 @@ registry 校验拒绝。关闭子开关时不注册、不计算、不产生集�
 3. 开启时调用 `xz_plane_statistic_names` 自动补列；
 4. 在 output summary 中打印开关及索引列表。
 
-网格范围不能在纯文本解析时验证，因为这时尚未读取 CGNS。`src/app/wcns_run.cpp` 在建立
-`StructuredPartitionPlan` 后、分配场数组及推进前调用 `validate_xz_plane_statistics`。这保证
-越界和二维误用尽早失败，同时验证依据是原 zone 元数据而不是某个 rank 的局部叶块。
+网格范围不能在纯文本解析时验证，因为这时尚未读取 CGNS。`src/app/wcns_run.cpp` 在建立`StructuredPartitionPlan` 后、分配场数组及推进前调用 `validate_xz_plane_statistics`。这保证越界和二维误用尽早失败，同时验证依据是原 zone 元数据而不是某个 rank 的局部叶块。
 
 ### 23.4 从原 zone 索引映射到 MPI 叶块
 
@@ -853,31 +820,24 @@ registry 校验拒绝。关闭子开关时不注册、不计算、不产生集�
 对请求的 `target_j`，每个 rank 对本地块执行：
 
 1. 由 `block.id()` 查到对应 leaf；
-2. 判断 `target_j` 是否在半开区间
-   `[leaf.cells.begin.j, leaf.cells.end.j)`；
-3. 若不在，跳过；若在，令
-   `local_j = target_j - leaf.cells.begin.j`；
+2. 判断 `target_j` 是否在半开区间`[leaf.cells.begin.j, leaf.cells.end.j)`；
+3. 若不在，跳过；若在，令`local_j = target_j - leaf.cells.begin.j`；
 4. 遍历该本地层的 i/k 单元，累加面积、面积乘速度或面积乘 `rho*u`；
 5. 所有 rank 按完全相同顺序做 `sum/min/max` 集合通信。
 
-这样一个原 zone J 层即使被 i、j、k 多次切分也只覆盖一次。不能直接用本地 `j=N`：当叶块
-从原 zone 的 J=24 开始时，本地 j=0 对应的全局层是 24。
+这样一个原 zone J 层即使被 i、j、k 多次切分也只覆盖一次。不能直接用本地 `j=N`：当叶块从原 zone 的 J=24 开始时，本地 j=0 对应的全局层是 24。
 
 ### 23.5 几何和物理合法性检查
 
-实现从真实单元的守恒量读取 `rho`、`rho*u`，从 cell coordinates 与两个真实 J 面度量读取
-y 和面积。它检查：
+实现从真实单元的守恒量读取 `rho`、`rho*u`，从 cell coordinates 与两个真实 J 面度量读取 y 和面积。它检查：
 
 - 面积有限且严格为正；
 - 密度有限且高于公共 density floor；
 - 速度或 `rho*u` 有限；
 - 请求层在 MPI 汇总后具有非零全局面积；
-- 全局 `y_max-y_min` 不超过
-  `1e-10*(1+max(abs(y_min),abs(y_max)))`。
+- 全局 `y_max-y_min` 不超过`1e-10*(1+max(abs(y_min),abs(y_max)))`。
 
-最后一项意味着该功能当前只支持真正平面的 x-z 层。一般扭曲网格的同一 J 层若 y 随 x/z
-变化，会被明确拒绝，而不是把曲面结果误标成平面。若未来要支持曲面平均，应新增不同名称、
-用一致曲面面积定义并记录几何语义，不应放宽容差偷换概念。
+最后一项意味着该功能当前只支持真正平面的 x-z 层。一般扭曲网格的同一 J 层若 y 随 x/z 变化，会被明确拒绝，而不是把曲面结果误标成平面。若未来要支持曲面平均，应新增不同名称、用一致曲面面积定义并记录几何语义，不应放宽容差偷换概念。
 
 ### 23.6 统计 registry 和量纲恢复
 
@@ -887,17 +847,14 @@ y 和面积。它检查：
 - `validate_xz_plane_statistics`：做原 zone/索引验证；
 - `register_xz_plane_statistics`：按索引注册两个闭包。
 
-`src/app/wcns_run.cpp` 先创建 built-in `StatisticRegistry`，再在开关开启时注册平面量，最后交给
-`RuntimeOutputManager`。所有 rank 都依据广播后的同一配置注册，保证集合通信调用序列一致。
+`src/app/wcns_run.cpp` 先创建 built-in `StatisticRegistry`，再在开关开启时注册平面量，最后交给`RuntimeOutputManager`。所有 rank 都依据广播后的同一配置注册，保证集合通信调用序列一致。
 
-这次扩展还在 `QuantityDescriptor` 增加 `integration_length_power`。原因是不能仅凭
-`QuantityScale::Momentum` 推断一个积分过多少个空间维度：
+这次扩展还在 `QuantityDescriptor` 增加 `integration_length_power`。原因是不能仅凭`QuantityScale::Momentum` 推断一个积分过多少个空间维度：
 
 - `xz_mean_u_jN` 恢复量纲时只乘 `U_ref`，长度幂为 0；
 - `xz_mass_flow_x_jN` 乘 `rho_ref*U_ref*L_ref^2`，长度幂为 2。
 
-如果遗漏长度平方，无量纲输出可能看似正确，但 `output.dimensional=true` 会系统性错误。新增
-面积、体积、线或面统计时，都要明确基础物理尺度和积分长度幂。
+如果遗漏长度平方，无量纲输出可能看似正确，但 `output.dimensional=true` 会系统性错误。新增面积、体积、线或面统计时，都要明确基础物理尺度和积分长度幂。
 
 ### 23.7 测试分层
 
@@ -911,9 +868,7 @@ y 和面积。它检查：
 3. `wcns.check.xz_plane_statistics.serial` 用
    `tests/check_xz_statistics.py` 读取真实 statistics 文件，检查初/终记录的列和 0.2 解析值。
 
-MPI 构建另以独立输出目录执行 `wcns.run.xz_plane_statistics.smoke.2` 和
-`wcns.check.xz_plane_statistics.2`。两个 rank 会切分同一原 zone，检查器仍要求面积平均和
-质量积分为 0.2，从而直接覆盖原 zone J 索引到叶块局部索引的映射及 `MPI_Allreduce` 路径。
+MPI 构建另以独立输出目录执行 `wcns.run.xz_plane_statistics.smoke.2` 和 `wcns.check.xz_plane_statistics.2`。两个 rank 会切分同一原 zone，检查器仍要求面积平均和质量积分为 0.2，从而直接覆盖原 zone J 索引到叶块局部索引的映射及 `MPI_Allreduce` 路径。
 
 运行：
 
@@ -921,18 +876,13 @@ MPI 构建另以独立输出目录执行 `wcns.run.xz_plane_statistics.smoke.2` 
 ctest --test-dir build-dev-serial -R "xz_plane_statistics|xz_statistics" --output-on-failure
 ```
 
-端到端测试很重要，因为只有它能同时发现“parser 已加但生产 registry 未注册”“列有了但调度
-没写初/终值”“无量纲值对但输出量纲错”等跨模块问题。
+端到端测试很重要，因为只有它能同时发现“parser 已加但生产 registry 未注册”“列有了但调度没写初/终值”“无量纲值对但输出量纲错”等跨模块问题。
 
 ### 23.8 在泊肃叶算例中的实际落点
 
-`cases/manual/case02_3d_poiseuille/uniform_36x48x36.wcns` 和
-`wall_clustered_36x48x36.wcns` 已开启 J=`0,11,23,35,47`。这五层用于观察近壁至中心的速度和
-流向输运分布。
+`cases/manual/case02_3d_poiseuille/uniform_36x48x36.wcns` 和 `wall_clustered_36x48x36.wcns` 已开启 J=`0,11,23,35,47`。这五层用于观察近壁至中心的速度和流向输运分布。
 
-必须注意：case02 目录已有的长时结果生成于本功能之前，旧 statistics 文件没有这些列。
-配置升级不等于旧结果自动升级；只有重新运行并保存新 manifest/统计文件后，才能验收截面
-监测。该事实已明确写进 case02 报告，避免文档和历史证据冲突。
+必须注意：case02 目录已有的长时结果生成于本功能之前，旧 statistics 文件没有这些列。配置升级不等于旧结果自动升级；只有重新运行并保存新 manifest/统计文件后，才能验收截面监测。该事实已明确写进 case02 报告，避免文档和历史证据冲突。
 
 ### 23.9 扩展成其他截面的正确步骤
 
@@ -948,13 +898,11 @@ ctest --test-dir build-dev-serial -R "xz_plane_statistics|xz_statistics" --outpu
 
 ## 24. 实战四：经典双马赫反射的初场与特殊边界
 
-实现提交为 `0f4c0fa`。这项扩展横跨 physics、初始化、配置、边界、时间推进、CGNS 算例和
-测试；只加入一个初场函数而使用普通 outflow 边界并不能构成经典双马赫反射问题。
+实现提交为 `0f4c0fa`。这项扩展横跨 physics、初始化、配置、边界、时间推进、CGNS 算例和测试；只加入一个初场函数而使用普通 outflow 边界并不能构成经典双马赫反射问题。
 
 ### 24.1 把经典模型做成单一真源
 
-新增 `include/wcns/physics/double_mach_reflection.hpp` 和
-`src/physics/double_mach_reflection.cpp`。`DoubleMachReflection` 统一提供：
+新增 `include/wcns/physics/double_mach_reflection.hpp` 和 `src/physics/double_mach_reflection.cpp`。`DoubleMachReflection` 统一提供：
 
 - `shock_foot()`；
 - `shock_x(y,time)`；
@@ -977,9 +925,7 @@ U_1=(8,8.25\sqrt3/2,-4.125,0,116.5),
 x_s=x_0+y/\sqrt3+20t/\sqrt3.
 \]
 
-把公式放在单一 physics 类中，避免初场、顶边界和测试各复制一套常数后发生漂移。模型要求
-二维和 `gamma=1.4`；未来若要任意 Mach/角度，必须从激波关系推导相容状态，不能简单开放
-六个独立配置数值。
+把公式放在单一 physics 类中，避免初场、顶边界和测试各复制一套常数后发生漂移。模型要求二维和 `gamma=1.4`；未来若要任意 Mach/角度，必须从激波关系推导相容状态，不能简单开放六个独立配置数值。
 
 ### 24.2 将新初场接入正式初始化链
 
@@ -992,13 +938,11 @@ x_s=x_0+y/\sqrt3+20t/\sqrt3.
 5. 通过统一气体模型转换温度原始量和守恒量；
 6. 不填物理 ghost，ghost 留给边界算子统一处理。
 
-配置层允许 `initial.*` 动态实数参数，因此不需要为 `x0` 另造固定 parser 键，但必须在模型
-创建处给出相同默认值，并让它进入 summary/restart signature。
+配置层允许 `initial.*` 动态实数参数，因此不需要为 `x0` 另造固定 parser 键，但必须在模型创建处给出相同默认值，并让它进入 summary/restart signature。
 
 ### 24.3 新边界类型和配置一致性
 
-`BoundaryType` 增加 `DoubleMachReflection`，外部规范字符串为
-`double_mach_reflection`。`CaseConfig::validate()` 建立双向约束：
+`BoundaryType` 增加 `DoubleMachReflection`，外部规范字符串为`double_mach_reflection`。`CaseConfig::validate()` 建立双向约束：
 
 - 专用初场至少要有一个同名专用边界；
 - 出现专用边界时，初场也必须是同名模型；
@@ -1006,16 +950,11 @@ x_s=x_0+y/\sqrt3+20t/\sqrt3.
 - gamma 必须为 1.4；
 - 边界不能携带普通 inflow 目标态、壁温或非零壁速度。
 
-正式算例进一步把 `left/bottom/top` 三面全部配置为专用边界。代码保留“至少一个”的通用
-解析检查，是因为纯配置阶段还没读到真实 CGNS patch 集合；读取网格后，patch 名和方向检查
-会阻止错误布置推进。人工 case 验收仍必须逐一确认三面和右 outflow，不能把最小 parser
-约束当作完整物理证明。
+正式算例进一步把 `left/bottom/top` 三面全部配置为专用边界。代码保留“至少一个”的通用解析检查，是因为纯配置阶段还没读到真实 CGNS patch 集合；读取网格后，patch 名和方向检查会阻止错误布置推进。人工 case 验收仍必须逐一确认三面和右 outflow，不能把最小 parser 约束当作完整物理证明。
 
 ### 24.4 边界数据如何装配
 
-`BoundaryData` 增加可选 `DoubleMachReflection` 对象。`src/app/wcns_run.cpp` 在遍历本地物理
-patch 时，对专用类型用配置中同一个 `x0` 建模；`BoundaryData::validate()` 保证只有专用类型
-携带该对象，普通边界不能意外读取它。
+`BoundaryData` 增加可选 `DoubleMachReflection` 对象。`src/app/wcns_run.cpp` 在遍历本地物理patch 时，对专用类型用配置中同一个 `x0` 建模；`BoundaryData::validate()` 保证只有专用类型携带该对象，普通边界不能意外读取它。
 
 三种边界操作为：
 
@@ -1025,13 +964,11 @@ patch 时，对专用类型用配置中同一个 `x0` 建模；`BoundaryData::va
 4. j-lower 且 `x>=x0`：调用公共 stationary slip-wall 镜像；
 5. 其他轴/侧：明确抛出配置错误。
 
-右边界不使用专用模型，继承 `outflow`。周期边界仍必须由 connectivity 表达，不能伪装成
-物理 patch。
+右边界不使用专用模型，继承 `outflow`。周期边界仍必须由 connectivity 表达，不能伪装成物理 patch。
 
 ### 24.5 为什么必须把 SSPRK 子步时间送到边界
 
-顶部激波位置随时间改变。如果只在完整步开始更新边界，SSPRK3 的中间 stage 会使用过期
-边界，时间精度和冲击位置都不一致。因此本次修改把 `Real time` 沿以下调用链传递：
+顶部激波位置随时间改变。如果只在完整步开始更新边界，SSPRK3 的中间 stage 会使用过期边界，时间精度和冲击位置都不一致。因此本次修改把 `Real time` 沿以下调用链传递：
 
 ```text
 SSPRK stage time
@@ -1040,14 +977,11 @@ SSPRK stage time
   -> apply_inviscid_boundary_face_state(..., face_coordinates, time)
 ```
 
-每个 stage 的 ghost 和重构后的强面状态看到同一个物理时间。时间必须有限且非负；这个检查
-在物理 ghost 填充入口完成。以后增加任何移动壁、脉动入口或时变远场，都必须复用 stage
-时间路径，不能从全局变量猜测当前时间。
+每个 stage 的 ghost 和重构后的强面状态看到同一个物理时间。时间必须有限且非负；这个检查在物理 ghost 填充入口完成。以后增加任何移动壁、脉动入口或时变远场，都必须复用 stage时间路径，不能从全局变量猜测当前时间。
 
 ### 24.6 严守“物理 ghost 只有物理量有效”
 
-`boundary_face_coordinates(block,patch,face)` 只平均真实边界面顶点：二维平均两个切向顶点，
-三维平均四个。它不外推 ghost 坐标。计算法向仍使用真实边界面度量。
+`boundary_face_coordinates(block,patch,face)` 只平均真实边界面顶点：二维平均两个切向顶点，三维平均四个。它不外推 ghost 坐标。计算法向仍使用真实边界面度量。
 
 对每个真实边界面和三层 ghost：
 
@@ -1063,20 +997,13 @@ SSPRK stage time
 
 ### 24.7 重构后强边界处理
 
-三层 ghost 先参与与内点相同的六点重构。随后当
-`InviscidBoundaryOptions::strong_boundary_face_state=true`（当前生产默认且配置不可关闭）时，
-真实边界面外侧迹值再次按专用规则约束：左/顶/底部入流段给定状态，底部壁段做反射迹值。
+三层 ghost 先参与与内点相同的六点重构。随后当`InviscidBoundaryOptions::strong_boundary_face_state=true`（当前生产默认且配置不可关闭）时，真实边界面外侧迹值再次按专用规则约束：左/顶/底部入流段给定状态，底部壁段做反射迹值。
 
-这样 ghost 影响高阶插值，而最终 Riemann 面状态仍严格满足经典边界。如果未来公开“是否强
-约束”开关，必须将开关加入 schema、summary、restart signature，并分别验证开/关模式；本次
-开发没有暗中增加未完成的用户开关。
+这样 ghost 影响高阶插值，而最终 Riemann 面状态仍严格满足经典边界。如果未来公开“是否强约束”开关，必须将开关加入 schema、summary、restart signature，并分别验证开/关模式；本次开发没有暗中增加未完成的用户开关。
 
 ### 24.8 重启和配置签名
 
-`double_mach_reflection_v1` 及 `x0` 进入 `CaseConfig::restart_signature()`；边界类型本来也进入
-签名。改变激波足或把边界换成普通类型会拒绝旧 checkpoint。非定常目标时间和输出调度不
-一定属于数值状态兼容签名，但恢复后的边界在每个 stage 使用恢复物理时间，因此移动激波位置
-可以连续。
+`double_mach_reflection_v1` 及 `x0` 进入 `CaseConfig::restart_signature()`；边界类型本来也进入签名。改变激波足或把边界换成普通类型会拒绝旧 checkpoint。非定常目标时间和输出调度不一定属于数值状态兼容签名，但恢复后的边界在每个 stage 使用恢复物理时间，因此移动激波位置可以连续。
 
 ### 24.9 测试如何覆盖数学和调用链
 
@@ -1090,9 +1017,7 @@ SSPRK stage time
 - 改变时间后顶部 ghost 随激波移动；
 - 非法 gamma/维数/边界方向失败。
 
-`tests/data/double_mach_reflection_case.wcns.in` 与 CTest
-`wcns.run.double_mach_reflection.smoke.serial` 使用正式 `wcns_run`、生成的 CGNS、多块装配和
-一步推进，防止只测试 physics 小类而漏接生产入口。
+`tests/data/double_mach_reflection_case.wcns.in` 与 CTest `wcns.run.double_mach_reflection.smoke.serial` 使用正式 `wcns_run`、生成的 CGNS、多块装配和一步推进，防止只测试 physics 小类而漏接生产入口。
 
 手工复现局部验收：
 
@@ -1108,8 +1033,7 @@ ctest --test-dir build-dev-serial -R "double_mach_reflection|wcns.unit" --output
 - `run_case04.py`：生成网格、正式 dry-run 和 MPI 运行；
 - `README.md`：公式、逐项配置、命令、输出和验收判据。
 
-该目录没有预制完整结果。开发完成与数值算例通过是两级证据：单元/端到端 smoke 证明程序
-路径连通，960×240 完整周期运行和可视化/网格/rank 对比才是后续人工物理验收。
+该目录没有预制完整结果。开发完成与数值算例通过是两级证据：单元/端到端 smoke 证明程序路径连通，960×240 完整周期运行和可视化/网格/rank 对比才是后续人工物理验收。
 
 ### 24.11 将来增加另一种“初场 + 特殊边界”模型的模板
 
@@ -1146,8 +1070,7 @@ cmake --build build-dev-mpi --parallel 4
 ctest --test-dir build-dev-mpi --output-on-failure
 ```
 
-验收不能只看最后一行“100% passed”。还要保留 CMake 配置、编译器、MPI 实现、Git 提交、
-CTest 完整输出，并逐项检查：
+验收不能只看最后一行“100% passed”。还要保留 CMake 配置、编译器、MPI 实现、Git 提交、CTest 完整输出，并逐项检查：
 
 - 改 MDCD 参数会改变摘要和重启签名，非法组合启动即失败；
 - `zero_order` 保持六点/三层 halo 契约，左右确取下标 2/3；

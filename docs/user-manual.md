@@ -1,6 +1,6 @@
 # WCNS 用户手册
 
-本文面向第一次接触本程序的算例使用者，对应 WCNS `0.1.0`、配置`schema_version = 1` 和生产入口 `wcns_run`。按本文顺序操作，可以从源码构建程序、准备CGNS 网格、填写配置、完成串行或 MPI 计算、识别停止状态、读取输出并从检查点续算。
+本文面向第一次接触本程序的算例使用者，对应 WCNS `1.0.0`、配置`schema_version = 1` 和生产入口 `wcns_run`。按本文顺序操作，可以从源码构建程序、准备CGNS 网格、填写配置、完成串行或 MPI 计算、识别停止状态、读取输出并从检查点续算。
 
 本手册描述的是当前程序已经实现的行为。数学定义见[`算法补充.md`](../算法补充.md)，源码扩展见[`developer-guide.md`](developer-guide.md)，实现边界见[`known-limitations.md`](known-limitations.md)。可复制的完整配置见[`examples/full_case_template.wcns`](../examples/full_case_template.wcns)。
 
@@ -48,7 +48,7 @@ wcns/
 
 ### 3.1 已验证的 Windows 环境
 
-发布候选实测组合为：Windows 10、CMake 3.28、MinGW-w64 GCC 8.1、Python 3.14.5 和
+v1.0 实测组合包括：Windows 10、CMake 3.28、MinGW-w64 GCC 8.1、Python 3.14.5 和
 Intel MPI 2021.10。CMake 最低声明版本是 3.20。其他编译器或系统不一定不能使用，但属于
 未进入发布矩阵的组合，首次使用必须完整运行测试。
 

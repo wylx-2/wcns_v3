@@ -10,7 +10,7 @@
 
 ## 1. 构建与运行
 
-发布候选已验证的环境为 Windows 10、CMake 3.28.0、MinGW-w64 GCC 8.1.0、Python 3.14.5
+v1.0 已验证的环境包括 Windows 10、CMake 3.28.0、MinGW-w64 GCC 8.1.0、Python 3.14.5
 和 Intel MPI 2021.10。CMake 最低声明版本为 3.20；未列出的编译器、操作系统和 MPI 组合
 目前属于未验证环境，而不是已知不兼容。
 
