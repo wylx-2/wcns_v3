@@ -2,7 +2,7 @@
 
 一个面向结构多块网格、CGNS 和 MPI 并行设计的小型高阶 CFD 程序。
 
-当前正式版本为 **WCNS v1.0.0**。程序在自动发布矩阵基础上，已经过二维 Riemann、三维泊肃叶流、扭曲网格等熵涡、双马赫反射和三维槽道流迁移/长算等人工算例检查。数学与算法约定见 [`算法补充.md`](算法补充.md)，完整使用方法见 [`docs/user-manual.md`](docs/user-manual.md)，源码扩展方法见 [`docs/developer-guide.md`](docs/developer-guide.md)，正式版本说明见 [`docs/release-notes-1.0.0.md`](docs/release-notes-1.0.0.md)。当前能力边界与许可状态分别见 [`docs/known-limitations.md`](docs/known-limitations.md) 和 [`LICENSE.md`](LICENSE.md)。
+当前正式版本为 **WCNS v1.0.0**。程序在自动发布矩阵基础上，已经过二维 Riemann、三维泊肃叶流、扭曲网格等熵涡、双马赫反射、三维槽道流迁移/长算和二维圆柱低速/高超声速绕流等人工算例检查。数学与算法约定见 [`算法补充.md`](算法补充.md)，完整使用方法见 [`docs/user-manual.md`](docs/user-manual.md)，源码扩展方法见 [`docs/developer-guide.md`](docs/developer-guide.md)，正式版本说明见 [`docs/release-notes-1.0.0.md`](docs/release-notes-1.0.0.md)。当前能力边界与许可状态分别见 [`docs/known-limitations.md`](docs/known-limitations.md) 和 [`LICENSE.md`](LICENSE.md)。
 
 本开发仓库保留阶段设计、自动测试、人工算例及验收证据；面向使用者的精简源码发行版位于独立的 `wcns_v3_release` 仓库。
 
@@ -11,6 +11,10 @@
 新增的 `turbulent_channel` 初场、y-z 截面监测和专用槽道壁摩擦/`Re_tau` 统计已用于
 [`case05`](cases/manual/case05_3d_turbulent_channel/README.md) 的 4-rank、5 步 Linux 迁移前可行性卡口；
 该稀疏网格结果不是湍流统计或 DNS 验收。
+
+四块圆柱 O 网格、Re=20/40/100/200 层流 Navier--Stokes 结果以及 Mach 5 Euler 钝体绕流的
+完整配置、复现方法、图像和精度边界见
+[`case07`](cases/manual/case07_2d_cylinder/README.md)。
 
 ## 构建与测试
 

@@ -1,0 +1,37 @@
+manifest_version=1
+program_version=1.0.0
+git_commit=07a33ec509d8
+compiler=8.1.0
+build_type=Release
+case=case07-cylinder-re40
+mpi_ranks=1
+config_digest=16311213021903314383
+partition_digest=6799003855754530347
+mesh_signature=2601734574529213738
+restart_signature=schema=1;profile=algorithm_profile_v1;name=scmm6_wcns;flux_difference=profile;reconstruction=reconstruction_v2;reconstruction=linear5;variables=primitive;epsilon=9.9999999999999995e-07;js_power=2;z_power=2;mdcd_dispersion=0.046378299999999997;mdcd_dissipation=0.01;mdcd_sensor_epsilon=5.6249999999999998e-05;mdcd_sensor_threshold=0.40000000000000002;mdcd_weight_bias=20;mdcd_weight_epsilon=9.9999999999999993e-41;riemann=riemann_config_v1;riemann_solver=hllc;roe_entropy_fix=0.10000000000000001;riemann_denominator_tolerance=9.9999999999999998e-13;gas=gas_model=calorically_perfect gamma=1.3999999999999999 molar_mass=0.029000000000000001 specific_gas_constant=286.68965517241378;reference=U_ref=69.400188773599993 rho_ref=1 T_ref=300 L_ref=1 mu_ref=1.73500471934 Re=39.999999999999993 Ma=0.199999999894418 dynamic_pressure_ref=4816.3862018113141 time_ref=0.014409182707877626;boundary.default=farfield;boundary.cylinder=no_slip_adiabatic_wall;boundary.farfield=farfield;boundary_data.cylinder=wall_velocity_x=0,wall_velocity_y=0,wall_velocity_z=0;boundary_data.farfield=rho=1,u=1,v=0,w=0,temperature=1;source=source_terms_v3;enable_source_terms=false;models=;viscous=true
+step=11106
+time=20
+time_step=0.00093034483306908555
+wall_time=1429.2984959999999
+stop_reason=physical_time_reached
+config_summary=case(schema=1,name=case07-cylinder-re40,mesh=../grid/cylinder_o_32x20_r8.cgns,profile=scmm6_wcns,flux_difference=profile,reconstruction=linear5;variables=primitive;epsilon=9.9999999999999995e-07;js_power=2;z_power=2;mdcd_dispersion=0.046378299999999997;mdcd_dissipation=0.01;mdcd_sensor_epsilon=5.6249999999999998e-05;mdcd_sensor_threshold=0.40000000000000002;mdcd_weight_bias=20;mdcd_weight_epsilon=9.9999999999999993e-41,riemann_solver=hllc;roe_entropy_fix=0.10000000000000001;riemann_denominator_tolerance=9.9999999999999998e-13,gas_model=calorically_perfect gamma=1.3999999999999999 molar_mass=0.029000000000000001 specific_gas_constant=286.68965517241378,U_ref=69.400188773599993 rho_ref=1 T_ref=300 L_ref=1 mu_ref=1.73500471934 Re=39.999999999999993 Ma=0.199999999894418 dynamic_pressure_ref=4816.3862018113141 time_ref=0.014409182707877626,partition(mode=auto_split,allow_idle=false,max_load_ratio=1.2,min_cells=8),initial(type=uniform,rho=1,temperature=1,u=1,v=0,w=0),boundary.default=farfield,boundary.cylinder=no_slip_adiabatic_wall,boundary.farfield=farfield,boundary_data.cylinder(wall_velocity_x=0,wall_velocity_y=0,wall_velocity_z=0),boundary_data.farfield(rho=1,u=1,v=0,w=0,temperature=1),enable_source_terms=false;models=,run(mode=unsteady,viscous=true,cfl=0.25,max_steps=30000,t_end=20,max_wall_time=0,steady(min_steps=1,check_interval=1,consecutive=1,reference_floor=1.0000000000000001e-30,l2_abs=9.9999999999999998e-13,l2_rel=1e-08,linf_enabled=true,linf_abs=9.9999999999999994e-12,linf_rel=1e-08)),output(directory=cases/manual/case07_2d_cylinder/results/re40,allow_existing=false,dimensional=false,field(enabled=true,format=tecplot,schedule(every_steps=0,every_time=2.5,explicit_times=,initial=true,final=true),quantities=rho:u:v:p:T:mach:entropy_proxy:viscosity:jacobian),history(enabled=true,format=txt,schedule(every_steps=20,every_time=0,explicit_times=,initial=true,final=true),quantities=),statistics(enabled=true,format=txt,schedule(every_steps=100,every_time=0,explicit_times=,initial=true,final=true),quantities=total_mass:total_momentum_x:total_momentum_y:total_energy),xz_planes(enabled=false,cell_j_indices=),yz_planes(enabled=false,target_x_coordinates=),channel_walls(enabled=false,lower_patch=bottom,upper_patch=top,half_height=1),checkpoint(enabled=true,schedule(every_steps=5000,every_time=10,explicit_times=,initial=false,final=true))),restart.path=<none>,digest=0xe25d11d2aa45ddcf)
+partition_summary=partition_plan(maximum_feasible=8;leaf=0,zone=0,range=[0,0,0:8,20,1),owner=0,generation=0;leaf=1,zone=1,range=[0,0,0:8,20,1),owner=0,generation=0;leaf=2,zone=2,range=[0,0,0:8,20,1),owner=0,generation=0;leaf=3,zone=3,range=[0,0,0:8,20,1),owner=0,generation=0)
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.field.step00000000.time0p000000000eP00.dat
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.field.step00001404.time2p500000000eP00.dat
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.field.step00002793.time5p000000000eP00.dat
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.field.step00004180.time7p500000000eP00.dat
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.checkpoint.step00005000.time8p979885529eP00.cgns
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.checkpoint.latest.cgns
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.field.step00005566.time1p000000000eP01.dat
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.checkpoint.step00005566.time1p000000000eP01.cgns
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.checkpoint.latest.cgns
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.field.step00006951.time1p250000000eP01.dat
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.field.step00008336.time1p500000000eP01.dat
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.field.step00009721.time1p750000000eP01.dat
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.checkpoint.step00010000.time1p800378467eP01.cgns
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.checkpoint.latest.cgns
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.field.step00011106.time2p000000000eP01.dat
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.checkpoint.step00011106.time2p000000000eP01.cgns
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.checkpoint.latest.cgns
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.history.r1.txt
+file=cases/manual/case07_2d_cylinder/results/re40/case07-cylinder-re40.statistics.r1.txt

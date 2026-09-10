@@ -996,6 +996,15 @@ mpiexec -n 4 build-user-mpi\wcns_run.exe --config run-b\restart.wcns
 4-rank、5 步工程可行性卡口，未作湍流统计/DNS 验收。完整公式、配置、命令、实测结果和
 Linux 迁移前检查见 [`case05`](../cases/manual/case05_3d_turbulent_channel/README.md)。
 
+### 12.7 二维圆柱低速与高超声速绕流
+
+用 `wcns_generate_release_cgns cylinder-o` 生成带首尾周期连接的多块 O 网格。低速圆柱使用
+可压缩层流 Navier--Stokes、绝热无滑移壁和远场边界，可通过 Re=20/40 与 Re=100/200
+分别观察稳定对称尾迹和非定常涡脱落；Mach 5 钝体功能检查使用 Euler、滑移壁和远场边界。
+当前粗网格结果只作定性验收，壁面升阻力由后处理近似而非求解器 face-based 输出。完整参数、
+命令、实际结果、图像和限制见
+[`case07`](../cases/manual/case07_2d_cylinder/README.md)。
+
 ## 13. 独立验证工具
 
 最常用命令：
