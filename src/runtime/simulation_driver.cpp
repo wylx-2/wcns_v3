@@ -28,10 +28,21 @@ void report_solver_exception(
 template <class Solver>
 SolverDiagnostics collect_diagnostics(const Solver& solver)
 {
+    const auto robustness = solver.global_robustness_diagnostics();
     return {
         solver.global_reconstruction_fallback_count(),
         solver.global_riemann_face_count(),
         solver.global_riemann_fallback_count(),
+        robustness.face_levels,
+        robustness.troubled_cells,
+        robustness.local_recomputations,
+        robustness.step_retries,
+        robustness.proposed_time_step,
+        robustness.accepted_time_step,
+        robustness.minimum_density,
+        robustness.minimum_pressure,
+        robustness.minimum_temperature,
+        robustness.minimum_internal_energy,
     };
 }
 
@@ -58,9 +69,9 @@ Real InviscidSimulationSolver::global_time_step(Real cfl)
     return solver_.global_time_step(cfl);
 }
 
-void InviscidSimulationSolver::advance(Real time_step, Real initial_time)
+Real InviscidSimulationSolver::advance(Real time_step, Real initial_time)
 {
-    solver_.advance(time_step, initial_time);
+    return solver_.advance(time_step, initial_time);
 }
 
 void InviscidSimulationSolver::refresh_residuals(Real time)
@@ -100,9 +111,9 @@ Real ViscousSimulationSolver::global_time_step(Real cfl)
     return solver_.global_time_step(cfl);
 }
 
-void ViscousSimulationSolver::advance(Real time_step, Real initial_time)
+Real ViscousSimulationSolver::advance(Real time_step, Real initial_time)
 {
-    solver_.advance(time_step, initial_time);
+    return solver_.advance(time_step, initial_time);
 }
 
 void ViscousSimulationSolver::refresh_residuals(Real time)
@@ -298,7 +309,14 @@ SimulationState SimulationDriver::run(SimulationInitialState initial)
         }
         if (all_ranks_succeeded(local_success)) {
             try {
-                solver_.advance(state.time_step, state.time);
+                const Real accepted = solver_.advance(
+                    state.time_step, state.time);
+                if (!std::isfinite(accepted) || accepted <= 0.0
+                    || accepted > state.time_step) {
+                    throw PhysicsError(
+                        "solver returned an invalid accepted time step");
+                }
+                state.time_step = accepted;
             } catch (const std::exception& error) {
                 report_solver_exception(mpi_, "time integration", error);
                 local_success = false;

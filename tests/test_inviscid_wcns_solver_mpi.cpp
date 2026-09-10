@@ -207,7 +207,7 @@ void run_profile(
             WCNS_REQUIRE(name == riemann_name);
         }
     }
-    solver.advance(0.01, 0.0);
+    WCNS_REQUIRE_NEAR(solver.advance(0.01, 0.0), 0.01, 0.0);
     WCNS_REQUIRE(solver.global_riemann_face_count() == 280);
     for (const auto& event : solver.riemann_diagnostics().fallback_events) {
         WCNS_REQUIRE(event.location.rk_stage == 3);

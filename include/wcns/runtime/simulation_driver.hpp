@@ -4,6 +4,7 @@
 #include <wcns/solver/viscous_wcns_solver.hpp>
 
 #include <functional>
+#include <array>
 #include <limits>
 #include <string>
 #include <vector>
@@ -14,6 +15,16 @@ struct SolverDiagnostics {
     std::size_t reconstruction_fallbacks = 0;
     std::size_t riemann_faces = 0;
     std::size_t riemann_fallbacks = 0;
+    std::array<std::size_t, 4> robustness_face_levels {};
+    std::size_t robustness_troubled_cells = 0;
+    std::size_t robustness_local_recomputations = 0;
+    std::size_t robustness_step_retries = 0;
+    Real robustness_proposed_time_step = 0.0;
+    Real robustness_accepted_time_step = 0.0;
+    Real minimum_density = std::numeric_limits<Real>::infinity();
+    Real minimum_pressure = std::numeric_limits<Real>::infinity();
+    Real minimum_temperature = std::numeric_limits<Real>::infinity();
+    Real minimum_internal_energy = std::numeric_limits<Real>::infinity();
 };
 
 class ISimulationSolver {
@@ -21,7 +32,7 @@ public:
     virtual ~ISimulationSolver() = default;
 
     [[nodiscard]] virtual Real global_time_step(Real cfl) = 0;
-    virtual void advance(Real time_step, Real initial_time) = 0;
+    [[nodiscard]] virtual Real advance(Real time_step, Real initial_time) = 0;
     virtual void refresh_residuals(Real time) = 0;
     [[nodiscard]] virtual ResidualNorms residual_norms() const = 0;
     [[nodiscard]] virtual SolverDiagnostics diagnostics() const = 0;
@@ -38,7 +49,7 @@ public:
         AlgorithmProfile profile);
 
     [[nodiscard]] Real global_time_step(Real cfl) override;
-    void advance(Real time_step, Real initial_time) override;
+    [[nodiscard]] Real advance(Real time_step, Real initial_time) override;
     void refresh_residuals(Real time) override;
     [[nodiscard]] ResidualNorms residual_norms() const override;
     [[nodiscard]] SolverDiagnostics diagnostics() const override;
@@ -63,7 +74,7 @@ public:
         AlgorithmProfile profile);
 
     [[nodiscard]] Real global_time_step(Real cfl) override;
-    void advance(Real time_step, Real initial_time) override;
+    [[nodiscard]] Real advance(Real time_step, Real initial_time) override;
     void refresh_residuals(Real time) override;
     [[nodiscard]] ResidualNorms residual_norms() const override;
     [[nodiscard]] SolverDiagnostics diagnostics() const override;

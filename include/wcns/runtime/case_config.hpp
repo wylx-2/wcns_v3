@@ -202,6 +202,7 @@ struct CaseConfig {
     FluxDifferenceMode flux_difference = FluxDifferenceMode::Profile;
     ReconstructionConfig reconstruction {};
     RiemannConfig riemann {};
+    RobustnessConfig robustness {};
     GasModelInput gas;
     ReferenceInput reference;
     PartitionConfig partition;

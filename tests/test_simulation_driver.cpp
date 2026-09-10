@@ -15,20 +15,21 @@ public:
     std::size_t advance_count = 0;
     std::vector<wcns::Real> time_steps;
     bool fail_advance = false;
+    wcns::Real accepted_fraction = 1.0;
 
     wcns::Real global_time_step(wcns::Real) override
     {
         return proposed_time_step;
     }
 
-    void advance(wcns::Real time_step, wcns::Real) override
+    wcns::Real advance(wcns::Real time_step, wcns::Real) override
     {
         if (fail_advance) throw std::runtime_error("injected advance failure");
         ++advance_count;
         time_steps.push_back(time_step);
         residual_value *= 1.0e-4;
+        return accepted_fraction * time_step;
     }
-
     void refresh_residuals(wcns::Real) override {}
 
     wcns::ResidualNorms residual_norms() const override
@@ -107,6 +108,20 @@ void test_simulation_driver()
         WCNS_REQUIRE_NEAR(solver.time_steps[2], 0.3, 1.0e-14);
         WCNS_REQUIRE_NEAR(solver.time_steps[3], 0.2, 1.0e-14);
         WCNS_REQUIRE(observer.final_count == 1);
+    }
+    {
+        FakeSolver solver;
+        solver.accepted_fraction = 0.5;
+        TimeEventObserver observer;
+        wcns::CaseRunConfig config;
+        config.mode = wcns::RunMode::Steady;
+        config.max_steps = 1;
+        config.steady.min_steps = 100;
+        wcns::SimulationDriver driver(mpi, solver, config, observer);
+        const auto final = driver.run();
+        WCNS_REQUIRE(final.stop_reason == wcns::StopReason::MaximumSteps);
+        WCNS_REQUIRE_NEAR(final.time_step, 0.15, 1.0e-14);
+        WCNS_REQUIRE_NEAR(final.time, 0.15, 1.0e-14);
     }
     {
         FakeSolver solver;

@@ -21,6 +21,11 @@ algorithm.reconstruction_variables = characteristic
 algorithm.riemann = hllc
 algorithm.mdcd.disp = 0.04
 algorithm.mdcd.diss = 0.005
+robustness.enabled = true
+robustness.max_local_recomputations = 2
+robustness.max_step_retries = 5
+robustness.time_step_reduction = 0.4
+robustness.minimum_time_step = 1e-10
 gas.gamma = 1.4
 gas.molar_mass = 0.029
 reference.velocity = 340
@@ -78,11 +83,20 @@ void test_case_config()
             config.reconstruction.variables
             == wcns::ReconstructionVariables::Characteristic);
         WCNS_REQUIRE(config.riemann.scheme == "hllc");
+        WCNS_REQUIRE(config.robustness.enabled);
+        WCNS_REQUIRE(config.robustness.max_local_recomputations == 2);
+        WCNS_REQUIRE(config.robustness.max_step_retries == 5);
+        WCNS_REQUIRE_NEAR(
+            config.robustness.time_step_reduction, 0.4, 1.0e-15);
+        WCNS_REQUIRE_NEAR(
+            config.robustness.minimum_time_step, 1.0e-10, 1.0e-20);
         WCNS_REQUIRE_NEAR(
             config.reconstruction.nonlinear.mdcd_dispersion, 0.04, 1.0e-15);
         WCNS_REQUIRE_NEAR(
             config.reconstruction.nonlinear.mdcd_dissipation, 0.005, 1.0e-15);
         WCNS_REQUIRE(config.restart_signature().find("mdcd_dispersion=0.04")
+            != std::string::npos);
+        WCNS_REQUIRE(config.restart_signature().find("robustness_v1")
             != std::string::npos);
         WCNS_REQUIRE(config.partition.mode == wcns::PartitionMode::AutoSplit);
         WCNS_REQUIRE(
@@ -102,6 +116,18 @@ void test_case_config()
         WCNS_REQUIRE(config.digest() != 0);
         WCNS_REQUIRE(config.summary().find("Re=") != std::string::npos);
         WCNS_REQUIRE(config.summary().find("Ma=") != std::string::npos);
+    }
+    {
+        auto invalid = valid_config();
+        const auto reduction = invalid.find(
+            "robustness.time_step_reduction = 0.4");
+        invalid.replace(
+            reduction,
+            std::string("robustness.time_step_reduction = 0.4").size(),
+            "robustness.time_step_reduction = 1.0");
+        WCNS_REQUIRE_THROWS(
+            std::invalid_argument,
+            wcns::CaseConfig::from_text(invalid));
     }
     {
         auto two_point = valid_config();

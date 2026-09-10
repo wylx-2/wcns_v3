@@ -163,7 +163,9 @@ void run_profile(
     WCNS_REQUIRE_NEAR(mpi.max(time_step), mpi.min(time_step), 0.0);
     solver.compute_residuals(0.0);
     WCNS_REQUIRE(solver.global_residual_l2() < 8.0e-11);
-    solver.advance(std::min(time_step, 1.0e-3), 0.0);
+    const Real proposed_time_step = std::min(time_step, 1.0e-3);
+    WCNS_REQUIRE_NEAR(
+        solver.advance(proposed_time_step, 0.0), proposed_time_step, 0.0);
     Real local_error = 0.0;
     for (const auto& block : local.blocks()) {
         const auto cells = block.cell_extent();
