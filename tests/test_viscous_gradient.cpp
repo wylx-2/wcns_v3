@@ -7,6 +7,10 @@
 #include <wcns/solver/viscous_operator.hpp>
 
 #include <cmath>
+#include <iomanip>
+#include <iostream>
+#include <limits>
+#include <vector>
 
 namespace {
 
@@ -175,7 +179,19 @@ void run_linear_gradient_3d(wcns::AlgorithmProfileKind kind)
     WCNS_REQUIRE(std::isnan(gradients.values()(-1, -1, -1, 0)));
 }
 
-wcns::Real manufactured_temperature_error(
+struct ManufacturedErrorNorms {
+    wcns::Real interior_l1 = 0.0;
+    wcns::Real interior_l2 = 0.0;
+    wcns::Real interior_linf = 0.0;
+    wcns::Real boundary_l1 = 0.0;
+    wcns::Real boundary_l2 = 0.0;
+    wcns::Real boundary_linf = 0.0;
+    wcns::Real global_l1 = 0.0;
+    wcns::Real global_l2 = 0.0;
+    wcns::Real global_linf = 0.0;
+};
+
+ManufacturedErrorNorms manufactured_temperature_error(
     wcns::AlgorithmProfileKind kind,
     int cell_count)
 {
@@ -185,6 +201,19 @@ wcns::Real manufactured_temperature_error(
         {cell_count + 1, cell_count + 1, 1}, 3);
     const Real spacing = 1.0 / static_cast<Real>(cell_count);
     const auto vertices = block.vertex_extent();
+    const auto cells = block.cell_extent();
+    block.boundaries.push_back({
+        "lower", BoundaryType::NoSlipIsothermalWall,
+        {Axis::J, Side::Lower},
+        {{0, 0, 0}, {vertices.ni - 1, 0, 0}},
+        {{0, 0, 0}, {cells.ni - 1, 0, 0}},
+        {{0, 0, 0}, {cells.ni - 1, 0, 0}}, {}});
+    block.boundaries.push_back({
+        "upper", BoundaryType::NoSlipIsothermalWall,
+        {Axis::J, Side::Upper},
+        {{0, vertices.nj - 1, 0}, {vertices.ni - 1, vertices.nj - 1, 0}},
+        {{0, cells.nj - 1, 0}, {cells.ni - 1, cells.nj - 1, 0}},
+        {{0, cells.nj, 0}, {cells.ni - 1, cells.nj, 0}}, {}});
     for (int j = 0; j < vertices.nj; ++j) {
         for (int i = 0; i < vertices.ni; ++i) {
             block.coordinates.x(i, j, 0) = static_cast<Real>(i) * spacing;
@@ -200,11 +229,17 @@ wcns::Real manufactured_temperature_error(
     };
     auto& state = block.flow.temperature_primitive;
     const auto store = [&](int i, int j) {
+        const Real value = temperature(j);
         state(i, j, 0, temperature_density) = 1.0;
         state(i, j, 0, temperature_velocity_x) = 0.0;
         state(i, j, 0, temperature_velocity_y) = 0.0;
         state(i, j, 0, temperature_velocity_z) = 0.0;
-        state(i, j, 0, temperature_value) = temperature(j);
+        state(i, j, 0, temperature_value) = value;
+        block.flow.primitive(i, j, 0, density) = 1.0;
+        block.flow.primitive(i, j, 0, velocity_x) = 0.0;
+        block.flow.primitive(i, j, 0, velocity_y) = 0.0;
+        block.flow.primitive(i, j, 0, velocity_z) = 0.0;
+        block.flow.primitive(i, j, 0, pressure) = value / 1.4;
     };
     for (int j = 0; j < cell_count; ++j) {
         for (int i = 0; i < cell_count; ++i) store(i, j);
@@ -234,8 +269,11 @@ wcns::Real manufactured_temperature_error(
     const TransportConfig transport_config;
     const TransportModel transport(transport_config);
     const NumericalFloors floors;
+    BoundaryData wall;
+    wall.wall_temperature = 1.0;
+    const BoundaryDataMap boundary_data {{"lower", wall}, {"upper", wall}};
     const auto flux = compute_viscous_face_fluxes(
-        block, metric, gradients, profile, transport, {}, gas, reference,
+        block, metric, gradients, profile, transport, boundary_data, gas, reference,
         floors, 17);
     block.flow.residual.fill(0.0);
     add_wcns_viscous_residual(
@@ -243,20 +281,189 @@ wcns::Real manufactured_temperature_error(
 
     const Real chi = transport.thermal_coefficient(1.0, gas, reference);
     const int margin = kind == AlgorithmProfileKind::PhengleiWcns ? 5 : 7;
-    Real squared_error = 0.0;
-    int sample_count = 0;
-    for (int j = margin; j < cell_count - margin; ++j) {
+    struct Accumulator {
+        Real absolute = 0.0;
+        Real squared = 0.0;
+        Real maximum = 0.0;
+        int count = 0;
+        void add(Real error) {
+            WCNS_REQUIRE(std::isfinite(error));
+            absolute += std::abs(error);
+            squared += error * error;
+            maximum = std::max(maximum, std::abs(error));
+            ++count;
+        }
+    } interior, boundary, global;
+    for (int j = 0; j < cell_count; ++j) {
         const Real y = (static_cast<Real>(j) + 0.5) * spacing;
         const Real exact = -chi * amplitude * wave_number * wave_number
             * std::sin(wave_number * y) / reference.reynolds();
         for (int i = 0; i < cell_count; ++i) {
             const Real error = block.flow.residual(i, j, 0, total_energy) - exact;
-            squared_error += error * error;
-            ++sample_count;
+            global.add(error);
+            if (j >= margin && j < cell_count - margin) interior.add(error);
+            else boundary.add(error);
         }
     }
-    WCNS_REQUIRE(sample_count > 0);
-    return std::sqrt(squared_error / static_cast<Real>(sample_count));
+    WCNS_REQUIRE(interior.count > 0 && boundary.count > 0 && global.count > 0);
+    const auto l1 = [](const Accumulator& values) {
+        return values.absolute / static_cast<Real>(values.count);
+    };
+    const auto l2 = [](const Accumulator& values) {
+        return std::sqrt(values.squared / static_cast<Real>(values.count));
+    };
+    return {
+        l1(interior), l2(interior), interior.maximum,
+        l1(boundary), l2(boundary), boundary.maximum,
+        l1(global), l2(global), global.maximum,
+    };
+}
+
+ManufacturedErrorNorms manufactured_temperature_error_3d(
+    wcns::AlgorithmProfileKind kind,
+    int cell_count)
+{
+    using namespace wcns;
+    constexpr int transverse_cells = 8;
+    StructuredBlock block(
+        0, "viscous-manufactured-3d", 0, 3, 3,
+        {transverse_cells + 1, cell_count + 1, transverse_cells + 1}, 3);
+    const Real spacing = 1.0 / static_cast<Real>(cell_count);
+    const auto vertices = block.vertex_extent();
+    const auto cells = block.cell_extent();
+    for (int k = 0; k < vertices.nk; ++k) {
+        for (int j = 0; j < vertices.nj; ++j) {
+            for (int i = 0; i < vertices.ni; ++i) {
+                block.coordinates.x(i, j, k)
+                    = static_cast<Real>(i) / transverse_cells;
+                block.coordinates.y(i, j, k) = static_cast<Real>(j) * spacing;
+                block.coordinates.z(i, j, k)
+                    = static_cast<Real>(k) / transverse_cells;
+            }
+        }
+    }
+    block.boundaries.push_back({
+        "lower", BoundaryType::NoSlipIsothermalWall,
+        {Axis::J, Side::Lower},
+        {{0, 0, 0}, {vertices.ni - 1, 0, vertices.nk - 1}},
+        {{0, 0, 0}, {cells.ni - 1, 0, cells.nk - 1}},
+        {{0, 0, 0}, {cells.ni - 1, 0, cells.nk - 1}}, {}});
+    block.boundaries.push_back({
+        "upper", BoundaryType::NoSlipIsothermalWall,
+        {Axis::J, Side::Upper},
+        {{0, vertices.nj - 1, 0},
+         {vertices.ni - 1, vertices.nj - 1, vertices.nk - 1}},
+        {{0, cells.nj - 1, 0},
+         {cells.ni - 1, cells.nj - 1, cells.nk - 1}},
+        {{0, cells.nj, 0}, {cells.ni - 1, cells.nj, cells.nk - 1}}, {}});
+    constexpr Real amplitude = 0.05;
+    const Real wave_number = 2.0 * std::acos(-1.0);
+    const auto temperature = [&](int j) {
+        const Real y = (static_cast<Real>(j) + 0.5) * spacing;
+        return 1.0 + amplitude * std::sin(wave_number * y);
+    };
+    auto& state = block.flow.temperature_primitive;
+    const auto store = [&](int i, int j, int k) {
+        const Real value = temperature(j);
+        state(i, j, k, temperature_density) = 1.0;
+        state(i, j, k, temperature_velocity_x) = 0.0;
+        state(i, j, k, temperature_velocity_y) = 0.0;
+        state(i, j, k, temperature_velocity_z) = 0.0;
+        state(i, j, k, temperature_value) = value;
+        block.flow.primitive(i, j, k, density) = 1.0;
+        block.flow.primitive(i, j, k, velocity_x) = 0.0;
+        block.flow.primitive(i, j, k, velocity_y) = 0.0;
+        block.flow.primitive(i, j, k, velocity_z) = 0.0;
+        block.flow.primitive(i, j, k, pressure) = value / 1.4;
+    };
+    for (int k = 0; k < cells.nk; ++k) {
+        for (int j = 0; j < cells.nj; ++j) {
+            for (int i = 0; i < cells.ni; ++i) store(i, j, k);
+        }
+    }
+    for (int layer = 1; layer <= state.ghost_width(); ++layer) {
+        for (int k = 0; k < cells.nk; ++k) {
+            for (int j = 0; j < cells.nj; ++j) {
+                store(-layer, j, k);
+                store(cells.ni - 1 + layer, j, k);
+            }
+        }
+        for (int k = 0; k < cells.nk; ++k) {
+            for (int i = 0; i < cells.ni; ++i) {
+                store(i, -layer, k);
+                store(i, cells.nj - 1 + layer, k);
+            }
+        }
+        for (int j = 0; j < cells.nj; ++j) {
+            for (int i = 0; i < cells.ni; ++i) {
+                store(i, j, -layer);
+                store(i, j, cells.nk - 1 + layer);
+            }
+        }
+    }
+    const auto profile = ProfileFactory::create(kind);
+    const auto metric = initialize_metric_field(block, profile).metric;
+    const auto operands = compute_gradient_face_operands(
+        block, metric, profile, 18);
+    const auto gradients = compute_primitive_gradients(
+        block, metric, operands, profile);
+    GasModelInput gas_input;
+    gas_input.specific_gas_constant = 1.0 / gas_input.gamma;
+    const auto gas = GasModel::from_input(gas_input);
+    const auto reference = ReferenceScales::derive(
+        {1.0, 1.0, 1.0, 1.0, 1.0, {}, {}}, gas);
+    const TransportModel transport(TransportConfig {});
+    BoundaryData wall;
+    wall.wall_temperature = 1.0;
+    const BoundaryDataMap boundary_data {{"lower", wall}, {"upper", wall}};
+    const auto flux = compute_viscous_face_fluxes(
+        block, metric, gradients, profile, transport, boundary_data, gas,
+        reference, {}, 18);
+    block.flow.residual.fill(0.0);
+    add_wcns_viscous_residual(
+        block, metric, flux, profile, reference.reynolds());
+
+    const Real chi = transport.thermal_coefficient(1.0, gas, reference);
+    const int margin = kind == AlgorithmProfileKind::PhengleiWcns ? 5 : 7;
+    struct Accumulator {
+        Real absolute = 0.0;
+        Real squared = 0.0;
+        Real maximum = 0.0;
+        int count = 0;
+        void add(Real error) {
+            WCNS_REQUIRE(std::isfinite(error));
+            absolute += std::abs(error);
+            squared += error * error;
+            maximum = std::max(maximum, std::abs(error));
+            ++count;
+        }
+    } interior, boundary, global;
+    for (int k = 0; k < cells.nk; ++k) {
+        for (int j = 0; j < cells.nj; ++j) {
+            const Real y = (static_cast<Real>(j) + 0.5) * spacing;
+            const Real exact = -chi * amplitude * wave_number * wave_number
+                * std::sin(wave_number * y) / reference.reynolds();
+            for (int i = 0; i < cells.ni; ++i) {
+                const Real error
+                    = block.flow.residual(i, j, k, total_energy) - exact;
+                global.add(error);
+                if (j >= margin && j < cells.nj - margin) interior.add(error);
+                else boundary.add(error);
+            }
+        }
+    }
+    WCNS_REQUIRE(interior.count > 0 && boundary.count > 0 && global.count > 0);
+    const auto l1 = [](const Accumulator& values) {
+        return values.absolute / static_cast<Real>(values.count);
+    };
+    const auto l2 = [](const Accumulator& values) {
+        return std::sqrt(values.squared / static_cast<Real>(values.count));
+    };
+    return {
+        l1(interior), l2(interior), interior.maximum,
+        l1(boundary), l2(boundary), boundary.maximum,
+        l1(global), l2(global), global.maximum,
+    };
 }
 
 } // namespace
@@ -320,14 +527,60 @@ void test_viscous_gradient_periodic_transform()
 void test_viscous_manufactured_convergence()
 {
     using namespace wcns;
-    const Real ph_coarse = manufactured_temperature_error(
-        AlgorithmProfileKind::PhengleiWcns, 24);
-    const Real ph_fine = manufactured_temperature_error(
-        AlgorithmProfileKind::PhengleiWcns, 48);
-    const Real scmm_coarse = manufactured_temperature_error(
-        AlgorithmProfileKind::Scmm6Wcns, 24);
-    const Real scmm_fine = manufactured_temperature_error(
-        AlgorithmProfileKind::Scmm6Wcns, 48);
-    WCNS_REQUIRE(ph_coarse / ph_fine > 12.0);
-    WCNS_REQUIRE(scmm_coarse / scmm_fine > 40.0);
+    for (const int dimension : {2, 3}) {
+        for (const auto kind : {
+                 AlgorithmProfileKind::PhengleiWcns,
+                 AlgorithmProfileKind::Scmm6Wcns}) {
+            std::vector<std::pair<int, ManufacturedErrorNorms>> results;
+            for (const int cells : {24, 48, 96}) {
+                results.push_back({cells,
+                    dimension == 2
+                        ? manufactured_temperature_error(kind, cells)
+                        : manufactured_temperature_error_3d(kind, cells)});
+            }
+            const char* name = kind == AlgorithmProfileKind::PhengleiWcns
+                ? "phenglei_wcns" : "scmm6_wcns";
+            std::cout << std::setprecision(17);
+            for (const auto& [cells, error] : results) {
+                std::cout << "stage_s_spatial dimension=" << dimension
+                      << " profile=" << name
+                      << " cells=" << cells
+                      << " interior_l1=" << error.interior_l1
+                      << " interior_l2=" << error.interior_l2
+                      << " interior_linf=" << error.interior_linf
+                      << " boundary_l1=" << error.boundary_l1
+                      << " boundary_l2=" << error.boundary_l2
+                      << " boundary_linf=" << error.boundary_linf
+                      << " global_l1=" << error.global_l1
+                      << " global_l2=" << error.global_l2
+                      << " global_linf=" << error.global_linf << '\n';
+            }
+            for (std::size_t level = 1; level < results.size(); ++level) {
+                const auto& coarse = results[level - 1].second;
+                const auto& fine = results[level].second;
+                const Real interior_order = std::log(
+                    coarse.interior_l2 / fine.interior_l2) / std::log(2.0);
+                const Real boundary_order = std::log(
+                    coarse.boundary_l2 / fine.boundary_l2) / std::log(2.0);
+                const Real global_order = std::log(
+                    coarse.global_l2 / fine.global_l2) / std::log(2.0);
+                std::cout << "stage_s_spatial_order dimension=" << dimension
+                      << " profile=" << name
+                      << " coarse=" << results[level - 1].first
+                      << " fine=" << results[level].first
+                      << " interior_l2_order=" << interior_order
+                      << " boundary_l2_order=" << boundary_order
+                      << " global_l2_order=" << global_order << '\n';
+                if (kind == AlgorithmProfileKind::PhengleiWcns) {
+                    WCNS_REQUIRE(interior_order >= 3.5);
+                    WCNS_REQUIRE(boundary_order >= 0.55);
+                    WCNS_REQUIRE(global_order >= 1.0);
+                } else {
+                    WCNS_REQUIRE(interior_order >= 5.0);
+                    WCNS_REQUIRE(boundary_order >= 3.0);
+                    WCNS_REQUIRE(global_order >= 3.0);
+                }
+            }
+        }
+    }
 }
