@@ -16,6 +16,7 @@ from pathlib import Path, PurePosixPath
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 VERSION = "1.1.0"
+CASE07_PREFIX = Path("cases/manual/case07_2d_cylinder")
 
 DIRECTORY_PREFIXES = (
     Path("include"),
@@ -25,6 +26,7 @@ DIRECTORY_PREFIXES = (
     Path("docs"),
     Path("examples"),
     Path("cases/config"),
+    CASE07_PREFIX,
     Path("third_party/cgns"),
 )
 
@@ -106,7 +108,7 @@ def tracked_payload() -> list[Path]:
         path
         for path in selected
         if path == Path(".git")
-        or Path("cases/manual") in path.parents
+        or (Path("cases/manual") in path.parents and CASE07_PREFIX not in path.parents)
         or any(part.startswith("build-") for part in path.parts)
     ]
     if forbidden:
@@ -257,7 +259,10 @@ def verify_archive(archive: Path, check_sidecar: bool = True) -> dict[str, objec
     for forbidden in regular:
         if (
             ".git" in forbidden.parts
-            or PurePosixPath("cases/manual") in forbidden.parents
+            or (
+                PurePosixPath("cases/manual") in forbidden.parents
+                and PurePosixPath(CASE07_PREFIX.as_posix()) not in forbidden.parents
+            )
             or any(part.startswith("build-") for part in forbidden.parts)
         ):
             raise RuntimeError(f"forbidden archive member: {forbidden}")
