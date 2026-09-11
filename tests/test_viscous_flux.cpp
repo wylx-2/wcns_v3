@@ -45,8 +45,7 @@ void test_transport_model()
     WCNS_REQUIRE_NEAR(constant.viscosity(0.25), 2.0, 0.0);
     WCNS_REQUIRE_NEAR(
         constant.thermal_coefficient(3.0, gas, reference),
-        2.0 / ((gas.gamma() - 1.0) * reference.mach()
-            * reference.mach() * constant_config.prandtl),
+        2.0 / ((gas.gamma() - 1.0) * reference.mach() * reference.mach() * constant_config.prandtl),
         1.0e-13);
     WCNS_REQUIRE(constant_config.restart_signature().find("transport_v1;") == 0);
 
@@ -54,24 +53,18 @@ void test_transport_model()
     sutherland_config.viscosity = SutherlandViscosity {1.25, 0.4};
     const TransportModel sutherland(sutherland_config);
     WCNS_REQUIRE_NEAR(sutherland.viscosity(1.0), 1.25, 1.0e-15);
-    WCNS_REQUIRE_NEAR(
-        sutherland.viscosity(4.0),
-        1.25 * 8.0 * 1.4 / 4.4,
-        1.0e-14);
+    WCNS_REQUIRE_NEAR(sutherland.viscosity(4.0), 1.25 * 8.0 * 1.4 / 4.4, 1.0e-14);
     const Real scaled_temperature = 2.75;
-    const Real expected_sutherland = 1.25
-        * std::pow(scaled_temperature, 1.5)
-        * 1.4 / (scaled_temperature + 0.4);
-    WCNS_REQUIRE_NEAR(
-        sutherland.viscosity(scaled_temperature),
-        expected_sutherland,
-        1.0e-14 * expected_sutherland);
-    WCNS_REQUIRE_NEAR(
-        sutherland.thermal_coefficient(scaled_temperature, gas, reference),
-        expected_sutherland
-            / ((gas.gamma() - 1.0) * reference.mach() * reference.mach()
-                * sutherland_config.prandtl),
-        1.0e-14 * expected_sutherland);
+    const Real expected_sutherland
+        = 1.25 * std::pow(scaled_temperature, 1.5) * 1.4 / (scaled_temperature + 0.4);
+    WCNS_REQUIRE_NEAR(sutherland.viscosity(scaled_temperature),
+                      expected_sutherland,
+                      1.0e-14 * expected_sutherland);
+    WCNS_REQUIRE_NEAR(sutherland.thermal_coefficient(scaled_temperature, gas, reference),
+                      expected_sutherland
+                          / ((gas.gamma() - 1.0) * reference.mach() * reference.mach()
+                             * sutherland_config.prandtl),
+                      1.0e-14 * expected_sutherland);
     WCNS_REQUIRE_THROWS(PhysicsError, sutherland.viscosity(0.0));
 
     TransportConfig invalid;
@@ -91,17 +84,12 @@ void test_viscous_stability_coefficients()
     coefficients.phenglei_3d_ssprk3 = 2.0;
     coefficients.scmm6_2d_ssprk3 = 3.0;
     coefficients.scmm6_3d_ssprk3 = 4.0;
-    WCNS_REQUIRE_NEAR(coefficients.for_ssprk3(
-        AlgorithmProfileKind::PhengleiWcns, 2), 1.0, 0.0);
-    WCNS_REQUIRE_NEAR(coefficients.for_ssprk3(
-        AlgorithmProfileKind::PhengleiWcns, 3), 2.0, 0.0);
-    WCNS_REQUIRE_NEAR(coefficients.for_ssprk3(
-        AlgorithmProfileKind::Scmm6Wcns, 2), 3.0, 0.0);
-    WCNS_REQUIRE_NEAR(coefficients.for_ssprk3(
-        AlgorithmProfileKind::Scmm6Wcns, 3), 4.0, 0.0);
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument,
-        coefficients.for_ssprk3(AlgorithmProfileKind::PhengleiWcns, 1));
+    WCNS_REQUIRE_NEAR(coefficients.for_ssprk3(AlgorithmProfileKind::PhengleiWcns, 2), 1.0, 0.0);
+    WCNS_REQUIRE_NEAR(coefficients.for_ssprk3(AlgorithmProfileKind::PhengleiWcns, 3), 2.0, 0.0);
+    WCNS_REQUIRE_NEAR(coefficients.for_ssprk3(AlgorithmProfileKind::Scmm6Wcns, 2), 3.0, 0.0);
+    WCNS_REQUIRE_NEAR(coefficients.for_ssprk3(AlgorithmProfileKind::Scmm6Wcns, 3), 4.0, 0.0);
+    WCNS_REQUIRE_THROWS(std::invalid_argument,
+                        coefficients.for_ssprk3(AlgorithmProfileKind::PhengleiWcns, 1));
     coefficients.scmm6_3d_ssprk3 = 0.0;
     WCNS_REQUIRE_THROWS(std::invalid_argument, coefficients.validate());
 }
@@ -124,8 +112,8 @@ void test_viscous_cartesian_flux()
     trace.gradients[static_cast<int>(ViscousPrimitive::VelocityZ)] = {{0.0, 0.0, 0.0}};
     trace.gradients[static_cast<int>(ViscousPrimitive::Temperature)] = {{5.0, 6.0, 0.0}};
 
-    const auto flux = compute_viscous_cartesian_flux(
-        trace, transport, gas, reference, NumericalFloors {}, 2);
+    const auto flux
+        = compute_viscous_cartesian_flux(trace, transport, gas, reference, NumericalFloors {}, 2);
     const Real isotropic = (2.0 / 3.0) * 2.0 * 5.0;
     const Real tau_xx = 4.0 - isotropic;
     const Real tau_yy = 16.0 - isotropic;
@@ -135,19 +123,17 @@ void test_viscous_cartesian_flux()
     WCNS_REQUIRE_NEAR(flux.x[momentum_y], tau_xy, 1.0e-14);
     WCNS_REQUIRE_NEAR(flux.y[momentum_x], tau_xy, 1.0e-14);
     WCNS_REQUIRE_NEAR(flux.y[momentum_y], tau_yy, 1.0e-14);
-    WCNS_REQUIRE_NEAR(
-        flux.x[total_energy], tau_xx + 2.0 * tau_xy + 5.0 * chi, 1.0e-12);
-    WCNS_REQUIRE_NEAR(
-        flux.y[total_energy], tau_xy + 2.0 * tau_yy + 6.0 * chi, 1.0e-12);
+    WCNS_REQUIRE_NEAR(flux.x[total_energy], tau_xx + 2.0 * tau_xy + 5.0 * chi, 1.0e-12);
+    WCNS_REQUIRE_NEAR(flux.y[total_energy], tau_xy + 2.0 * tau_yy + 6.0 * chi, 1.0e-12);
     WCNS_REQUIRE(flux.x[density] == 0.0);
     WCNS_REQUIRE(flux.y[momentum_z] == 0.0);
-    for (const Real value : flux.z) WCNS_REQUIRE(value == 0.0);
+    for (const Real value : flux.z)
+        WCNS_REQUIRE(value == 0.0);
 
     trace.gradients[0][2] = 1.0;
     WCNS_REQUIRE_THROWS(
         PhysicsError,
-        compute_viscous_cartesian_flux(
-            trace, transport, gas, reference, NumericalFloors {}, 2));
+        compute_viscous_cartesian_flux(trace, transport, gas, reference, NumericalFloors {}, 2));
 
     ViscousFaceTrace trace_3d;
     trace_3d.state = {{1.0, 1.0, 2.0, 3.0, 2.0}};
@@ -160,16 +146,14 @@ void test_viscous_cartesian_flux()
     WCNS_REQUIRE_NEAR(flux_3d.z[momentum_x], 20.0, 1.0e-14);
     WCNS_REQUIRE_NEAR(flux_3d.z[momentum_y], 28.0, 1.0e-14);
     WCNS_REQUIRE_NEAR(flux_3d.z[momentum_z], 16.0, 1.0e-14);
-    WCNS_REQUIRE_NEAR(
-        flux_3d.z[total_energy], 124.0 + 0.3 * chi, 1.0e-12);
+    WCNS_REQUIRE_NEAR(flux_3d.z[total_energy], 124.0 + 0.3 * chi, 1.0e-12);
 }
 
 // 验收粘性通量散度只在残差装配时乘一次 1/Re，并保持零质量粘性残差。
 void test_viscous_residual_reynolds_scaling()
 {
     using namespace wcns;
-    for (const auto kind : {AlgorithmProfileKind::PhengleiWcns,
-             AlgorithmProfileKind::Scmm6Wcns}) {
+    for (const auto kind : {AlgorithmProfileKind::PhengleiWcns, AlgorithmProfileKind::Scmm6Wcns}) {
         StructuredBlock block(0, "viscous-residual", 0, 2, 2, {9, 9, 1}, 3);
         const auto vertices = block.vertex_extent();
         for (int j = 0; j < vertices.nj; ++j) {
@@ -181,8 +165,7 @@ void test_viscous_residual_reynolds_scaling()
         }
         const auto profile = ProfileFactory::create(kind);
         const auto metric = initialize_metric_field(block, profile).metric;
-        ViscousFaceFluxField flux(
-            block.cell_extent(), 2, kind, 1);
+        ViscousFaceFluxField flux(block.cell_extent(), 2, kind, 1);
         for (const auto axis : {Axis::I, Axis::J}) {
             auto& values = flux.field(axis);
             values.fill(0.0);
@@ -199,15 +182,13 @@ void test_viscous_residual_reynolds_scaling()
         const auto cells = block.cell_extent();
         for (int j = 0; j < cells.nj; ++j) {
             for (int i = 0; i < cells.ni; ++i) {
-                WCNS_REQUIRE_NEAR(
-                    block.flow.residual(i, j, 0, momentum_x), 0.1, 2.0e-14);
+                WCNS_REQUIRE_NEAR(block.flow.residual(i, j, 0, momentum_x), 0.1, 2.0e-14);
                 WCNS_REQUIRE(block.flow.residual(i, j, 0, density) == 0.0);
             }
         }
         block.flow.residual.fill(0.0);
         add_wcns_viscous_residual(block, metric, flux, profile, 20.0);
-        WCNS_REQUIRE_NEAR(
-            block.flow.residual(3, 3, 0, momentum_x), 0.05, 2.0e-14);
+        WCNS_REQUIRE_NEAR(block.flow.residual(3, 3, 0, momentum_x), 0.05, 2.0e-14);
     }
 }
 
@@ -220,11 +201,9 @@ void test_viscous_flux_periodic_transform()
     descriptor.receiver_block = 0;
     descriptor.donor_block = 1;
     descriptor.orientation = -1.0;
-    descriptor.periodic.rotation = {{{{0.0, -1.0, 0.0}},
-        {{1.0, 0.0, 0.0}}, {{0.0, 0.0, 1.0}}}};
+    descriptor.periodic.rotation = {{{{0.0, -1.0, 0.0}}, {{1.0, 0.0, 0.0}}, {{0.0, 0.0, 1.0}}}};
     const ConservativeState donor {{0.0, 2.0, 3.0, 4.0, 5.0}};
-    const auto receiver = transform_viscous_face_flux_for_receiver(
-        donor, descriptor);
+    const auto receiver = transform_viscous_face_flux_for_receiver(donor, descriptor);
     WCNS_REQUIRE(receiver[density] == 0.0);
     WCNS_REQUIRE(receiver[momentum_x] == -3.0);
     WCNS_REQUIRE(receiver[momentum_y] == 2.0);

@@ -18,22 +18,17 @@ struct SpatialParameters {
 
 // Computes dU/dt in block.flow.residual. Primitive ghost cells must already
 // have been populated by physical BC and connectivity exchange operations.
-void compute_euler_residual(
-    StructuredBlock& block,
-    const IdealGas& gas = {},
-    const WcnsParameters& parameters = {});
+void compute_euler_residual(StructuredBlock& block,
+                            const IdealGas& gas = {},
+                            const WcnsParameters& parameters = {});
 
 // Compatibility entry point for runtime configuration. In stage H the source
 // configuration is validated, while the disabled path delegates directly to
 // the unchanged Euler residual implementation.
-void compute_euler_residual(
-    StructuredBlock& block,
-    const SpatialParameters& parameters);
+void compute_euler_residual(StructuredBlock& block, const SpatialParameters& parameters);
 
-[[nodiscard]] Real stable_time_step(
-    const StructuredBlock& block,
-    Real cfl,
-    const IdealGas& gas = {});
+[[nodiscard]] Real
+stable_time_step(const StructuredBlock& block, Real cfl, const IdealGas& gas = {});
 
 [[nodiscard]] Real residual_l2(const StructuredBlock& block);
 

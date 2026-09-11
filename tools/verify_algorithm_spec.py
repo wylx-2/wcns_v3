@@ -68,8 +68,7 @@ def solve_full_column_rank(matrix: Sequence[Sequence[F]], rhs: Sequence[F]) -> l
 
     for row in range(pivot_row, rows):
         require(
-            any(augmented[row][column] != 0 for column in range(cols))
-            or augmented[row][-1] == 0,
+            any(augmented[row][column] != 0 for column in range(cols)) or augmented[row][-1] == 0,
             "inconsistent exact linear system",
         )
     require(len(pivot_columns) == cols, "linear system does not have a unique solution")
@@ -94,7 +93,9 @@ def check_interpolation_and_derivatives() -> None:
         exact_moments(name, centers_5, [F(value, 128) for value in numerators], target, 4)
 
     vertices_6 = [F(index) for index in range(6)]
-    exact_moments("I6 vertex-to-center interior", [F(index) for index in range(-2, 4)], i6, F(1, 2), 5)
+    exact_moments(
+        "I6 vertex-to-center interior", [F(index) for index in range(-2, 4)], i6, F(1, 2), 5
+    )
     exact_moments(
         "I6 vertex-to-center first",
         vertices_6,
@@ -113,14 +114,32 @@ def check_interpolation_and_derivatives() -> None:
     i4_nodes = [F(-3, 2), F(-1, 2), F(1, 2), F(3, 2)]
     exact_moments("I4 PH interior", i4_nodes, [F(-1, 16), F(9, 16), F(9, 16), F(-1, 16)], F(0), 3)
     centers_4 = [F(1, 2), F(3, 2), F(5, 2), F(7, 2)]
-    exact_moments("I4 PH boundary", centers_4, [F(35, 16), F(-35, 16), F(21, 16), F(-5, 16)], F(0), 3)
-    exact_moments("I4 PH first internal", centers_4, [F(5, 16), F(15, 16), F(-5, 16), F(1, 16)], F(1), 3)
+    exact_moments(
+        "I4 PH boundary", centers_4, [F(35, 16), F(-35, 16), F(21, 16), F(-5, 16)], F(0), 3
+    )
+    exact_moments(
+        "I4 PH first internal", centers_4, [F(5, 16), F(15, 16), F(-5, 16), F(1, 16)], F(1), 3
+    )
 
     d6 = [F(-9, 1920), F(125, 1920), F(-2250, 1920), F(2250, 1920), F(-125, 1920), F(9, 1920)]
     exact_moments("D6 interior", half_nodes_6, d6, F(0), 6, derivative=1)
     face_nodes_5 = [F(index) for index in range(5)]
-    exact_moments("D6 low first", face_nodes_5, [F(value, 24) for value in [-22, 17, 9, -5, 1]], F(1, 2), 4, derivative=1)
-    exact_moments("D6 low second", face_nodes_5[:4], [F(value, 24) for value in [1, -27, 27, -1]], F(3, 2), 4, derivative=1)
+    exact_moments(
+        "D6 low first",
+        face_nodes_5,
+        [F(value, 24) for value in [-22, 17, 9, -5, 1]],
+        F(1, 2),
+        4,
+        derivative=1,
+    )
+    exact_moments(
+        "D6 low second",
+        face_nodes_5[:4],
+        [F(value, 24) for value in [1, -27, 27, -1]],
+        F(3, 2),
+        4,
+        derivative=1,
+    )
 
     d4 = [F(1, 24), F(-9, 8), F(9, 8), F(-1, 24)]
     exact_moments("D4 PH interior", i4_nodes, d4, F(0), 4, derivative=1)
@@ -137,8 +156,13 @@ def wall_derivative_weights(interior_count: int) -> list[F]:
 def check_wall_derivatives() -> None:
     expected_ph = [F(-352, 105), F(35, 8), F(-35, 24), F(21, 40), F(-5, 56)]
     expected_scmm = [
-        F(-13016, 3465), F(693, 128), F(-385, 128), F(693, 320),
-        F(-495, 448), F(385, 1152), F(-63, 1408),
+        F(-13016, 3465),
+        F(693, 128),
+        F(-385, 128),
+        F(693, 320),
+        F(-495, 448),
+        F(385, 1152),
+        F(-63, 1408),
     ]
     for name, count, expected in (
         ("PH wall derivative", 4, expected_ph),
@@ -192,10 +216,16 @@ def check_conservation_weights() -> None:
             ]
             boundary = [F(-1)] + [F(0)] * (cell_count - 1) + [F(1)]
             weights = solve_full_column_rank(transpose, boundary)
-            require(all(weight > 0 for weight in weights), f"{name} N={cell_count}: non-positive integration weight")
+            require(
+                all(weight > 0 for weight in weights),
+                f"{name} N={cell_count}: non-positive integration weight",
+            )
             for face in range(cell_count + 1):
                 actual = sum(derivative[cell][face] * weights[cell] for cell in range(cell_count))
-                require(actual == boundary[face], f"{name} N={cell_count}: D^T w mismatch at face {face}")
+                require(
+                    actual == boundary[face],
+                    f"{name} N={cell_count}: D^T w mismatch at face {face}",
+                )
 
 
 Vector = tuple[F, F, F]
@@ -244,11 +274,17 @@ def check_nondimensionalization() -> None:
     temperature = F(7, 6)
     pressure_dimensional = (rho * density_ref) * gas_constant * (temperature * temperature_ref)
     pressure = pressure_dimensional / (density_ref * velocity_ref**2)
-    require(pressure == rho * temperature / (gamma * mach_squared), "dimensionless ideal-gas pressure mismatch")
+    require(
+        pressure == rho * temperature / (gamma * mach_squared),
+        "dimensionless ideal-gas pressure mismatch",
+    )
 
     internal_energy_dimensional = gas_constant * (temperature * temperature_ref) / (gamma - 1)
     internal_energy = internal_energy_dimensional / velocity_ref**2
-    require(internal_energy == temperature / (gamma * (gamma - 1) * mach_squared), "dimensionless internal energy mismatch")
+    require(
+        internal_energy == temperature / (gamma * (gamma - 1) * mach_squared),
+        "dimensionless internal energy mismatch",
+    )
 
     mu_at_reference_temperature = F(11, 10) * viscosity_ref
     sutherland_ratio_at_one = mu_at_reference_temperature / viscosity_ref
@@ -257,8 +293,7 @@ def check_nondimensionalization() -> None:
     velocity = (F(2, 5), F(-1, 4), F(1, 10))
     acceleration_dimensional = (F(3), F(-2), F(1, 2))
     acceleration = tuple(
-        length_ref * component / velocity_ref**2
-        for component in acceleration_dimensional
+        length_ref * component / velocity_ref**2 for component in acceleration_dimensional
     )
     density_dimensional = rho * density_ref
     momentum_source_dimensional = tuple(
@@ -279,8 +314,7 @@ def check_nondimensionalization() -> None:
     )
     energy_source = length_ref * energy_source_dimensional / (density_ref * velocity_ref**3)
     require(
-        energy_source
-        == rho * sum((u * a for u, a in zip(velocity, acceleration)), F(0)),
+        energy_source == rho * sum((u * a for u, a in zip(velocity, acceleration)), F(0)),
         "dimensionless body-force energy source mismatch",
     )
 

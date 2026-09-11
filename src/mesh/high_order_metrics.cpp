@@ -13,8 +13,7 @@
 namespace wcns {
 
 struct MetricFieldBuilderAccess {
-    static MetricField create(
-        AlgorithmProfileKind profile, Extent3 cell_extent, int dimension)
+    static MetricField create(AlgorithmProfileKind profile, Extent3 cell_extent, int dimension)
     {
         return MetricField(profile, cell_extent, dimension);
     }
@@ -24,10 +23,7 @@ struct MetricFieldBuilderAccess {
         return metric.cell_coordinates_;
     }
 
-    static Array3D<Real>& jacobian(MetricField& metric)
-    {
-        return metric.jacobian_;
-    }
+    static Array3D<Real>& jacobian(MetricField& metric) { return metric.jacobian_; }
 
     static FaceAreaVectors& i_faces(MetricField& metric) { return metric.i_faces_; }
     static FaceAreaVectors& j_faces(MetricField& metric) { return metric.j_faces_; }
@@ -43,8 +39,7 @@ struct VectorFields {
         : x(extent)
         , y(extent)
         , z(extent)
-    {
-    }
+    { }
 
     ScalarField x;
     ScalarField y;
@@ -79,32 +74,27 @@ ScalarField multiply(const ScalarField& lhs, const ScalarField& rhs)
     return result;
 }
 
-ScalarField combine(
-    const ScalarField& a,
-    const ScalarField& b,
-    const ScalarField& c,
-    const ScalarField& d,
-    Real scale)
+ScalarField combine(const ScalarField& a,
+                    const ScalarField& b,
+                    const ScalarField& c,
+                    const ScalarField& d,
+                    Real scale)
 {
     const auto extent = a.interior_extent();
     ScalarField result(extent);
     for (int k = 0; k < extent.nk; ++k) {
         for (int j = 0; j < extent.nj; ++j) {
             for (int i = 0; i < extent.ni; ++i) {
-                result(i, j, k)
-                    = scale * (a(i, j, k) + b(i, j, k) - c(i, j, k) - d(i, j, k));
+                result(i, j, k) = scale * (a(i, j, k) + b(i, j, k) - c(i, j, k) - d(i, j, k));
             }
         }
     }
     return result;
 }
 
-template<class LineOperation>
-ScalarField apply_lines(
-    const ScalarField& input,
-    int axis,
-    Extent3 output_extent,
-    LineOperation operation)
+template <class LineOperation>
+ScalarField
+apply_lines(const ScalarField& input, int axis, Extent3 output_extent, LineOperation operation)
 {
     const auto input_extent = input.interior_extent();
     ScalarField output(output_extent);
@@ -120,12 +110,10 @@ ScalarField apply_lines(
                 for (int coordinate = 0; coordinate < line_count; ++coordinate) {
                     Index3 index {i0, j0, k0};
                     index[static_cast<std::size_t>(axis)] = coordinate;
-                    line[static_cast<std::size_t>(coordinate)]
-                        = input(index.i, index.j, index.k);
+                    line[static_cast<std::size_t>(coordinate)] = input(index.i, index.j, index.k);
                 }
                 const auto transformed = operation(line);
-                const int output_count
-                    = output_extent[static_cast<std::size_t>(axis)];
+                const int output_count = output_extent[static_cast<std::size_t>(axis)];
                 if (static_cast<int>(transformed.size()) != output_count) {
                     throw GeometryError("line operator returned an unexpected extent");
                 }
@@ -143,73 +131,53 @@ ScalarField apply_lines(
 
 ScalarField refined_derivative(const ScalarField& field, int axis)
 {
-    return apply_lines(
-        field,
-        axis,
-        field.interior_extent(),
-        [](const std::vector<Real>& line) { return grid_delta(line); });
+    return apply_lines(field, axis, field.interior_extent(), [](const std::vector<Real>& line) {
+        return grid_delta(line);
+    });
 }
 
-ScalarField scmm_center_derivative(
-    const ScalarField& field,
-    int axis,
-    const AlgorithmProfile& profile)
+ScalarField
+scmm_center_derivative(const ScalarField& field, int axis, const AlgorithmProfile& profile)
 {
     const int count = field.interior_extent()[static_cast<std::size_t>(axis)];
     const auto operators = LineOperators::build(profile, count);
     return apply_lines(
-        field,
-        axis,
-        field.interior_extent(),
-        [&operators](const std::vector<Real>& line) {
+        field, axis, field.interior_extent(), [&operators](const std::vector<Real>& line) {
             return operators.delta(line);
         });
 }
 
-ScalarField scmm_center_to_faces(
-    const ScalarField& field,
-    int axis,
-    const AlgorithmProfile& profile)
+ScalarField
+scmm_center_to_faces(const ScalarField& field, int axis, const AlgorithmProfile& profile)
 {
     const int count = field.interior_extent()[static_cast<std::size_t>(axis)];
     const auto operators = LineOperators::build(profile, count);
     auto output_extent = field.interior_extent();
     ++output_extent[static_cast<std::size_t>(axis)];
-    return apply_lines(
-        field,
-        axis,
-        output_extent,
-        [&operators](const std::vector<Real>& line) {
-            return operators.interpolate(line);
-        });
+    return apply_lines(field, axis, output_extent, [&operators](const std::vector<Real>& line) {
+        return operators.interpolate(line);
+    });
 }
 
 ScalarField vertices_to_centers_axis(const ScalarField& field, int axis)
 {
     auto output_extent = field.interior_extent();
     --output_extent[static_cast<std::size_t>(axis)];
-    return apply_lines(
-        field,
-        axis,
-        output_extent,
-        [](const std::vector<Real>& line) {
-            return interpolate_vertices_to_centers_i6(line);
-        });
+    return apply_lines(field, axis, output_extent, [](const std::vector<Real>& line) {
+        return interpolate_vertices_to_centers_i6(line);
+    });
 }
 
-ScalarField product_derivative(
-    const ScalarField& first,
-    const ScalarField& second_derivative,
-    int outer_axis)
+ScalarField
+product_derivative(const ScalarField& first, const ScalarField& second_derivative, int outer_axis)
 {
     return refined_derivative(multiply(first, second_derivative), outer_axis);
 }
 
-ScalarField symmetric_component(
-    const ScalarField& first,
-    const ScalarField& second,
-    int first_tangent,
-    int second_tangent)
+ScalarField symmetric_component(const ScalarField& first,
+                                const ScalarField& second,
+                                int first_tangent,
+                                int second_tangent)
 {
     const auto d_first_first = refined_derivative(first, first_tangent);
     const auto d_first_second = refined_derivative(first, second_tangent);
@@ -222,45 +190,32 @@ ScalarField symmetric_component(
     return combine(a, b, c, d, 0.5);
 }
 
-ScalarField scmm_product_derivative(
-    const ScalarField& first,
-    const ScalarField& second_derivative,
-    int outer_axis,
-    const AlgorithmProfile& profile)
+ScalarField scmm_product_derivative(const ScalarField& first,
+                                    const ScalarField& second_derivative,
+                                    int outer_axis,
+                                    const AlgorithmProfile& profile)
 {
-    return scmm_center_derivative(
-        multiply(first, second_derivative), outer_axis, profile);
+    return scmm_center_derivative(multiply(first, second_derivative), outer_axis, profile);
 }
 
-ScalarField scmm_symmetric_component(
-    const ScalarField& first,
-    const ScalarField& second,
-    int first_tangent,
-    int second_tangent,
-    const AlgorithmProfile& profile)
+ScalarField scmm_symmetric_component(const ScalarField& first,
+                                     const ScalarField& second,
+                                     int first_tangent,
+                                     int second_tangent,
+                                     const AlgorithmProfile& profile)
 {
-    const auto d_first_first
-        = scmm_center_derivative(first, first_tangent, profile);
-    const auto d_first_second
-        = scmm_center_derivative(first, second_tangent, profile);
-    const auto d_second_first
-        = scmm_center_derivative(second, first_tangent, profile);
-    const auto d_second_second
-        = scmm_center_derivative(second, second_tangent, profile);
-    const auto a = scmm_product_derivative(
-        first, d_second_first, second_tangent, profile);
-    const auto b = scmm_product_derivative(
-        second, d_first_second, first_tangent, profile);
-    const auto c = scmm_product_derivative(
-        first, d_second_second, first_tangent, profile);
-    const auto d = scmm_product_derivative(
-        second, d_first_first, second_tangent, profile);
+    const auto d_first_first = scmm_center_derivative(first, first_tangent, profile);
+    const auto d_first_second = scmm_center_derivative(first, second_tangent, profile);
+    const auto d_second_first = scmm_center_derivative(second, first_tangent, profile);
+    const auto d_second_second = scmm_center_derivative(second, second_tangent, profile);
+    const auto a = scmm_product_derivative(first, d_second_first, second_tangent, profile);
+    const auto b = scmm_product_derivative(second, d_first_second, first_tangent, profile);
+    const auto c = scmm_product_derivative(first, d_second_second, first_tangent, profile);
+    const auto d = scmm_product_derivative(second, d_first_first, second_tangent, profile);
     return combine(a, b, c, d, 0.5);
 }
 
-ScalarField dot_product(
-    const VectorFields& coordinates,
-    const VectorFields& vectors)
+ScalarField dot_product(const VectorFields& coordinates, const VectorFields& vectors)
 {
     const auto extent = coordinates.x.interior_extent();
     ScalarField result(extent);
@@ -293,8 +248,7 @@ VectorFields refined_coordinates(const StructuredBlock& block)
                 const int k0 = rk / 2;
                 const int i_count = ri % 2 == 0 ? 1 : 2;
                 const int j_count = rj % 2 == 0 ? 1 : 2;
-                const int k_count
-                    = block.cell_dimension() == 2 || rk % 2 == 0 ? 1 : 2;
+                const int k_count = block.cell_dimension() == 2 || rk % 2 == 0 ? 1 : 2;
                 Real x = 0.0;
                 Real y = 0.0;
                 Real z = 0.0;
@@ -317,13 +271,12 @@ VectorFields refined_coordinates(const StructuredBlock& block)
     return result;
 }
 
-void compute_refined_symmetric_metrics(
-    const VectorFields& coordinates,
-    int dimension,
-    VectorFields& s_i,
-    VectorFields& s_j,
-    VectorFields& s_k,
-    ScalarField& jacobian)
+void compute_refined_symmetric_metrics(const VectorFields& coordinates,
+                                       int dimension,
+                                       VectorFields& s_i,
+                                       VectorFields& s_j,
+                                       VectorFields& s_k,
+                                       ScalarField& jacobian)
 {
     if (dimension == 2) {
         s_i.x = refined_derivative(coordinates.y, 1);
@@ -366,27 +319,25 @@ void compute_refined_symmetric_metrics(
     for (int k = 0; k < extent.nk; ++k) {
         for (int j = 0; j < extent.nj; ++j) {
             for (int i = 0; i < extent.ni; ++i) {
-                jacobian(i, j, k)
-                    = (di(i, j, k) + dj(i, j, k) + dk(i, j, k)) / 3.0;
+                jacobian(i, j, k) = (di(i, j, k) + dj(i, j, k) + dk(i, j, k)) / 3.0;
             }
         }
     }
 }
 
-void copy_refined_to_metric(
-    const VectorFields& coordinates,
-    const VectorFields& s_i,
-    const VectorFields& s_j,
-    const VectorFields& s_k,
-    const ScalarField& jacobian,
-    MetricField& metric)
+void copy_refined_to_metric(const VectorFields& coordinates,
+                            const VectorFields& s_i,
+                            const VectorFields& s_j,
+                            const VectorFields& s_k,
+                            const ScalarField& jacobian,
+                            MetricField& metric)
 {
     const auto cells = metric.jacobian().interior_extent();
     for (int k = 0; k < cells.nk; ++k) {
         for (int j = 0; j < cells.nj; ++j) {
             for (int i = 0; i < cells.ni; ++i) {
-                const Index3 refined {2 * i + 1, 2 * j + 1,
-                    metric.dimension() == 3 ? 2 * k + 1 : 0};
+                const Index3 refined {
+                    2 * i + 1, 2 * j + 1, metric.dimension() == 3 ? 2 * k + 1 : 0};
                 MetricFieldBuilderAccess::cell_coordinates(metric).x(i, j, k)
                     = coordinates.x(refined.i, refined.j, refined.k);
                 MetricFieldBuilderAccess::cell_coordinates(metric).y(i, j, k)
@@ -398,14 +349,14 @@ void copy_refined_to_metric(
             }
         }
     }
-    const auto copy_faces = [&](const VectorFields& source, FaceAreaVectors& target,
+    const auto copy_faces = [&](const VectorFields& source,
+                                FaceAreaVectors& target,
                                 int normal_axis) {
         const auto extent = target.x.interior_extent();
         for (int k = 0; k < extent.nk; ++k) {
             for (int j = 0; j < extent.nj; ++j) {
                 for (int i = 0; i < extent.ni; ++i) {
-                    Index3 refined {2 * i + 1, 2 * j + 1,
-                        metric.dimension() == 3 ? 2 * k + 1 : 0};
+                    Index3 refined {2 * i + 1, 2 * j + 1, metric.dimension() == 3 ? 2 * k + 1 : 0};
                     refined[static_cast<std::size_t>(normal_axis)]
                         = 2 * Index3 {i, j, k}[static_cast<std::size_t>(normal_axis)];
                     target.x(i, j, k) = source.x(refined.i, refined.j, refined.k);
@@ -422,14 +373,13 @@ void copy_refined_to_metric(
     }
 }
 
-MetricField build_phenglei_metric(
-    const StructuredBlock& block,
-    const AlgorithmProfile& profile)
+MetricField build_phenglei_metric(const StructuredBlock& block, const AlgorithmProfile& profile)
 {
     const auto vertices = block.vertex_extent();
     for (int axis = 0; axis < block.cell_dimension(); ++axis) {
         if (vertices[static_cast<std::size_t>(axis)] < 3) {
-            throw GeometryError("phenglei_wcns metrics require at least three vertices per active direction");
+            throw GeometryError(
+                "phenglei_wcns metrics require at least three vertices per active direction");
         }
     }
     auto coordinates = refined_coordinates(block);
@@ -438,8 +388,7 @@ MetricField build_phenglei_metric(
     VectorFields s_j(refined_extent);
     VectorFields s_k(refined_extent);
     ScalarField jacobian(refined_extent);
-    compute_refined_symmetric_metrics(
-        coordinates, block.cell_dimension(), s_i, s_j, s_k, jacobian);
+    compute_refined_symmetric_metrics(coordinates, block.cell_dimension(), s_i, s_j, s_k, jacobian);
     auto metric = MetricFieldBuilderAccess::create(
         profile.kind(), block.cell_extent(), block.cell_dimension());
     copy_refined_to_metric(coordinates, s_i, s_j, s_k, jacobian, metric);
@@ -478,14 +427,13 @@ VectorFields scmm_cell_coordinates(const StructuredBlock& block)
     return centers;
 }
 
-void compute_scmm_symmetric_metrics(
-    const VectorFields& coordinates,
-    int dimension,
-    const AlgorithmProfile& profile,
-    VectorFields& s_i,
-    VectorFields& s_j,
-    VectorFields& s_k,
-    ScalarField& jacobian)
+void compute_scmm_symmetric_metrics(const VectorFields& coordinates,
+                                    int dimension,
+                                    const AlgorithmProfile& profile,
+                                    VectorFields& s_i,
+                                    VectorFields& s_j,
+                                    VectorFields& s_k,
+                                    ScalarField& jacobian)
 {
     const auto extent = coordinates.x.interior_extent();
     if (dimension == 2) {
@@ -502,10 +450,8 @@ void compute_scmm_symmetric_metrics(
                 s_j.x(i, j, 0) = -dy_xi(i, j, 0);
             }
         }
-        const auto di = scmm_center_derivative(
-            dot_product(coordinates, s_i), 0, profile);
-        const auto dj = scmm_center_derivative(
-            dot_product(coordinates, s_j), 1, profile);
+        const auto di = scmm_center_derivative(dot_product(coordinates, s_i), 0, profile);
+        const auto dj = scmm_center_derivative(dot_product(coordinates, s_j), 1, profile);
         for (int j = 0; j < extent.nj; ++j) {
             for (int i = 0; i < extent.ni; ++i) {
                 jacobian(i, j, 0) = 0.5 * (di(i, j, 0) + dj(i, j, 0));
@@ -523,30 +469,25 @@ void compute_scmm_symmetric_metrics(
     s_k.x = scmm_symmetric_component(coordinates.z, coordinates.y, 0, 1, profile);
     s_k.y = scmm_symmetric_component(coordinates.x, coordinates.z, 0, 1, profile);
     s_k.z = scmm_symmetric_component(coordinates.y, coordinates.x, 0, 1, profile);
-    const auto di = scmm_center_derivative(
-        dot_product(coordinates, s_i), 0, profile);
-    const auto dj = scmm_center_derivative(
-        dot_product(coordinates, s_j), 1, profile);
-    const auto dk = scmm_center_derivative(
-        dot_product(coordinates, s_k), 2, profile);
+    const auto di = scmm_center_derivative(dot_product(coordinates, s_i), 0, profile);
+    const auto dj = scmm_center_derivative(dot_product(coordinates, s_j), 1, profile);
+    const auto dk = scmm_center_derivative(dot_product(coordinates, s_k), 2, profile);
     for (int k = 0; k < extent.nk; ++k) {
         for (int j = 0; j < extent.nj; ++j) {
             for (int i = 0; i < extent.ni; ++i) {
-                jacobian(i, j, k)
-                    = (di(i, j, k) + dj(i, j, k) + dk(i, j, k)) / 3.0;
+                jacobian(i, j, k) = (di(i, j, k) + dj(i, j, k) + dk(i, j, k)) / 3.0;
             }
         }
     }
 }
 
-void copy_scmm_to_metric(
-    const VectorFields& coordinates,
-    const VectorFields& s_i,
-    const VectorFields& s_j,
-    const VectorFields& s_k,
-    const ScalarField& jacobian,
-    const AlgorithmProfile& profile,
-    MetricField& metric)
+void copy_scmm_to_metric(const VectorFields& coordinates,
+                         const VectorFields& s_i,
+                         const VectorFields& s_j,
+                         const VectorFields& s_k,
+                         const ScalarField& jacobian,
+                         const AlgorithmProfile& profile,
+                         MetricField& metric)
 {
     auto& target_coordinates = MetricFieldBuilderAccess::cell_coordinates(metric);
     auto& target_jacobian = MetricFieldBuilderAccess::jacobian(metric);
@@ -561,13 +502,12 @@ void copy_scmm_to_metric(
             }
         }
     }
-    const auto interpolate_vector = [&](const VectorFields& source,
-                                        FaceAreaVectors& target,
-                                        int axis) {
-        target.x = scmm_center_to_faces(source.x, axis, profile);
-        target.y = scmm_center_to_faces(source.y, axis, profile);
-        target.z = scmm_center_to_faces(source.z, axis, profile);
-    };
+    const auto interpolate_vector
+        = [&](const VectorFields& source, FaceAreaVectors& target, int axis) {
+              target.x = scmm_center_to_faces(source.x, axis, profile);
+              target.y = scmm_center_to_faces(source.y, axis, profile);
+              target.z = scmm_center_to_faces(source.z, axis, profile);
+          };
     interpolate_vector(s_i, MetricFieldBuilderAccess::i_faces(metric), 0);
     interpolate_vector(s_j, MetricFieldBuilderAccess::j_faces(metric), 1);
     if (metric.dimension() == 3) {
@@ -575,14 +515,13 @@ void copy_scmm_to_metric(
     }
 }
 
-MetricField build_scmm_metric(
-    const StructuredBlock& block,
-    const AlgorithmProfile& profile)
+MetricField build_scmm_metric(const StructuredBlock& block, const AlgorithmProfile& profile)
 {
     const auto vertices = block.vertex_extent();
     for (int axis = 0; axis < block.cell_dimension(); ++axis) {
         if (vertices[static_cast<std::size_t>(axis)] < 6) {
-            throw GeometryError("scmm6_wcns metrics require at least six vertices per active direction");
+            throw GeometryError(
+                "scmm6_wcns metrics require at least six vertices per active direction");
         }
     }
     auto coordinates = scmm_cell_coordinates(block);
@@ -593,10 +532,8 @@ MetricField build_scmm_metric(
     ScalarField jacobian(cells);
     compute_scmm_symmetric_metrics(
         coordinates, block.cell_dimension(), profile, s_i, s_j, s_k, jacobian);
-    auto metric = MetricFieldBuilderAccess::create(
-        profile.kind(), cells, block.cell_dimension());
-    copy_scmm_to_metric(
-        coordinates, s_i, s_j, s_k, jacobian, profile, metric);
+    auto metric = MetricFieldBuilderAccess::create(profile.kind(), cells, block.cell_dimension());
+    copy_scmm_to_metric(coordinates, s_i, s_j, s_k, jacobian, profile, metric);
     return metric;
 }
 
@@ -607,8 +544,7 @@ GeometryDiagnostics capture_reference_geometry(const StructuredBlock& block)
     for (int k = 0; k < cells.nk; ++k) {
         for (int j = 0; j < cells.nj; ++j) {
             for (int i = 0; i < cells.ni; ++i) {
-                diagnostics.reference_volume(i, j, k)
-                    = block.cell_metrics.volume(i, j, k);
+                diagnostics.reference_volume(i, j, k) = block.cell_metrics.volume(i, j, k);
             }
         }
     }
@@ -630,10 +566,9 @@ GeometryDiagnostics capture_reference_geometry(const StructuredBlock& block)
     return diagnostics;
 }
 
-void validate_metric(
-    MetricField& metric,
-    GeometryDiagnostics& diagnostics,
-    const MetricBuildOptions& options)
+void validate_metric(MetricField& metric,
+                     GeometryDiagnostics& diagnostics,
+                     const MetricBuildOptions& options)
 {
     const auto cells = metric.jacobian().interior_extent();
     for (int k = 0; k < cells.nk; ++k) {
@@ -641,13 +576,13 @@ void validate_metric(
             for (int i = 0; i < cells.ni; ++i) {
                 const Real reference = diagnostics.reference_volume(i, j, k);
                 Real& value = MetricFieldBuilderAccess::jacobian(metric)(i, j, k);
-                const bool finite_positive = std::isfinite(value)
-                    && value > options.floors.jacobian_floor(reference);
+                const bool finite_positive
+                    = std::isfinite(value) && value > options.floors.jacobian_floor(reference);
                 const Real difference = finite_positive
                     ? finite_relative_difference(value, reference)
                     : std::numeric_limits<Real>::infinity();
-                diagnostics.maximum_jacobian_relative_difference = std::max(
-                    diagnostics.maximum_jacobian_relative_difference, difference);
+                diagnostics.maximum_jacobian_relative_difference
+                    = std::max(diagnostics.maximum_jacobian_relative_difference, difference);
                 if (!finite_positive
                     || difference > options.maximum_reference_relative_difference) {
                     if (metric.profile() == AlgorithmProfileKind::PhengleiWcns
@@ -657,16 +592,15 @@ void validate_metric(
                     } else {
                         throw GeometryError(
                             "high-order Jacobian failed strict reference validation at cell ("
-                            + std::to_string(i) + ',' + std::to_string(j) + ','
-                            + std::to_string(k) + ')');
+                            + std::to_string(i) + ',' + std::to_string(j) + ',' + std::to_string(k)
+                            + ')');
                     }
                 }
             }
         }
     }
 
-    const auto validate_faces = [&](const FaceAreaVectors& faces,
-                                    const ScalarField& reference) {
+    const auto validate_faces = [&](const FaceAreaVectors& faces, const ScalarField& reference) {
         const auto extent = reference.interior_extent();
         for (int k = 0; k < extent.nk; ++k) {
             for (int j = 0; j < extent.nj; ++j) {
@@ -705,15 +639,10 @@ void MetricBuildOptions::validate(const AlgorithmProfile& profile) const
 
 Real FaceAreaVectors::area(int i, int j, int k) const
 {
-    return std::sqrt(
-        x(i, j, k) * x(i, j, k) + y(i, j, k) * y(i, j, k)
-        + z(i, j, k) * z(i, j, k));
+    return std::sqrt(x(i, j, k) * x(i, j, k) + y(i, j, k) * y(i, j, k) + z(i, j, k) * z(i, j, k));
 }
 
-MetricField::MetricField(
-    AlgorithmProfileKind profile,
-    Extent3 cell_extent,
-    int dimension)
+MetricField::MetricField(AlgorithmProfileKind profile, Extent3 cell_extent, int dimension)
     : profile_(profile)
     , dimension_(dimension)
     , cell_coordinates_(cell_extent)
@@ -735,10 +664,9 @@ const FaceAreaVectors& MetricField::k_faces() const
     return k_faces_;
 }
 
-MetricInitializationResult initialize_metric_field(
-    StructuredBlock& block,
-    const AlgorithmProfile& profile,
-    const MetricBuildOptions& options)
+MetricInitializationResult initialize_metric_field(StructuredBlock& block,
+                                                   const AlgorithmProfile& profile,
+                                                   const MetricBuildOptions& options)
 {
     options.validate(profile);
     compute_metrics(block);
@@ -753,10 +681,7 @@ MetricInitializationResult initialize_metric_field(
     return {std::move(metric), std::move(diagnostics)};
 }
 
-MetricField extract_metric_field(
-    const MetricField& source,
-    Index3 cell_begin,
-    Extent3 cell_extent)
+MetricField extract_metric_field(const MetricField& source, Index3 cell_begin, Extent3 cell_extent)
 {
     if (!cell_extent.valid() || cell_extent.size() == 0) {
         throw GeometryError("metric extraction extent must be nonempty");
@@ -770,45 +695,32 @@ MetricField extract_metric_field(
             throw GeometryError("metric extraction range is outside source field");
         }
     }
-    if (source.dimension() == 2
-        && (cell_begin.k != 0 || cell_extent.nk != 1)) {
+    if (source.dimension() == 2 && (cell_begin.k != 0 || cell_extent.nk != 1)) {
         throw GeometryError("two-dimensional metric extraction has an invalid k range");
     }
-    MetricField result = MetricFieldBuilderAccess::create(
-        source.profile(), cell_extent, source.dimension());
-    const auto copy_scalar = [](
-        const Array3D<Real>& input,
-        Array3D<Real>& output,
-        Index3 begin) {
+    MetricField result
+        = MetricFieldBuilderAccess::create(source.profile(), cell_extent, source.dimension());
+    const auto copy_scalar = [](const Array3D<Real>& input, Array3D<Real>& output, Index3 begin) {
         const auto extent = output.interior_extent();
         for (int k = 0; k < extent.nk; ++k) {
             for (int j = 0; j < extent.nj; ++j) {
                 for (int i = 0; i < extent.ni; ++i) {
-                    output(i, j, k) = input(
-                        begin.i + i, begin.j + j, begin.k + k);
+                    output(i, j, k) = input(begin.i + i, begin.j + j, begin.k + k);
                 }
             }
         }
     };
-    copy_scalar(
-        source.cell_coordinates().x,
-        MetricFieldBuilderAccess::cell_coordinates(result).x,
-        cell_begin);
-    copy_scalar(
-        source.cell_coordinates().y,
-        MetricFieldBuilderAccess::cell_coordinates(result).y,
-        cell_begin);
-    copy_scalar(
-        source.cell_coordinates().z,
-        MetricFieldBuilderAccess::cell_coordinates(result).z,
-        cell_begin);
-    copy_scalar(
-        source.jacobian(),
-        MetricFieldBuilderAccess::jacobian(result),
-        cell_begin);
-    const auto copy_faces = [&](
-        const FaceAreaVectors& input,
-        FaceAreaVectors& output) {
+    copy_scalar(source.cell_coordinates().x,
+                MetricFieldBuilderAccess::cell_coordinates(result).x,
+                cell_begin);
+    copy_scalar(source.cell_coordinates().y,
+                MetricFieldBuilderAccess::cell_coordinates(result).y,
+                cell_begin);
+    copy_scalar(source.cell_coordinates().z,
+                MetricFieldBuilderAccess::cell_coordinates(result).z,
+                cell_begin);
+    copy_scalar(source.jacobian(), MetricFieldBuilderAccess::jacobian(result), cell_begin);
+    const auto copy_faces = [&](const FaceAreaVectors& input, FaceAreaVectors& output) {
         copy_scalar(input.x, output.x, cell_begin);
         copy_scalar(input.y, output.y, cell_begin);
         copy_scalar(input.z, output.z, cell_begin);
@@ -851,29 +763,26 @@ std::vector<Real> pack_metric_field(const MetricField& metric)
 
 std::size_t metric_field_payload_size(Extent3 cell_extent, int dimension)
 {
-    if ((dimension != 2 && dimension != 3) || !cell_extent.valid()
-        || cell_extent.size() == 0 || (dimension == 2 && cell_extent.nk != 1)) {
+    if ((dimension != 2 && dimension != 3) || !cell_extent.valid() || cell_extent.size() == 0
+        || (dimension == 2 && cell_extent.nk != 1)) {
         throw GeometryError("metric payload extent or dimension is invalid");
     }
     const auto face_count = [](Extent3 cells, int axis) {
         ++cells[static_cast<std::size_t>(axis)];
         return cells.size();
     };
-    std::size_t result = 4 * cell_extent.size()
-        + 3 * face_count(cell_extent, 0)
-        + 3 * face_count(cell_extent, 1);
+    std::size_t result
+        = 4 * cell_extent.size() + 3 * face_count(cell_extent, 0) + 3 * face_count(cell_extent, 1);
     if (dimension == 3) result += 3 * face_count(cell_extent, 2);
     return result;
 }
 
-MetricField unpack_metric_field(
-    AlgorithmProfileKind profile,
-    Extent3 cell_extent,
-    int dimension,
-    const std::vector<Real>& payload)
+MetricField unpack_metric_field(AlgorithmProfileKind profile,
+                                Extent3 cell_extent,
+                                int dimension,
+                                const std::vector<Real>& payload)
 {
-    MetricField result = MetricFieldBuilderAccess::create(
-        profile, cell_extent, dimension);
+    MetricField result = MetricFieldBuilderAccess::create(profile, cell_extent, dimension);
     std::size_t offset = 0;
     const auto extract = [&](Array3D<Real>& values) {
         const auto extent = values.interior_extent();

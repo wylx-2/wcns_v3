@@ -39,9 +39,7 @@ void test_wcns()
     const auto linear_face = wcns5_reconstruct(linear);
     WCNS_REQUIRE_NEAR(linear_face.left, 2.0, 1.0e-13);
     WCNS_REQUIRE_NEAR(linear_face.right, 2.0, 1.0e-13);
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument,
-        wcns5_reconstruct(linear, WcnsParameters {0.0, 2}));
+    WCNS_REQUIRE_THROWS(std::invalid_argument, wcns5_reconstruct(linear, WcnsParameters {0.0, 2}));
 
     const auto smooth_error = [](Real spacing) {
         std::array<Real, 6> values {};
@@ -49,28 +47,24 @@ void test_wcns()
             values[static_cast<std::size_t>(point)]
                 = std::exp(static_cast<Real>(point - 2) * spacing);
         }
-        return std::abs(
-            wcns5_reconstruct(values).left - std::exp(0.5 * spacing));
+        return std::abs(wcns5_reconstruct(values).left - std::exp(0.5 * spacing));
     };
     WCNS_REQUIRE(smooth_error(0.1) < smooth_error(0.2));
 
     Field<Real> primitive({4, 1, 1}, euler_components, 3);
     for (int i = -3; i < 7; ++i) {
         for (int component = 0; component < euler_components; ++component) {
-            primitive(i, 0, 0, component)
-                = static_cast<Real>(component + 1) * static_cast<Real>(i);
+            primitive(i, 0, 0, component) = static_cast<Real>(component + 1) * static_cast<Real>(i);
         }
     }
     const auto reconstructed = reconstruct_euler_face(primitive, Axis::I, {2, 0, 0});
     for (int component = 0; component < euler_components; ++component) {
-        WCNS_REQUIRE_NEAR(
-            reconstructed.left[static_cast<std::size_t>(component)],
-            1.5 * static_cast<Real>(component + 1),
-            1.0e-12);
-        WCNS_REQUIRE_NEAR(
-            reconstructed.right[static_cast<std::size_t>(component)],
-            1.5 * static_cast<Real>(component + 1),
-            1.0e-12);
+        WCNS_REQUIRE_NEAR(reconstructed.left[static_cast<std::size_t>(component)],
+                          1.5 * static_cast<Real>(component + 1),
+                          1.0e-12);
+        WCNS_REQUIRE_NEAR(reconstructed.right[static_cast<std::size_t>(component)],
+                          1.5 * static_cast<Real>(component + 1),
+                          1.0e-12);
     }
 
     StructuredBlock block(0, "boundary", 0, 2, 2, {5, 4, 1}, 3);
@@ -111,23 +105,19 @@ void test_wcns()
         WCNS_REQUIRE_NEAR(wall[velocity_x], -2.0, 1.0e-14);
         WCNS_REQUIRE_NEAR(wall[velocity_y], 1.0, 1.0e-14);
         WCNS_REQUIRE_NEAR(wall[pressure], 1.0, 1.0e-14);
-        const auto wall_conservative
-            = load_conservative(block.flow.conservative, {-layer, 1, 0});
+        const auto wall_conservative = load_conservative(block.flow.conservative, {-layer, 1, 0});
         const auto expected_wall = to_conservative(wall);
         for (int component = 0; component < euler_components; ++component) {
-            WCNS_REQUIRE_NEAR(
-                wall_conservative[static_cast<std::size_t>(component)],
-                expected_wall[static_cast<std::size_t>(component)],
-                1.0e-14);
+            WCNS_REQUIRE_NEAR(wall_conservative[static_cast<std::size_t>(component)],
+                              expected_wall[static_cast<std::size_t>(component)],
+                              1.0e-14);
         }
 
-        const auto outflow
-            = load_primitive(block.flow.primitive, {cells.ni - 1 + layer, 1, 0});
+        const auto outflow = load_primitive(block.flow.primitive, {cells.ni - 1 + layer, 1, 0});
         for (int component = 0; component < euler_components; ++component) {
-            WCNS_REQUIRE_NEAR(
-                outflow[static_cast<std::size_t>(component)],
-                state[static_cast<std::size_t>(component)],
-                1.0e-14);
+            WCNS_REQUIRE_NEAR(outflow[static_cast<std::size_t>(component)],
+                              state[static_cast<std::size_t>(component)],
+                              1.0e-14);
         }
     }
 }

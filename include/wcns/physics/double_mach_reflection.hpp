@@ -18,8 +18,7 @@ public:
     [[nodiscard]] bool is_post_shock(Real x, Real y, Real time) const;
     [[nodiscard]] PressurePrimitiveState upstream_state() const noexcept;
     [[nodiscard]] PressurePrimitiveState post_shock_state() const noexcept;
-    [[nodiscard]] PressurePrimitiveState exact_state(
-        Real x, Real y, Real time) const;
+    [[nodiscard]] PressurePrimitiveState exact_state(Real x, Real y, Real time) const;
     [[nodiscard]] std::string restart_signature() const;
 
 private:

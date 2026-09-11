@@ -48,9 +48,7 @@ def _windows_process_table() -> dict[int, tuple[int, str]]:
         entry.size = ctypes.sizeof(entry)
         success = kernel32.Process32FirstW(snapshot, ctypes.byref(entry))
         while success:
-            result[int(entry.process_id)] = (
-                int(entry.parent_process_id), entry.executable.lower()
-            )
+            result[int(entry.process_id)] = (int(entry.parent_process_id), entry.executable.lower())
             success = kernel32.Process32NextW(snapshot, ctypes.byref(entry))
     finally:
         kernel32.CloseHandle(snapshot)
@@ -99,9 +97,7 @@ def _windows_rss(process_id: int) -> int:
     try:
         counters = ProcessMemoryCounters()
         counters.size = ctypes.sizeof(counters)
-        if not psapi.GetProcessMemoryInfo(
-            handle, ctypes.byref(counters), counters.size
-        ):
+        if not psapi.GetProcessMemoryInfo(handle, ctypes.byref(counters), counters.size):
             return 0
         return int(counters.working_set_size)
     finally:
@@ -149,9 +145,7 @@ def _raise_new_windows_workers(
         }
         for process_id in candidates - raised:
             if not _windows_set_high_priority(process_id):
-                raise RuntimeError(
-                    f"could not set high priority for process {process_id}"
-                )
+                raise RuntimeError(f"could not set high priority for process {process_id}")
             raised.add(process_id)
         if len(raised) >= expected_processes:
             return
@@ -184,9 +178,7 @@ def _linux_process_table() -> dict[int, tuple[int, str]]:
 def _linux_rss(process_id: int) -> int:
     try:
         resident_pages = int(
-            (Path("/proc") / str(process_id) / "statm")
-            .read_text(encoding="ascii")
-            .split()[1]
+            (Path("/proc") / str(process_id) / "statm").read_text(encoding="ascii").split()[1]
         )
         return resident_pages * os.sysconf("SC_PAGE_SIZE")
     except (OSError, ValueError, IndexError):
@@ -216,12 +208,9 @@ def _sample_tree(
         changed = False
         for process_id, (parent_id, executable) in table.items():
             is_matching_worker = (
-                process_id not in excluded_processes
-                and executable in executable_names
+                process_id not in excluded_processes and executable in executable_names
             )
-            if process_id not in known and (
-                parent_id in known or is_matching_worker
-            ):
+            if process_id not in known and (parent_id in known or is_matching_worker):
                 known.add(process_id)
                 changed = True
     return sum(rss(process_id) for process_id in known)
@@ -239,9 +228,7 @@ def run_measured(
     known: set[int] = set()
     peak_rss: int | None = None
     command_paths = [Path(value) for value in command]
-    executable_names = {
-        value.name.lower() for value in command_paths if value.is_file()
-    }
+    executable_names = {value.name.lower() for value in command_paths if value.is_file()}
     if not executable_names:
         executable_names.add(command_paths[0].name.lower())
     if os.name == "nt":
@@ -283,6 +270,7 @@ def run_measured(
         stop_sampler = threading.Event()
         sampler: threading.Thread | None = None
         if sample_seconds is not None:
+
             def sample_until_stopped() -> None:
                 nonlocal peak_rss
                 try:
@@ -306,9 +294,7 @@ def run_measured(
         if sampler_error:
             raise RuntimeError("process sampler failed") from sampler_error[0]
         if sample_seconds is not None:
-            current = _sample_tree(
-                process.pid, known, executable_names, excluded_processes
-            )
+            current = _sample_tree(process.pid, known, executable_names, excluded_processes)
             if current is not None:
                 peak_rss = max(peak_rss or 0, current)
     elapsed = finished - started

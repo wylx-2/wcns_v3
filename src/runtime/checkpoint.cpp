@@ -26,18 +26,24 @@ namespace {
 
 constexpr int checkpoint_version = 1;
 const std::array<std::string, 5> checkpoint_quantities {{
-    "rho", "rho_u", "rho_v", "rho_w", "rho_E",
+    "rho",
+    "rho_u",
+    "rho_v",
+    "rho_w",
+    "rho_E",
 }};
 const std::array<const char*, 5> checkpoint_fields {{
-    "Density", "MomentumX", "MomentumY", "MomentumZ",
+    "Density",
+    "MomentumX",
+    "MomentumY",
+    "MomentumZ",
     "EnergyStagnationDensity",
 }};
 
 void check_cgns(int status, const char* operation)
 {
     if (status != CG_OK) {
-        throw std::runtime_error(
-            std::string(operation) + ": " + cg_get_error());
+        throw std::runtime_error(std::string(operation) + ": " + cg_get_error());
     }
 }
 
@@ -47,7 +53,10 @@ public:
     {
         check_cgns(cg_open(path.c_str(), mode, &file_), "cg_open checkpoint");
     }
-    ~CgnsFile() { if (file_ >= 0) cg_close(file_); }
+    ~CgnsFile()
+    {
+        if (file_ >= 0) cg_close(file_);
+    }
     int id() const noexcept { return file_; }
     void close()
     {
@@ -68,11 +77,11 @@ std::uint64_t fnv_byte(std::uint64_t hash, unsigned char byte)
 
 void hash_text(std::uint64_t& hash, const std::string& text)
 {
-    for (const unsigned char byte : text) hash = fnv_byte(hash, byte);
+    for (const unsigned char byte : text)
+        hash = fnv_byte(hash, byte);
 }
 
-template <class T>
-void hash_value(std::uint64_t& hash, const T& value)
+template <class T> void hash_value(std::uint64_t& hash, const T& value)
 {
     const auto* bytes = reinterpret_cast<const unsigned char*>(&value);
     for (std::size_t index = 0; index < sizeof(T); ++index) {
@@ -95,15 +104,15 @@ std::string compute_mesh_signature(const std::string& path)
         hash_value(hash, zone.vertex_extent.nk);
         auto block = reader.read_block(path, zone, 0, 0);
         const std::array<const Array3D<Real>*, 3> coordinates {{
-            &block.coordinates.x, &block.coordinates.y, &block.coordinates.z,
+            &block.coordinates.x,
+            &block.coordinates.y,
+            &block.coordinates.z,
         }};
         for (int axis = 0; axis < zone.physical_dimension; ++axis) {
             for (int k = 0; k < zone.vertex_extent.nk; ++k) {
                 for (int j = 0; j < zone.vertex_extent.nj; ++j) {
                     for (int i = 0; i < zone.vertex_extent.ni; ++i) {
-                        hash_value(
-                            hash,
-                            (*coordinates[static_cast<std::size_t>(axis)])(i, j, k));
+                        hash_value(hash, (*coordinates[static_cast<std::size_t>(axis)])(i, j, k));
                     }
                 }
             }
@@ -123,8 +132,7 @@ std::string safe_name(std::string name)
 {
     for (char& character : name) {
         const bool safe = (character >= 'a' && character <= 'z')
-            || (character >= 'A' && character <= 'Z')
-            || (character >= '0' && character <= '9')
+            || (character >= 'A' && character <= 'Z') || (character >= '0' && character <= '9')
             || character == '-' || character == '_';
         if (!safe) character = '_';
     }
@@ -137,9 +145,12 @@ std::string time_tag(Real time)
     stream << std::scientific << std::setprecision(9) << time;
     auto result = stream.str();
     for (char& character : result) {
-        if (character == '.') character = 'p';
-        else if (character == '+') character = 'P';
-        else if (character == '-') character = 'M';
+        if (character == '.')
+            character = 'p';
+        else if (character == '+')
+            character = 'P';
+        else if (character == '-')
+            character = 'M';
     }
     return result;
 }
@@ -150,10 +161,7 @@ bool file_exists(const std::string& path)
     return static_cast<bool>(input);
 }
 
-void commit_file(
-    const std::string& temporary,
-    const std::string& target,
-    bool allow_existing)
+void commit_file(const std::string& temporary, const std::string& target, bool allow_existing)
 {
     if (file_exists(target)) {
         if (!allow_existing) {
@@ -217,9 +225,7 @@ std::array<Real, euler_components> parse_real_list(const std::string& text)
 
 void write_descriptor(int, const char* name, const std::string& value)
 {
-    check_cgns(
-        cg_descriptor_write(name, value.c_str()),
-        "cg_descriptor_write checkpoint");
+    check_cgns(cg_descriptor_write(name, value.c_str()), "cg_descriptor_write checkpoint");
 }
 
 std::map<std::string, std::string> read_descriptors(int file)
@@ -231,18 +237,15 @@ std::map<std::string, std::string> read_descriptors(int file)
     for (int descriptor = 1; descriptor <= count; ++descriptor) {
         char name[33] = {};
         char* value = nullptr;
-        check_cgns(
-            cg_descriptor_read(descriptor, name, &value),
-            "cg_descriptor_read checkpoint");
+        check_cgns(cg_descriptor_read(descriptor, name, &value), "cg_descriptor_read checkpoint");
         result.emplace(name, value == nullptr ? "" : value);
         if (value != nullptr) cg_free(value);
     }
     return result;
 }
 
-const std::string& required(
-    const std::map<std::string, std::string>& values,
-    const std::string& name)
+const std::string& required(const std::map<std::string, std::string>& values,
+                            const std::string& name)
 {
     const auto iterator = values.find(name);
     if (iterator == values.end()) {
@@ -255,8 +258,7 @@ std::size_t parse_size(const std::string& text, const char* label)
 {
     std::size_t consumed = 0;
     const auto value = std::stoull(text, &consumed);
-    if (consumed != text.size()
-        || value > std::numeric_limits<std::size_t>::max()) {
+    if (consumed != text.size() || value > std::numeric_limits<std::size_t>::max()) {
         throw std::runtime_error(std::string("invalid checkpoint ") + label);
     }
     return static_cast<std::size_t>(value);
@@ -275,7 +277,8 @@ Real parse_real(const std::string& text, const char* label)
 std::size_t flat_index(Extent3 extent, int i, int j, int k)
 {
     return (static_cast<std::size_t>(k) * static_cast<std::size_t>(extent.nj)
-        + static_cast<std::size_t>(j)) * static_cast<std::size_t>(extent.ni)
+            + static_cast<std::size_t>(j))
+        * static_cast<std::size_t>(extent.ni)
         + static_cast<std::size_t>(i);
 }
 
@@ -285,9 +288,7 @@ struct RootCheckpointData {
     std::vector<std::size_t> rank_counts;
 };
 
-void collective_checkpoint_action(
-    const MpiRuntime& mpi,
-    const std::function<void()>& action)
+void collective_checkpoint_action(const MpiRuntime& mpi, const std::function<void()>& action)
 {
     std::string status;
     if (mpi.rank() == 0) {
@@ -309,14 +310,13 @@ void collective_checkpoint_action(
 
 } // namespace
 
-CheckpointService::CheckpointService(
-    const MpiRuntime& mpi,
-    const CaseConfig& config,
-    const StructuredPartitionPlan& partition,
-    LocalBlockSet& local_blocks,
-    const BlockMetricMap& metrics,
-    QuantityContext quantity_context,
-    std::string mesh_path)
+CheckpointService::CheckpointService(const MpiRuntime& mpi,
+                                     const CaseConfig& config,
+                                     const StructuredPartitionPlan& partition,
+                                     LocalBlockSet& local_blocks,
+                                     const BlockMetricMap& metrics,
+                                     QuantityContext quantity_context,
+                                     std::string mesh_path)
     : mpi_(mpi)
     , config_(config)
     , partition_(partition)
@@ -345,13 +345,11 @@ CheckpointService::CheckpointService(
     mesh_signature_ = status.substr(3);
 }
 
-std::vector<std::string> CheckpointService::write(
-    const SimulationState& state) const
+std::vector<std::string> CheckpointService::write(const SimulationState& state) const
 {
     std::ostringstream name;
-    name << safe_name(config_.case_name) << ".checkpoint.step"
-         << std::setw(8) << std::setfill('0') << state.step
-         << ".time" << time_tag(state.time) << ".cgns";
+    name << safe_name(config_.case_name) << ".checkpoint.step" << std::setw(8) << std::setfill('0')
+         << state.step << ".time" << time_tag(state.time) << ".cgns";
     const auto path = join_path(config_.output.directory, name.str());
     const auto temporary = path + ".tmp";
     if (partition_.zones().empty()) {
@@ -365,8 +363,7 @@ std::vector<std::string> CheckpointService::write(
     int base = 0;
     int physical_dimension = 0;
     collective_checkpoint_action(mpi_, [&] {
-        mesh_metadata = std::make_unique<CgnsMeshMetadata>(
-            mesh_reader.read_metadata(mesh_path_));
+        mesh_metadata = std::make_unique<CgnsMeshMetadata>(mesh_reader.read_metadata(mesh_path_));
         if (mesh_metadata->zones.size() != partition_.zones().size()) {
             throw std::runtime_error("checkpoint mesh/source-zone count differs");
         }
@@ -376,41 +373,30 @@ std::vector<std::string> CheckpointService::write(
         physical_dimension = mesh_metadata->zones.front().physical_dimension;
         file = std::make_unique<CgnsFile>(temporary, CG_MODE_WRITE);
         check_cgns(
-            cg_base_write(
-                file->id(), "WCNSCheckpoint", dimension,
-                physical_dimension, &base),
+            cg_base_write(file->id(), "WCNSCheckpoint", dimension, physical_dimension, &base),
             "cg_base_write checkpoint");
-        check_cgns(
-            cg_goto(file->id(), base, "end"),
-            "cg_goto checkpoint output base");
-        check_cgns(
-            cg_dataclass_write(NormalizedByDimensional),
-            "cg_dataclass_write checkpoint");
-        write_descriptor(
-            file->id(), "WCNS_Version", std::to_string(checkpoint_version));
+        check_cgns(cg_goto(file->id(), base, "end"), "cg_goto checkpoint output base");
+        check_cgns(cg_dataclass_write(NormalizedByDimensional), "cg_dataclass_write checkpoint");
+        write_descriptor(file->id(), "WCNS_Version", std::to_string(checkpoint_version));
         write_descriptor(file->id(), "WCNS_Step", std::to_string(state.step));
         write_descriptor(file->id(), "WCNS_Time", [&] {
-            std::ostringstream value; value << std::setprecision(17) << state.time;
-            return value.str(); }());
+            std::ostringstream value;
+            value << std::setprecision(17) << state.time;
+            return value.str();
+        }());
         write_descriptor(file->id(), "WCNS_TimeStep", [&] {
             std::ostringstream value;
             value << std::setprecision(17) << state.time_step;
-            return value.str(); }());
+            return value.str();
+        }());
         write_descriptor(file->id(), "WCNS_MeshSignature", mesh_signature_);
+        write_descriptor(file->id(), "WCNS_RestartSignature", config_.restart_signature());
         write_descriptor(
-            file->id(), "WCNS_RestartSignature", config_.restart_signature());
+            file->id(), "WCNS_SteadyInitialized", state.steady.reference_initialized ? "1" : "0");
         write_descriptor(
-            file->id(), "WCNS_SteadyInitialized",
-            state.steady.reference_initialized ? "1" : "0");
-        write_descriptor(
-            file->id(), "WCNS_Consecutive",
-            std::to_string(state.steady.consecutive_passes));
-        write_descriptor(
-            file->id(), "WCNS_ReferenceL2",
-            real_list(state.steady.reference_l2));
-        write_descriptor(
-            file->id(), "WCNS_ReferenceLinf",
-            real_list(state.steady.reference_linf));
+            file->id(), "WCNS_Consecutive", std::to_string(state.steady.consecutive_passes));
+        write_descriptor(file->id(), "WCNS_ReferenceL2", real_list(state.steady.reference_l2));
+        write_descriptor(file->id(), "WCNS_ReferenceLinf", real_list(state.steady.reference_linf));
     });
 
     for (const auto& zone : partition_.zones()) {
@@ -421,8 +407,7 @@ std::vector<std::string> CheckpointService::write(
         int solution = 0;
         collective_checkpoint_action(mpi_, [&] {
             const auto& mesh_zone = *mesh_zones.at(zone.source_zone);
-            auto mesh_block = mesh_reader.read_block(
-                mesh_path_, mesh_zone, 0, 0);
+            auto mesh_block = mesh_reader.read_block(mesh_path_, mesh_zone, 0, 0);
             std::array<cgsize_t, 9> size {{}};
             for (int axis = 0; axis < dimension; ++axis) {
                 size[static_cast<std::size_t>(axis)]
@@ -432,15 +417,13 @@ std::vector<std::string> CheckpointService::write(
             }
             check_cgns(
                 cg_zone_write(
-                    file->id(), base, zone.name.c_str(), size.data(), Structured,
-                    &output_zone),
+                    file->id(), base, zone.name.c_str(), size.data(), Structured, &output_zone),
                 "cg_zone_write checkpoint");
-            const std::array<std::pair<const char*, const Array3D<Real>*>, 3>
-                coordinates {{
-                    {"CoordinateX", &mesh_block.coordinates.x},
-                    {"CoordinateY", &mesh_block.coordinates.y},
-                    {"CoordinateZ", &mesh_block.coordinates.z},
-                }};
+            const std::array<std::pair<const char*, const Array3D<Real>*>, 3> coordinates {{
+                {"CoordinateX", &mesh_block.coordinates.x},
+                {"CoordinateY", &mesh_block.coordinates.y},
+                {"CoordinateZ", &mesh_block.coordinates.z},
+            }};
             std::vector<Real> coordinate(mesh_zone.vertex_extent.size());
             for (int axis = 0; axis < physical_dimension; ++axis) {
                 std::size_t offset = 0;
@@ -448,43 +431,50 @@ std::vector<std::string> CheckpointService::write(
                     for (int j = 0; j < mesh_zone.vertex_extent.nj; ++j) {
                         for (int i = 0; i < mesh_zone.vertex_extent.ni; ++i) {
                             coordinate[offset++]
-                                = (*coordinates[static_cast<std::size_t>(axis)].second)(
-                                    i, j, k);
+                                = (*coordinates[static_cast<std::size_t>(axis)].second)(i, j, k);
                         }
                     }
                 }
                 int coordinate_index = 0;
-                check_cgns(
-                    cg_coord_write(
-                        file->id(), base, output_zone, RealDouble,
-                        coordinates[static_cast<std::size_t>(axis)].first,
-                        coordinate.data(), &coordinate_index),
-                    "cg_coord_write checkpoint");
+                check_cgns(cg_coord_write(file->id(),
+                                          base,
+                                          output_zone,
+                                          RealDouble,
+                                          coordinates[static_cast<std::size_t>(axis)].first,
+                                          coordinate.data(),
+                                          &coordinate_index),
+                           "cg_coord_write checkpoint");
             }
             check_cgns(
                 cg_sol_write(
-                    file->id(), base, output_zone, "ConservativeState",
-                    CellCenter, &solution),
+                    file->id(), base, output_zone, "ConservativeState", CellCenter, &solution),
                 "cg_sol_write checkpoint");
         });
-        for (std::size_t component = 0; component < checkpoint_fields.size();
-             ++component) {
-            auto values = gather_original_zone_quantity(
-                mpi_, local_blocks_, metrics_, partition_, zone, registry_,
-                checkpoint_quantities[component], quantity_context_);
+        for (std::size_t component = 0; component < checkpoint_fields.size(); ++component) {
+            auto values = gather_original_zone_quantity(mpi_,
+                                                        local_blocks_,
+                                                        metrics_,
+                                                        partition_,
+                                                        zone,
+                                                        registry_,
+                                                        checkpoint_quantities[component],
+                                                        quantity_context_);
             collective_checkpoint_action(mpi_, [&] {
                 int field = 0;
-                check_cgns(
-                    cg_field_write(
-                        file->id(), base, output_zone, solution, RealDouble,
-                        checkpoint_fields[component], values.data(), &field),
-                    "cg_field_write checkpoint");
+                check_cgns(cg_field_write(file->id(),
+                                          base,
+                                          output_zone,
+                                          solution,
+                                          RealDouble,
+                                          checkpoint_fields[component],
+                                          values.data(),
+                                          &field),
+                           "cg_field_write checkpoint");
             });
         }
     }
-    const auto latest = join_path(
-        config_.output.directory,
-        safe_name(config_.case_name) + ".checkpoint.latest.cgns");
+    const auto latest = join_path(config_.output.directory,
+                                  safe_name(config_.case_name) + ".checkpoint.latest.cgns");
     const auto latest_temporary = latest + ".tmp";
     collective_checkpoint_action(mpi_, [&] {
         file->close();
@@ -494,13 +484,10 @@ std::vector<std::string> CheckpointService::write(
         // root policy already rejected a pre-existing directory when needed.
         commit_file(latest_temporary, latest, true);
     });
-    return mpi_.rank() == 0
-        ? std::vector<std::string> {path, latest}
-        : std::vector<std::string> {};
+    return mpi_.rank() == 0 ? std::vector<std::string> {path, latest} : std::vector<std::string> {};
 }
 
-CheckpointRestoreResult CheckpointService::restore(
-    const std::string& path) const
+CheckpointRestoreResult CheckpointService::restore(const std::string& path) const
 {
     RootCheckpointData root;
     std::string status;
@@ -508,38 +495,33 @@ CheckpointRestoreResult CheckpointService::restore(
         try {
             CgnsFile file(path, CG_MODE_READ);
             const auto descriptors = read_descriptors(file.id());
-            if (required(descriptors, "WCNS_Version")
-                != std::to_string(checkpoint_version)) {
+            if (required(descriptors, "WCNS_Version") != std::to_string(checkpoint_version)) {
                 throw std::runtime_error("unsupported checkpoint version");
             }
             if (required(descriptors, "WCNS_MeshSignature") != mesh_signature_) {
                 throw std::runtime_error("checkpoint mesh signature differs");
             }
-            const auto stored_signature = required(
-                descriptors, "WCNS_RestartSignature");
+            const auto stored_signature = required(descriptors, "WCNS_RestartSignature");
             const bool legacy_default_transport
-                = config_.transport.restart_signature()
-                == TransportConfig {}.restart_signature();
+                = config_.transport.restart_signature() == TransportConfig {}.restart_signature();
             if (stored_signature != config_.restart_signature()
                 && !(legacy_default_transport
-                    && stored_signature == config_.legacy_v1_restart_signature())) {
+                     && stored_signature == config_.legacy_v1_restart_signature())) {
                 throw std::runtime_error(
                     "checkpoint numerical signature differs (including transport)");
             }
-            root.restored.initial.step = parse_size(
-                required(descriptors, "WCNS_Step"), "step");
-            root.restored.initial.time = parse_real(
-                required(descriptors, "WCNS_Time"), "time");
-            root.restored.previous_time_step = parse_real(
-                required(descriptors, "WCNS_TimeStep"), "time step");
+            root.restored.initial.step = parse_size(required(descriptors, "WCNS_Step"), "step");
+            root.restored.initial.time = parse_real(required(descriptors, "WCNS_Time"), "time");
+            root.restored.previous_time_step
+                = parse_real(required(descriptors, "WCNS_TimeStep"), "time step");
             root.restored.initial.steady.reference_initialized
                 = required(descriptors, "WCNS_SteadyInitialized") == "1";
-            root.restored.initial.steady.consecutive_passes = parse_size(
-                required(descriptors, "WCNS_Consecutive"), "consecutive count");
-            root.restored.initial.steady.reference_l2 = parse_real_list(
-                required(descriptors, "WCNS_ReferenceL2"));
-            root.restored.initial.steady.reference_linf = parse_real_list(
-                required(descriptors, "WCNS_ReferenceLinf"));
+            root.restored.initial.steady.consecutive_passes
+                = parse_size(required(descriptors, "WCNS_Consecutive"), "consecutive count");
+            root.restored.initial.steady.reference_l2
+                = parse_real_list(required(descriptors, "WCNS_ReferenceL2"));
+            root.restored.initial.steady.reference_linf
+                = parse_real_list(required(descriptors, "WCNS_ReferenceLinf"));
 
             int zones = 0;
             check_cgns(cg_nzones(file.id(), 1, &zones), "cg_nzones checkpoint");
@@ -548,13 +530,11 @@ CheckpointRestoreResult CheckpointService::restore(
             }
             std::unordered_map<BlockId, std::array<std::vector<Real>, 5>> fields;
             for (int zone_index = 1; zone_index <= zones; ++zone_index) {
-                const auto& expected
-                    = partition_.zones()[static_cast<std::size_t>(zone_index - 1)];
+                const auto& expected = partition_.zones()[static_cast<std::size_t>(zone_index - 1)];
                 char name[33] = {};
                 std::array<cgsize_t, 9> size {{}};
-                check_cgns(
-                    cg_zone_read(file.id(), 1, zone_index, name, size.data()),
-                    "cg_zone_read checkpoint");
+                check_cgns(cg_zone_read(file.id(), 1, zone_index, name, size.data()),
+                           "cg_zone_read checkpoint");
                 if (expected.name != name) {
                     throw std::runtime_error("checkpoint source-zone name differs");
                 }
@@ -574,13 +554,16 @@ CheckpointRestoreResult CheckpointService::restore(
                 }};
                 for (std::size_t component = 0; component < 5; ++component) {
                     zone_fields[component].resize(count);
-                    check_cgns(
-                        cg_field_read(
-                            file.id(), 1, zone_index, 1,
-                            checkpoint_fields[component], RealDouble,
-                            lower.data(), upper.data(),
-                            zone_fields[component].data()),
-                        "cg_field_read checkpoint");
+                    check_cgns(cg_field_read(file.id(),
+                                             1,
+                                             zone_index,
+                                             1,
+                                             checkpoint_fields[component],
+                                             RealDouble,
+                                             lower.data(),
+                                             upper.data(),
+                                             zone_fields[component].data()),
+                               "cg_field_read checkpoint");
                 }
                 fields.emplace(expected.source_zone, std::move(zone_fields));
             }
@@ -591,21 +574,21 @@ CheckpointRestoreResult CheckpointService::restore(
                 for (const auto& leaf : partition_.leaves()) {
                     if (leaf.owner != rank) continue;
                     const auto& zone = fields.at(leaf.source_zone);
-                    const auto& source = *std::find_if(
-                        partition_.zones().begin(), partition_.zones().end(),
-                        [&](const PartitionZone& candidate) {
-                            return candidate.source_zone == leaf.source_zone;
-                        });
+                    const auto& source
+                        = *std::find_if(partition_.zones().begin(),
+                                        partition_.zones().end(),
+                                        [&](const PartitionZone& candidate) {
+                                            return candidate.source_zone == leaf.source_zone;
+                                        });
                     const auto extent = leaf.cell_extent();
                     for (int component = 0; component < euler_components; ++component) {
                         for (int k = 0; k < extent.nk; ++k) {
                             for (int j = 0; j < extent.nj; ++j) {
                                 for (int i = 0; i < extent.ni; ++i) {
-                                    const auto global = flat_index(
-                                        source.cell_extent,
-                                        leaf.cells.begin.i + i,
-                                        leaf.cells.begin.j + j,
-                                        leaf.cells.begin.k + k);
+                                    const auto global = flat_index(source.cell_extent,
+                                                                   leaf.cells.begin.i + i,
+                                                                   leaf.cells.begin.j + j,
+                                                                   leaf.cells.begin.k + k);
                                     root.rank_payload.push_back(
                                         zone[static_cast<std::size_t>(component)][global]);
                                 }
@@ -613,15 +596,15 @@ CheckpointRestoreResult CheckpointService::restore(
                         }
                     }
                 }
-                root.rank_counts[static_cast<std::size_t>(rank)]
-                    = root.rank_payload.size() - begin;
+                root.rank_counts[static_cast<std::size_t>(rank)] = root.rank_payload.size() - begin;
             }
             std::ostringstream header;
-            header << "OK\n" << root.restored.initial.step << '\n'
+            header << "OK\n"
+                   << root.restored.initial.step << '\n'
                    << std::setprecision(17) << root.restored.initial.time << '\n'
                    << root.restored.previous_time_step << '\n'
-                   << (root.restored.initial.steady.reference_initialized ? 1 : 0)
-                   << '\n' << root.restored.initial.steady.consecutive_passes << '\n'
+                   << (root.restored.initial.steady.reference_initialized ? 1 : 0) << '\n'
+                   << root.restored.initial.steady.consecutive_passes << '\n'
                    << real_list(root.restored.initial.steady.reference_l2) << '\n'
                    << real_list(root.restored.initial.steady.reference_linf) << '\n';
             status = header.str();
@@ -648,17 +631,16 @@ CheckpointRestoreResult CheckpointService::restore(
     std::getline(header, line);
     result.initial.steady.reference_initialized = line == "1";
     std::getline(header, line);
-    result.initial.steady.consecutive_passes = parse_size(
-        line, "consecutive count");
+    result.initial.steady.consecutive_passes = parse_size(line, "consecutive count");
     std::getline(header, line);
     result.initial.steady.reference_l2 = parse_real_list(line);
     std::getline(header, line);
     result.initial.steady.reference_linf = parse_real_list(line);
 
-    const auto payload = mpi_.scatter_reals(
-        root.rank_payload, root.rank_counts);
+    const auto payload = mpi_.scatter_reals(root.rank_payload, root.rank_counts);
     std::unordered_map<BlockId, StructuredBlock*> blocks;
-    for (auto& block : local_blocks_.blocks()) blocks.emplace(block.id(), &block);
+    for (auto& block : local_blocks_.blocks())
+        blocks.emplace(block.id(), &block);
     std::size_t offset = 0;
     for (const auto& leaf : partition_.leaves()) {
         if (leaf.owner != mpi_.rank()) continue;
@@ -675,16 +657,14 @@ CheckpointRestoreResult CheckpointService::restore(
                     ConservativeState state {{}};
                     for (int component = 0; component < euler_components; ++component) {
                         state[static_cast<std::size_t>(component)]
-                            = payload[offset
-                                + static_cast<std::size_t>(component) * count
-                                + local];
+                            = payload[offset + static_cast<std::size_t>(component) * count + local];
                     }
-                    static_cast<void>(temperature_primitive_from_conservative(
-                        state,
-                        quantity_context_.gas,
-                        quantity_context_.reference,
-                        quantity_context_.floors,
-                        block.cell_dimension()));
+                    static_cast<void>(
+                        temperature_primitive_from_conservative(state,
+                                                                quantity_context_.gas,
+                                                                quantity_context_.reference,
+                                                                quantity_context_.floors,
+                                                                block.cell_dimension()));
                     store_state(block.flow.conservative, {i, j, k}, state);
                 }
             }

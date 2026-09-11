@@ -56,20 +56,18 @@ enum class TraceSide {
 class ScalarStencilView {
 public:
     ScalarStencilView(const Real* values, std::size_t size)
-        : values_(values), size_(size)
-    {
-    }
+        : values_(values)
+        , size_(size)
+    { }
 
-    template<std::size_t Size>
+    template <std::size_t Size>
     ScalarStencilView(const std::array<Real, Size>& values)
         : ScalarStencilView(values.data(), values.size())
-    {
-    }
+    { }
 
     ScalarStencilView(const std::vector<Real>& values)
         : ScalarStencilView(values.data(), values.size())
-    {
-    }
+    { }
 
     [[nodiscard]] const Real* begin() const noexcept { return values_; }
     [[nodiscard]] const Real* end() const noexcept { return values_ + size_; }
@@ -101,10 +99,9 @@ public:
     virtual ~IReconstructionScheme() = default;
     [[nodiscard]] virtual std::string_view name() const noexcept = 0;
     [[nodiscard]] virtual StencilRequirement stencil_requirement() const noexcept = 0;
-    [[nodiscard]] virtual Real reconstruct_scalar(
-        ScalarStencilView stencil,
-        TraceSide side,
-        const ReconstructionContext& context) const = 0;
+    [[nodiscard]] virtual Real reconstruct_scalar(ScalarStencilView stencil,
+                                                  TraceSide side,
+                                                  const ReconstructionContext& context) const = 0;
 };
 
 class ReconstructionRegistry {
@@ -113,8 +110,7 @@ public:
 
     void register_scheme(std::string name, Factory factory);
     [[nodiscard]] bool contains(std::string_view name) const noexcept;
-    [[nodiscard]] std::unique_ptr<IReconstructionScheme> create(
-        std::string_view name) const;
+    [[nodiscard]] std::unique_ptr<IReconstructionScheme> create(std::string_view name) const;
     [[nodiscard]] std::vector<std::string> names() const;
 
     [[nodiscard]] static ReconstructionRegistry with_builtins();
@@ -148,8 +144,7 @@ struct ReconstructionFallbackEvent {
     std::string requested_scheme;
     std::string from_strategy;
     std::string to_strategy;
-    ReconstructionFallbackReason reason
-        = ReconstructionFallbackReason::InvalidReconstructedState;
+    ReconstructionFallbackReason reason = ReconstructionFallbackReason::InvalidReconstructedState;
 };
 
 struct ReconstructionDiagnostics {
@@ -162,12 +157,11 @@ struct ReconstructionDiagnostics {
     std::size_t first_order_fallbacks = 0;
     std::vector<ReconstructionFallbackEvent> fallback_events;
 
-    void record_fallback(
-        FaceDiagnosticLocation location,
-        std::string requested_scheme,
-        std::string from_strategy,
-        std::string to_strategy,
-        ReconstructionFallbackReason reason);
+    void record_fallback(FaceDiagnosticLocation location,
+                         std::string requested_scheme,
+                         std::string from_strategy,
+                         std::string to_strategy,
+                         ReconstructionFallbackReason reason);
 };
 
 struct ScalarFaceStates {
@@ -180,8 +174,7 @@ struct EulerFaceStates {
     PrimitiveState right {};
 };
 
-using CharacteristicMatrix = std::array<
-    std::array<Real, euler_components>, euler_components>;
+using CharacteristicMatrix = std::array<std::array<Real, euler_components>, euler_components>;
 
 struct EulerCharacteristicBasis {
     Normal3 normal {};
@@ -191,75 +184,64 @@ struct EulerCharacteristicBasis {
     CharacteristicMatrix right {};
 };
 
-[[nodiscard]] EulerCharacteristicBasis make_roe_characteristic_basis(
-    const PressurePrimitiveState& left,
-    const PressurePrimitiveState& right,
-    Normal3 unit_normal,
-    const GasModel& gas,
-    const NumericalFloors& floors,
-    int dimension,
-    bool inputs_prevalidated = false);
+[[nodiscard]] EulerCharacteristicBasis
+make_roe_characteristic_basis(const PressurePrimitiveState& left,
+                              const PressurePrimitiveState& right,
+                              Normal3 unit_normal,
+                              const GasModel& gas,
+                              const NumericalFloors& floors,
+                              int dimension,
+                              bool inputs_prevalidated = false);
 
-[[nodiscard]] ConservativeState project_characteristic(
-    const ConservativeState& conservative,
-    const EulerCharacteristicBasis& basis);
+[[nodiscard]] ConservativeState project_characteristic(const ConservativeState& conservative,
+                                                       const EulerCharacteristicBasis& basis);
 
-[[nodiscard]] ConservativeState restore_characteristic(
-    const ConservativeState& characteristic,
-    const EulerCharacteristicBasis& basis);
+[[nodiscard]] ConservativeState restore_characteristic(const ConservativeState& characteristic,
+                                                       const EulerCharacteristicBasis& basis);
 
-[[nodiscard]] Real wcns5_left_interpolation(
-    const std::array<Real, 5>& stencil,
-    const WcnsParameters& parameters = {});
+[[nodiscard]] Real wcns5_left_interpolation(const std::array<Real, 5>& stencil,
+                                            const WcnsParameters& parameters = {});
 
-[[nodiscard]] ScalarFaceStates wcns5_reconstruct(
-    const std::array<Real, 6>& stencil,
-    const WcnsParameters& parameters = {});
+[[nodiscard]] ScalarFaceStates wcns5_reconstruct(const std::array<Real, 6>& stencil,
+                                                 const WcnsParameters& parameters = {});
 
-[[nodiscard]] ScalarFaceStates linear5_reconstruct(
-    const std::array<Real, 6>& stencil);
+[[nodiscard]] ScalarFaceStates linear5_reconstruct(const std::array<Real, 6>& stencil);
 
-[[nodiscard]] ScalarFaceStates wcns5_reconstruct_scaled(
-    const std::array<Real, 6>& stencil,
-    Real scale,
-    const WcnsParameters& parameters = {});
+[[nodiscard]] ScalarFaceStates wcns5_reconstruct_scaled(const std::array<Real, 6>& stencil,
+                                                        Real scale,
+                                                        const WcnsParameters& parameters = {});
 
-[[nodiscard]] ScalarFaceStates weno_z_reconstruct_scaled(
-    const std::array<Real, 6>& stencil,
-    Real scale,
-    const WcnsParameters& parameters = {});
+[[nodiscard]] ScalarFaceStates weno_z_reconstruct_scaled(const std::array<Real, 6>& stencil,
+                                                         Real scale,
+                                                         const WcnsParameters& parameters = {});
 
-[[nodiscard]] ScalarFaceStates mdcd_linear_reconstruct(
-    const std::array<Real, 6>& stencil,
-    const WcnsParameters& parameters = {});
+[[nodiscard]] ScalarFaceStates mdcd_linear_reconstruct(const std::array<Real, 6>& stencil,
+                                                       const WcnsParameters& parameters = {});
 
-[[nodiscard]] ScalarFaceStates mdcd_hybrid_reconstruct_scaled(
-    const std::array<Real, 6>& stencil,
-    Real scale,
-    const WcnsParameters& parameters = {});
+[[nodiscard]] ScalarFaceStates mdcd_hybrid_reconstruct_scaled(const std::array<Real, 6>& stencil,
+                                                              Real scale,
+                                                              const WcnsParameters& parameters
+                                                              = {});
 
-[[nodiscard]] Real mdcd_six_point_smoothness(
-    const std::array<Real, 6>& stencil,
-    Real scale);
+[[nodiscard]] Real mdcd_six_point_smoothness(const std::array<Real, 6>& stencil, Real scale);
 
-[[nodiscard]] EulerFaceStates reconstruct_euler_face(
-    const Field<Real>& primitive,
-    Axis axis,
-    Index3 face,
-    const WcnsParameters& parameters = {});
+[[nodiscard]] EulerFaceStates reconstruct_euler_face(const Field<Real>& primitive,
+                                                     Axis axis,
+                                                     Index3 face,
+                                                     const WcnsParameters& parameters = {});
 
-[[nodiscard]] EulerFaceStates reconstruct_thermodynamic_face(
-    const Field<Real>& conservative,
-    const Field<Real>& pressure_primitive_field,
-    Axis axis,
-    Index3 face,
-    const ReconstructionConfig& config,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    ReconstructionDiagnostics& diagnostics,
-    int dimension,
-    Normal3 unit_normal = {1.0, 0.0, 0.0},
-    FaceDiagnosticLocation location = {},
-    bool inputs_prevalidated = false);
+[[nodiscard]] EulerFaceStates
+reconstruct_thermodynamic_face(const Field<Real>& conservative,
+                               const Field<Real>& pressure_primitive_field,
+                               Axis axis,
+                               Index3 face,
+                               const ReconstructionConfig& config,
+                               const GasModel& gas,
+                               const ReferenceScales& reference,
+                               ReconstructionDiagnostics& diagnostics,
+                               int dimension,
+                               Normal3 unit_normal = {1.0, 0.0, 0.0},
+                               FaceDiagnosticLocation location = {},
+                               bool inputs_prevalidated = false);
 
 } // namespace wcns

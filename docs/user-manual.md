@@ -1,6 +1,8 @@
 # WCNS 用户手册
 
-本文面向第一次接触本程序的算例使用者，对应 WCNS `1.0.0`、配置`schema_version = 1` 和生产入口 `wcns_run`。按本文顺序操作，可以从源码构建程序、准备CGNS 网格、填写配置、完成串行或 MPI 计算、识别停止状态、读取输出并从检查点续算。
+本文面向第一次接触本程序的算例使用者，对应 WCNS `1.1.0` 候选、配置
+`schema_version = 1` 和生产入口 `wcns_run`。按本文顺序操作，可以从源码构建程序、准备
+CGNS 网格、填写配置、完成串行或 MPI 计算、识别停止状态、读取输出并从检查点续算。
 
 本手册描述的是当前程序已经实现的行为。数学定义见[`算法补充.md`](../算法补充.md)，源码扩展见[`developer-guide.md`](developer-guide.md)，实现边界见[`known-limitations.md`](known-limitations.md)。可复制的完整配置见[`examples/full_case_template.wcns`](../examples/full_case_template.wcns)。
 
@@ -982,6 +984,11 @@ output.boundary.tangent_direction_z = 0.0
 `q_inf=0.5*rho_inf*|u_inf|^2`；参考动压必须大于统一阈值，方向必须为单位向量且 drag/lift
 正交。无粘运行请求 `Cf,q_wall` 或黏性牵引会在写文件前失败。
 
+无粘边界的压力（以及显式请求时的温度）默认采用当前 profile 的高阶内部迹；若该迹在激波附近
+出现非有限或不大于对应数值 floor 的输出侧超调，则仅对写出值退回该面的最近内部真实单元值。
+两者都无效时运行失败。这个保护不修改求解状态、残差、通量、时间步或 restart signature；未请求
+`T_w,mu_w` 的压力/载荷输出也不会额外计算温度迹与输运系数。
+
 面面积元使用全局守恒权重，不按面数平均；运行时切分通过原 zone 索引恢复后，在 root 进行
 确定性排序和查重。逐面文件名为 `<case>.boundary.r<ranks>.step....txt|dat`，几何列固定包含
 原 patch/zone 索引、全局面索引、面心、面积和流体域外法向。固定载荷历史
@@ -1105,7 +1112,8 @@ Linux 迁移前检查见 [`case05`](../cases/manual/case05_3d_turbulent_channel/
 用 `wcns_generate_release_cgns cylinder-o` 生成带首尾周期连接的多块 O 网格。低速圆柱使用
 可压缩层流 Navier--Stokes、绝热无滑移壁和远场边界，可通过 Re=20/40 与 Re=100/200
 分别观察稳定对称尾迹和非定常涡脱落；Mach 5 钝体功能检查使用 Euler、滑移壁和远场边界。
-当前粗网格结果只作定性验收，壁面升阻力由后处理近似而非求解器 face-based 输出。完整参数、
+当前粗网格结果只作定性验收。v1.1 已用求解器权威边界面迹直接输出压力/黏性牵引、热流，
+并对全局边界权重积分得到升阻力、力矩和系数；Case07 保留旧后处理结果仅供历史对照。完整参数、
 命令、实际结果、图像和限制见
 [`case07`](../cases/manual/case07_2d_cylinder/README.md)。
 

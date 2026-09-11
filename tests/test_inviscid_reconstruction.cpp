@@ -22,56 +22,46 @@ wcns::GasModel reconstruction_gas()
 
 wcns::ReferenceScales reconstruction_reference(const wcns::GasModel& gas)
 {
-    return wcns::ReferenceScales::derive(
-        {340.0, 1.2, 288.0, 1.0, 1.8e-5, {}, {}}, gas);
+    return wcns::ReferenceScales::derive({340.0, 1.2, 288.0, 1.0, 1.8e-5, {}, {}}, gas);
 }
 
 class CustomAverageReconstruction final : public wcns::IReconstructionScheme {
 public:
-    [[nodiscard]] std::string_view name() const noexcept override
-    {
-        return "custom_average";
-    }
+    [[nodiscard]] std::string_view name() const noexcept override { return "custom_average"; }
 
     [[nodiscard]] wcns::StencilRequirement stencil_requirement() const noexcept override
     {
         return {};
     }
 
-    [[nodiscard]] wcns::Real reconstruct_scalar(
-        wcns::ScalarStencilView stencil,
-        wcns::TraceSide side,
-        const wcns::ReconstructionContext&) const override
+    [[nodiscard]] wcns::Real reconstruct_scalar(wcns::ScalarStencilView stencil,
+                                                wcns::TraceSide side,
+                                                const wcns::ReconstructionContext&) const override
     {
         if (stencil.size() != 6) throw std::invalid_argument("custom stencil size");
-        return side == wcns::TraceSide::Left
-            ? 0.5 * (stencil[2] + stencil[3])
-            : 0.5 * (stencil[3] + stencil[2]);
+        return side == wcns::TraceSide::Left ? 0.5 * (stencil[2] + stencil[3])
+                                             : 0.5 * (stencil[3] + stencil[2]);
     }
 };
 
 class CustomCentralRiemann final : public wcns::IRiemannSolver {
 public:
-    [[nodiscard]] std::string_view name() const noexcept override
-    {
-        return "custom_central";
-    }
+    [[nodiscard]] std::string_view name() const noexcept override { return "custom_central"; }
 
-    [[nodiscard]] wcns::RiemannResult solve(
-        const wcns::PressurePrimitiveState& left,
-        const wcns::PressurePrimitiveState& right,
-        wcns::Normal3 unit_normal,
-        const wcns::GasModel& gas,
-        const wcns::NumericalFloors& floors) const override
+    [[nodiscard]] wcns::RiemannResult solve(const wcns::PressurePrimitiveState& left,
+                                            const wcns::PressurePrimitiveState& right,
+                                            wcns::Normal3 unit_normal,
+                                            const wcns::GasModel& gas,
+                                            const wcns::NumericalFloors& floors) const override
     {
         const wcns::IdealGas ideal {gas.gamma(), floors.density, floors.pressure};
         const auto left_flux = wcns::euler_flux(left, unit_normal, ideal);
         const auto right_flux = wcns::euler_flux(right, unit_normal, ideal);
         wcns::RiemannResult result;
         for (int component = 0; component < wcns::euler_components; ++component) {
-            result.flux_per_unit_area[static_cast<std::size_t>(component)]
-                = 0.5 * (left_flux[static_cast<std::size_t>(component)]
-                    + right_flux[static_cast<std::size_t>(component)]);
+            result.flux_per_unit_area[static_cast<std::size_t>(component)] = 0.5
+                * (left_flux[static_cast<std::size_t>(component)]
+                   + right_flux[static_cast<std::size_t>(component)]);
         }
         result.requested_solver = "custom_central";
         result.used_solver = "custom_central";
@@ -87,59 +77,45 @@ void test_stage_l_algorithm_registries()
     using namespace wcns;
     auto reconstruction_registry = ReconstructionRegistry::with_builtins();
     WCNS_REQUIRE(reconstruction_registry.names()
-        == std::vector<std::string>({
-            "linear5", "mdcd_hybrid", "mdcd_linear", "weno_js", "weno_z",
-            "zero_order"}));
+                 == std::vector<std::string>(
+                     {"linear5", "mdcd_hybrid", "mdcd_linear", "weno_js", "weno_z", "zero_order"}));
     reconstruction_registry.register_scheme(
-        "custom_average",
-        [] { return std::make_unique<CustomAverageReconstruction>(); });
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument,
-        reconstruction_registry.register_scheme(
-            "custom_average",
-            [] { return std::make_unique<CustomAverageReconstruction>(); }));
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument,
-        reconstruction_registry.create("missing_reconstruction"));
+        "custom_average", [] { return std::make_unique<CustomAverageReconstruction>(); });
+    WCNS_REQUIRE_THROWS(std::invalid_argument,
+                        reconstruction_registry.register_scheme("custom_average", [] {
+                            return std::make_unique<CustomAverageReconstruction>();
+                        }));
+    WCNS_REQUIRE_THROWS(std::invalid_argument,
+                        reconstruction_registry.create("missing_reconstruction"));
     auto custom = reconstruction_registry.create("custom_average");
     const std::array<Real, 6> stencil {{0.0, 1.0, 2.0, 4.0, 8.0, 16.0}};
-    WCNS_REQUIRE_NEAR(
-        custom->reconstruct_scalar(stencil, TraceSide::Left, {}), 3.0, 0.0);
+    WCNS_REQUIRE_NEAR(custom->reconstruct_scalar(stencil, TraceSide::Left, {}), 3.0, 0.0);
     const std::array<Real, 5> wrong_stencil {{0.0, 1.0, 2.0, 3.0, 4.0}};
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument,
-        reconstruction_registry.create("linear5")->reconstruct_scalar(
-            wrong_stencil, TraceSide::Left, {}));
+    WCNS_REQUIRE_THROWS(std::invalid_argument,
+                        reconstruction_registry.create("linear5")->reconstruct_scalar(
+                            wrong_stencil, TraceSide::Left, {}));
     ReconstructionConfig custom_config;
     custom_config.scheme = "custom_average";
     custom_config.validate(reconstruction_registry);
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument,
-        custom_config.validate(ReconstructionRegistry::with_builtins()));
+    WCNS_REQUIRE_THROWS(std::invalid_argument,
+                        custom_config.validate(ReconstructionRegistry::with_builtins()));
 
     auto riemann_registry = RiemannSolverRegistry::with_builtins();
-    WCNS_REQUIRE(riemann_registry.names()
-        == std::vector<std::string>({"hllc", "roe", "rusanov"}));
-    riemann_registry.register_solver(
-        "custom_central",
-        [] { return std::make_unique<CustomCentralRiemann>(); });
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument,
-        riemann_registry.register_solver(
-            "custom_central",
-            [] { return std::make_unique<CustomCentralRiemann>(); }));
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument,
-        riemann_registry.create("missing_riemann"));
+    WCNS_REQUIRE(riemann_registry.names() == std::vector<std::string>({"hllc", "roe", "rusanov"}));
+    riemann_registry.register_solver("custom_central",
+                                     [] { return std::make_unique<CustomCentralRiemann>(); });
+    WCNS_REQUIRE_THROWS(std::invalid_argument,
+                        riemann_registry.register_solver("custom_central", [] {
+                            return std::make_unique<CustomCentralRiemann>();
+                        }));
+    WCNS_REQUIRE_THROWS(std::invalid_argument, riemann_registry.create("missing_riemann"));
     const auto gas = reconstruction_gas();
     const PressurePrimitiveState state {1.0, 0.2, 0.0, 0.0, 1.0};
     const RiemannSolver custom_riemann("custom_central", riemann_registry);
-    const auto result = custom_riemann.solve(
-        state, state, {1.0, 0.0, 0.0}, gas, {});
+    const auto result = custom_riemann.solve(state, state, {1.0, 0.0, 0.0}, gas, {});
     WCNS_REQUIRE(result.requested_solver == "custom_central");
     WCNS_REQUIRE(result.used_solver == "custom_central");
-    WCNS_REQUIRE(custom_riemann.summary().find(
-        "riemann_solver=custom_central;") == 0);
+    WCNS_REQUIRE(custom_riemann.summary().find("riemann_solver=custom_central;") == 0);
 }
 
 // 验收 WENO-JS/WENO-Z/MDCD-LINEAR/MDCD-HYBRID 的常数保持、尺度及镜像约定。
@@ -151,19 +127,15 @@ void test_stage_l_scalar_reconstruction_schemes()
     const auto zero_order = registry.create("zero_order");
     WCNS_REQUIRE(zero_order->stencil_requirement().point_count == 6);
     WCNS_REQUIRE_NEAR(
-        zero_order->reconstruct_scalar(asymmetric, TraceSide::Left, {}),
-        asymmetric[2], 0.0);
+        zero_order->reconstruct_scalar(asymmetric, TraceSide::Left, {}), asymmetric[2], 0.0);
     WCNS_REQUIRE_NEAR(
-        zero_order->reconstruct_scalar(asymmetric, TraceSide::Right, {}),
-        asymmetric[3], 0.0);
+        zero_order->reconstruct_scalar(asymmetric, TraceSide::Right, {}), asymmetric[3], 0.0);
     WCNS_REQUIRE(reconstruction_name(ReconstructionKind::ZeroOrder) == "zero_order");
     const std::array<Real, 6> constant {{2.5, 2.5, 2.5, 2.5, 2.5, 2.5}};
     for (const auto* name : {"weno_js", "weno_z", "mdcd_linear", "mdcd_hybrid"}) {
         const auto scheme = registry.create(name);
-        WCNS_REQUIRE_NEAR(
-            scheme->reconstruct_scalar(constant, TraceSide::Left, {}), 2.5, 1.0e-14);
-        WCNS_REQUIRE_NEAR(
-            scheme->reconstruct_scalar(constant, TraceSide::Right, {}), 2.5, 1.0e-14);
+        WCNS_REQUIRE_NEAR(scheme->reconstruct_scalar(constant, TraceSide::Left, {}), 2.5, 1.0e-14);
+        WCNS_REQUIRE_NEAR(scheme->reconstruct_scalar(constant, TraceSide::Right, {}), 2.5, 1.0e-14);
     }
     WCNS_REQUIRE_NEAR(mdcd_six_point_smoothness(constant, 2.5), 0.0, 0.0);
 
@@ -183,11 +155,9 @@ void test_stage_l_scalar_reconstruction_schemes()
         const Real left = scheme->reconstruct_scalar(smooth, TraceSide::Left, base);
         const Real right = scheme->reconstruct_scalar(smooth, TraceSide::Right, base);
         WCNS_REQUIRE_NEAR(
-            scheme->reconstruct_scalar(scaled, TraceSide::Left, large) / 1.0e6,
-            left, 3.0e-15);
+            scheme->reconstruct_scalar(scaled, TraceSide::Left, large) / 1.0e6, left, 3.0e-15);
         WCNS_REQUIRE_NEAR(
-            scheme->reconstruct_scalar(reversed, TraceSide::Left, base),
-            right, 3.0e-15);
+            scheme->reconstruct_scalar(reversed, TraceSide::Left, base), right, 3.0e-15);
     }
 
     WcnsParameters parameters;
@@ -215,11 +185,8 @@ void test_stage_l_scalar_reconstruction_schemes()
     WCNS_REQUIRE_NEAR(hybrid_smooth.right, linear_smooth.right, 0.0);
 
     const std::array<Real, 6> discontinuity {{1.0, 1.0, 1.0, 2.0, 2.0, 2.0}};
-    WCNS_REQUIRE_NEAR(
-        mdcd_six_point_smoothness(discontinuity, 1.0),
-        279739.0 / 5040.0, 1.0e-13);
-    const auto hybrid_jump = mdcd_hybrid_reconstruct_scaled(
-        discontinuity, 1.0, parameters);
+    WCNS_REQUIRE_NEAR(mdcd_six_point_smoothness(discontinuity, 1.0), 279739.0 / 5040.0, 1.0e-13);
+    const auto hybrid_jump = mdcd_hybrid_reconstruct_scaled(discontinuity, 1.0, parameters);
     WCNS_REQUIRE_NEAR(hybrid_jump.left, 1.0, 1.0e-14);
     WCNS_REQUIRE_NEAR(hybrid_jump.right, 2.0, 1.0e-14);
 
@@ -238,53 +205,52 @@ void test_stage_l_characteristic_reconstruction()
     const PressurePrimitiveState left_state {1.0, 0.6, -0.2, 0.0, 1.0};
     const PressurePrimitiveState right_state {0.8, -0.1, 0.3, 0.0, 0.7};
     const Normal3 normal {0.6, 0.8, 0.0};
-    const auto basis = make_roe_characteristic_basis(
-        left_state, right_state, normal, gas, floors, 2);
+    const auto basis
+        = make_roe_characteristic_basis(left_state, right_state, normal, gas, floors, 2);
     for (int row = 0; row < euler_components; ++row) {
         for (int column = 0; column < euler_components; ++column) {
             Real product = 0.0;
             for (int inner = 0; inner < euler_components; ++inner) {
-                product += basis.left[static_cast<std::size_t>(row)]
-                    [static_cast<std::size_t>(inner)]
-                    * basis.right[static_cast<std::size_t>(inner)]
-                        [static_cast<std::size_t>(column)];
+                product
+                    += basis.left[static_cast<std::size_t>(row)][static_cast<std::size_t>(inner)]
+                    * basis
+                          .right[static_cast<std::size_t>(inner)][static_cast<std::size_t>(column)];
             }
             WCNS_REQUIRE_NEAR(product, row == column ? 1.0 : 0.0, 2.0e-14);
         }
     }
     const auto conservative = to_conservative(left_state);
-    const auto restored = restore_characteristic(
-        project_characteristic(conservative, basis), basis);
+    const auto restored
+        = restore_characteristic(project_characteristic(conservative, basis), basis);
     for (int component = 0; component < euler_components; ++component) {
-        WCNS_REQUIRE_NEAR(
-            restored[static_cast<std::size_t>(component)],
-            conservative[static_cast<std::size_t>(component)], 3.0e-14);
+        WCNS_REQUIRE_NEAR(restored[static_cast<std::size_t>(component)],
+                          conservative[static_cast<std::size_t>(component)],
+                          3.0e-14);
     }
 
     const PressurePrimitiveState left_3d {1.1, 0.7, -0.4, 0.2, 0.9};
     const PressurePrimitiveState right_3d {0.75, -0.2, 0.5, -0.3, 0.65};
     const auto basis_3d = make_roe_characteristic_basis(
-        left_3d, right_3d, {1.0 / 3.0, 2.0 / 3.0, 2.0 / 3.0},
-        gas, floors, 3);
+        left_3d, right_3d, {1.0 / 3.0, 2.0 / 3.0, 2.0 / 3.0}, gas, floors, 3);
     for (int row = 0; row < euler_components; ++row) {
         for (int column = 0; column < euler_components; ++column) {
             Real product = 0.0;
             for (int inner = 0; inner < euler_components; ++inner) {
-                product += basis_3d.left[static_cast<std::size_t>(row)]
-                    [static_cast<std::size_t>(inner)]
-                    * basis_3d.right[static_cast<std::size_t>(inner)]
-                        [static_cast<std::size_t>(column)];
+                product
+                    += basis_3d.left[static_cast<std::size_t>(row)][static_cast<std::size_t>(inner)]
+                    * basis_3d
+                          .right[static_cast<std::size_t>(inner)][static_cast<std::size_t>(column)];
             }
             WCNS_REQUIRE_NEAR(product, row == column ? 1.0 : 0.0, 3.0e-14);
         }
     }
     const auto conservative_3d = to_conservative(left_3d);
-    const auto restored_3d = restore_characteristic(
-        project_characteristic(conservative_3d, basis_3d), basis_3d);
+    const auto restored_3d
+        = restore_characteristic(project_characteristic(conservative_3d, basis_3d), basis_3d);
     for (int component = 0; component < euler_components; ++component) {
-        WCNS_REQUIRE_NEAR(
-            restored_3d[static_cast<std::size_t>(component)],
-            conservative_3d[static_cast<std::size_t>(component)], 4.0e-14);
+        WCNS_REQUIRE_NEAR(restored_3d[static_cast<std::size_t>(component)],
+                          conservative_3d[static_cast<std::size_t>(component)],
+                          4.0e-14);
     }
 
     Field<Real> conservative_field({4, 1, 1}, euler_components, 3);
@@ -297,16 +263,23 @@ void test_stage_l_characteristic_reconstruction()
     config.scheme = "weno_z";
     config.variables = ReconstructionVariables::Characteristic;
     ReconstructionDiagnostics diagnostics;
-    const auto uniform = reconstruct_thermodynamic_face(
-        conservative_field, primitive_field, Axis::I, {2, 0, 0}, config,
-        gas, reference, diagnostics, 2, normal);
+    const auto uniform = reconstruct_thermodynamic_face(conservative_field,
+                                                        primitive_field,
+                                                        Axis::I,
+                                                        {2, 0, 0},
+                                                        config,
+                                                        gas,
+                                                        reference,
+                                                        diagnostics,
+                                                        2,
+                                                        normal);
     for (int component = 0; component < euler_components; ++component) {
-        WCNS_REQUIRE_NEAR(
-            uniform.left[static_cast<std::size_t>(component)],
-            left_state[static_cast<std::size_t>(component)], 3.0e-14);
-        WCNS_REQUIRE_NEAR(
-            uniform.right[static_cast<std::size_t>(component)],
-            left_state[static_cast<std::size_t>(component)], 3.0e-14);
+        WCNS_REQUIRE_NEAR(uniform.left[static_cast<std::size_t>(component)],
+                          left_state[static_cast<std::size_t>(component)],
+                          3.0e-14);
+        WCNS_REQUIRE_NEAR(uniform.right[static_cast<std::size_t>(component)],
+                          left_state[static_cast<std::size_t>(component)],
+                          3.0e-14);
     }
     WCNS_REQUIRE(diagnostics.characteristic_faces == 1);
     WCNS_REQUIRE(diagnostics.characteristic_fallbacks == 0);
@@ -325,11 +298,18 @@ void test_stage_l_characteristic_reconstruction()
     }
     config.scheme = "linear5";
     diagnostics = {};
-    const FaceDiagnosticLocation location {
-        7, 2, Axis::I, {2, 0, 0}, 41, 3};
-    const auto fallback = reconstruct_thermodynamic_face(
-        conservative_field, primitive_field, Axis::I, {2, 0, 0}, config,
-        gas, reference, diagnostics, 2, {1.0, 0.0, 0.0}, location);
+    const FaceDiagnosticLocation location {7, 2, Axis::I, {2, 0, 0}, 41, 3};
+    const auto fallback = reconstruct_thermodynamic_face(conservative_field,
+                                                         primitive_field,
+                                                         Axis::I,
+                                                         {2, 0, 0},
+                                                         config,
+                                                         gas,
+                                                         reference,
+                                                         diagnostics,
+                                                         2,
+                                                         {1.0, 0.0, 0.0},
+                                                         location);
     WCNS_REQUIRE(fallback.left == valid);
     WCNS_REQUIRE(fallback.right == valid);
     WCNS_REQUIRE(diagnostics.characteristic_fallbacks == 1);
@@ -339,14 +319,11 @@ void test_stage_l_characteristic_reconstruction()
     WCNS_REQUIRE(diagnostics.fallback_events[0].location.block == 7);
     WCNS_REQUIRE(diagnostics.fallback_events[0].location.rank == 2);
     WCNS_REQUIRE(diagnostics.fallback_events[0].location.rk_stage == 3);
-    WCNS_REQUIRE(diagnostics.fallback_events[0].from_strategy
-        == "linear5:characteristic");
-    WCNS_REQUIRE(diagnostics.fallback_events[0].to_strategy
-        == "linear5:primitive");
+    WCNS_REQUIRE(diagnostics.fallback_events[0].from_strategy == "linear5:characteristic");
+    WCNS_REQUIRE(diagnostics.fallback_events[0].to_strategy == "linear5:primitive");
     WCNS_REQUIRE(diagnostics.fallback_events[0].reason
-        == ReconstructionFallbackReason::InvalidCharacteristicState);
-    WCNS_REQUIRE(diagnostics.fallback_events[1].to_strategy
-        == "first_order:primitive");
+                 == ReconstructionFallbackReason::InvalidCharacteristicState);
+    WCNS_REQUIRE(diagnostics.fallback_events[1].to_strategy == "first_order:primitive");
 }
 
 // 验收五阶线性重构的四次多项式精确性及 WCNS-JS 的尺度不变性。
@@ -371,9 +348,7 @@ void test_stage_j_scalar_reconstruction()
     const auto large = wcns5_reconstruct_scaled(scaled, 1.0e6);
     WCNS_REQUIRE_NEAR(large.left / 1.0e6, base.left, 2.0e-15);
     WCNS_REQUIRE_NEAR(large.right / 1.0e6, base.right, 2.0e-15);
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument,
-        wcns5_reconstruct_scaled(smooth, 0.0));
+    WCNS_REQUIRE_THROWS(std::invalid_argument, wcns5_reconstruct_scaled(smooth, 0.0));
     ReconstructionConfig inconsistent;
     inconsistent.nonlinear.epsilon = 1.0e-5;
     WCNS_REQUIRE_THROWS(std::invalid_argument, inconsistent.validate());
@@ -402,17 +377,14 @@ void test_reconstruction_positivity_fallback()
     config.scheme = std::string(reconstruction_name(ReconstructionKind::Linear5));
     ReconstructionDiagnostics diagnostics;
     const auto result = reconstruct_thermodynamic_face(
-        conservative, primitive, Axis::I, {2, 0, 0}, config,
-        gas, reference, diagnostics, 2);
+        conservative, primitive, Axis::I, {2, 0, 0}, config, gas, reference, diagnostics, 2);
     WCNS_REQUIRE(result.left == valid);
     WCNS_REQUIRE(result.right == valid);
     WCNS_REQUIRE(diagnostics.linear_faces == 1);
     WCNS_REQUIRE(diagnostics.first_order_fallbacks == 1);
     WCNS_REQUIRE(diagnostics.fallback_events.size() == 1);
-    WCNS_REQUIRE(diagnostics.fallback_events[0].from_strategy
-        == "linear5:primitive");
-    WCNS_REQUIRE(diagnostics.fallback_events[0].to_strategy
-        == "first_order:primitive");
+    WCNS_REQUIRE(diagnostics.fallback_events[0].from_strategy == "linear5:primitive");
+    WCNS_REQUIRE(diagnostics.fallback_events[0].to_strategy == "first_order:primitive");
 }
 
 // 验收三种 Riemann 求解器的相容性、接触保持、迎风极限和法向反转对称性。
@@ -425,8 +397,8 @@ void test_stage_l_riemann_solvers()
     const Normal3 normal {0.6, 0.8, 0.0};
     const PressurePrimitiveState uniform {1.1, 0.7, -0.2, 0.0, 0.9};
     const auto exact = euler_flux(uniform, normal, ideal);
-    for (const auto kind : {RiemannSolverKind::Rusanov,
-             RiemannSolverKind::Hllc, RiemannSolverKind::Roe}) {
+    for (const auto kind :
+         {RiemannSolverKind::Rusanov, RiemannSolverKind::Hllc, RiemannSolverKind::Roe}) {
         const RiemannSolver solver(kind);
         const auto result = solver.solve(uniform, uniform, normal, gas, floors);
         WCNS_REQUIRE(result.requested_solver == solver.name());
@@ -434,58 +406,57 @@ void test_stage_l_riemann_solvers()
         WCNS_REQUIRE(result.fallback_reason == RiemannFallbackReason::None);
         WCNS_REQUIRE(result.spectral_radius > 0.0);
         for (int component = 0; component < euler_components; ++component) {
-            WCNS_REQUIRE_NEAR(
-                result.flux_per_unit_area[static_cast<std::size_t>(component)],
-                exact[static_cast<std::size_t>(component)], 2.0e-13);
+            WCNS_REQUIRE_NEAR(result.flux_per_unit_area[static_cast<std::size_t>(component)],
+                              exact[static_cast<std::size_t>(component)],
+                              2.0e-13);
         }
     }
 
     const PressurePrimitiveState contact_left {1.0, 0.0, 0.0, 0.0, 1.0};
     const PressurePrimitiveState contact_right {2.0, 0.0, 0.0, 0.0, 1.0};
     const ConservativeState contact_flux {{0.0, 1.0, 0.0, 0.0, 0.0}};
-    const auto hllc_contact = RiemannSolver(RiemannSolverKind::Hllc).flux(
-        contact_left, contact_right, {1.0, 0.0, 0.0}, gas, floors);
+    const auto hllc_contact = RiemannSolver(RiemannSolverKind::Hllc)
+                                  .flux(contact_left, contact_right, {1.0, 0.0, 0.0}, gas, floors);
     for (int component = 0; component < euler_components; ++component) {
-        WCNS_REQUIRE_NEAR(
-            hllc_contact[static_cast<std::size_t>(component)],
-            contact_flux[static_cast<std::size_t>(component)], 3.0e-13);
+        WCNS_REQUIRE_NEAR(hllc_contact[static_cast<std::size_t>(component)],
+                          contact_flux[static_cast<std::size_t>(component)],
+                          3.0e-13);
     }
-    const auto rusanov_contact = RiemannSolver(RiemannSolverKind::Rusanov).flux(
-        contact_left, contact_right, {1.0, 0.0, 0.0}, gas, floors);
+    const auto rusanov_contact
+        = RiemannSolver(RiemannSolverKind::Rusanov)
+              .flux(contact_left, contact_right, {1.0, 0.0, 0.0}, gas, floors);
     WCNS_REQUIRE(std::abs(hllc_contact[0]) < std::abs(rusanov_contact[0]));
 
     RiemannSolverParameters strong_entropy_fix;
     strong_entropy_fix.entropy_fix_coefficient = 0.2;
-    const auto roe_contact = RiemannSolver(
-        RiemannSolverKind::Roe, strong_entropy_fix).flux(
-        contact_left, contact_right, {1.0, 0.0, 0.0}, gas, floors);
+    const auto roe_contact = RiemannSolver(RiemannSolverKind::Roe, strong_entropy_fix)
+                                 .flux(contact_left, contact_right, {1.0, 0.0, 0.0}, gas, floors);
     WCNS_REQUIRE(roe_contact[0] < 0.0);
 
     const PressurePrimitiveState supersonic_left {1.0, 4.0, 0.1, 0.0, 1.0};
     const PressurePrimitiveState supersonic_right {0.8, 3.5, -0.2, 0.0, 0.7};
-    const auto supersonic_exact = euler_flux(
-        supersonic_left, {1.0, 0.0, 0.0}, ideal);
-    const auto supersonic_hllc = RiemannSolver(RiemannSolverKind::Hllc).flux(
-        supersonic_left, supersonic_right, {1.0, 0.0, 0.0}, gas, floors);
+    const auto supersonic_exact = euler_flux(supersonic_left, {1.0, 0.0, 0.0}, ideal);
+    const auto supersonic_hllc
+        = RiemannSolver(RiemannSolverKind::Hllc)
+              .flux(supersonic_left, supersonic_right, {1.0, 0.0, 0.0}, gas, floors);
     for (int component = 0; component < euler_components; ++component) {
-        WCNS_REQUIRE_NEAR(
-            supersonic_hllc[static_cast<std::size_t>(component)],
-            supersonic_exact[static_cast<std::size_t>(component)], 0.0);
+        WCNS_REQUIRE_NEAR(supersonic_hllc[static_cast<std::size_t>(component)],
+                          supersonic_exact[static_cast<std::size_t>(component)],
+                          0.0);
     }
 
     const PressurePrimitiveState left {1.0, 0.9, -0.3, 0.1, 1.2};
     const PressurePrimitiveState right {0.7, -0.2, 0.4, -0.1, 0.6};
     const Normal3 reverse_normal {-normal.x, -normal.y, -normal.z};
-    for (const auto kind : {RiemannSolverKind::Rusanov,
-             RiemannSolverKind::Hllc, RiemannSolverKind::Roe}) {
+    for (const auto kind :
+         {RiemannSolverKind::Rusanov, RiemannSolverKind::Hllc, RiemannSolverKind::Roe}) {
         const RiemannSolver solver(kind);
         const auto forward = solver.flux(left, right, normal, gas, floors);
-        const auto reverse = solver.flux(
-            right, left, reverse_normal, gas, floors);
+        const auto reverse = solver.flux(right, left, reverse_normal, gas, floors);
         for (int component = 0; component < euler_components; ++component) {
-            WCNS_REQUIRE_NEAR(
-                forward[static_cast<std::size_t>(component)],
-                -reverse[static_cast<std::size_t>(component)], 5.0e-13);
+            WCNS_REQUIRE_NEAR(forward[static_cast<std::size_t>(component)],
+                              -reverse[static_cast<std::size_t>(component)],
+                              5.0e-13);
         }
     }
 
@@ -494,37 +465,31 @@ void test_stage_l_riemann_solvers()
     config.validate(RiemannSolverRegistry::with_builtins(config.parameters));
     WCNS_REQUIRE(config.restart_signature().find("riemann_config_v1;") == 0);
     config.scheme = "missing";
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument,
-        config.validate(RiemannSolverRegistry::with_builtins(config.parameters)));
+    WCNS_REQUIRE_THROWS(std::invalid_argument,
+                        config.validate(RiemannSolverRegistry::with_builtins(config.parameters)));
 
     RiemannSolverParameters fallback_parameters;
     fallback_parameters.denominator_tolerance = 0.5;
-    const PressurePrimitiveState near_floor {
-        1.0e-8, 0.0, 0.0, 0.0, 1.0e-8};
-    const auto fallback_result = RiemannSolver(
-        RiemannSolverKind::Hllc, fallback_parameters).solve(
-        near_floor, near_floor, {1.0, 0.0, 0.0}, gas, floors);
+    const PressurePrimitiveState near_floor {1.0e-8, 0.0, 0.0, 0.0, 1.0e-8};
+    const auto fallback_result = RiemannSolver(RiemannSolverKind::Hllc, fallback_parameters)
+                                     .solve(near_floor, near_floor, {1.0, 0.0, 0.0}, gas, floors);
     WCNS_REQUIRE(fallback_result.requested_solver == "hllc");
     WCNS_REQUIRE(fallback_result.used_solver == "rusanov");
-    WCNS_REQUIRE(fallback_result.fallback_reason
-        == RiemannFallbackReason::InvalidWaveSpeed);
+    WCNS_REQUIRE(fallback_result.fallback_reason == RiemannFallbackReason::InvalidWaveSpeed);
     RiemannDiagnostics diagnostics;
-    const FaceDiagnosticLocation location {
-        9, 3, Axis::J, {4, 5, 0}, 17, 2};
+    const FaceDiagnosticLocation location {9, 3, Axis::J, {4, 5, 0}, 17, 2};
     diagnostics.record(fallback_result, location);
     WCNS_REQUIRE(diagnostics.total_faces == 1);
     WCNS_REQUIRE(diagnostics.requested_faces.at("hllc") == 1);
     WCNS_REQUIRE(diagnostics.used_faces.at("rusanov") == 1);
     WCNS_REQUIRE(diagnostics.fallback_count() == 1);
-    WCNS_REQUIRE(diagnostics.fallback_count(
-        RiemannFallbackReason::InvalidWaveSpeed) == 1);
+    WCNS_REQUIRE(diagnostics.fallback_count(RiemannFallbackReason::InvalidWaveSpeed) == 1);
     WCNS_REQUIRE(diagnostics.fallback_events[0].location.axis == Axis::J);
     WCNS_REQUIRE(diagnostics.fallback_events[0].location.face.i == 4);
     WCNS_REQUIRE(diagnostics.fallback_events[0].location.face.j == 5);
     WCNS_REQUIRE(diagnostics.fallback_events[0].location.face.k == 0);
-    WCNS_REQUIRE(riemann_fallback_reason_name(
-        diagnostics.fallback_events[0].reason) == "invalid_wave_speed");
+    WCNS_REQUIRE(riemann_fallback_reason_name(diagnostics.fallback_events[0].reason)
+                 == "invalid_wave_speed");
 
     RiemannResult two_level;
     two_level.requested_solver = "roe";
@@ -537,18 +502,14 @@ void test_stage_l_riemann_solvers()
     RiemannDiagnostics two_level_diagnostics;
     two_level_diagnostics.record(two_level, location);
     WCNS_REQUIRE(two_level_diagnostics.fallback_count() == 2);
-    WCNS_REQUIRE(two_level_diagnostics.fallback_count(
-        RiemannFallbackReason::InvalidRoeAverage) == 1);
-    WCNS_REQUIRE(two_level_diagnostics.fallback_count(
-        RiemannFallbackReason::InvalidIntermediateState) == 1);
-    WCNS_REQUIRE(two_level_diagnostics.fallback_events[0].from_solver
-        == "roe");
-    WCNS_REQUIRE(two_level_diagnostics.fallback_events[0].to_solver
-        == "hllc");
-    WCNS_REQUIRE(two_level_diagnostics.fallback_events[1].from_solver
-        == "hllc");
-    WCNS_REQUIRE(two_level_diagnostics.fallback_events[1].to_solver
-        == "rusanov");
+    WCNS_REQUIRE(two_level_diagnostics.fallback_count(RiemannFallbackReason::InvalidRoeAverage)
+                 == 1);
+    WCNS_REQUIRE(
+        two_level_diagnostics.fallback_count(RiemannFallbackReason::InvalidIntermediateState) == 1);
+    WCNS_REQUIRE(two_level_diagnostics.fallback_events[0].from_solver == "roe");
+    WCNS_REQUIRE(two_level_diagnostics.fallback_events[0].to_solver == "hllc");
+    WCNS_REQUIRE(two_level_diagnostics.fallback_events[1].from_solver == "hllc");
+    WCNS_REQUIRE(two_level_diagnostics.fallback_events[1].to_solver == "rusanov");
 }
 
 // 验收阶段 L 的光滑特征收敛、激波/高 Mach 健壮性和非有限模板失败语义。
@@ -580,9 +541,16 @@ void test_stage_l_algorithm_benchmarks()
         config.scheme = scheme;
         config.variables = ReconstructionVariables::Characteristic;
         ReconstructionDiagnostics diagnostics;
-        const auto reconstructed = reconstruct_thermodynamic_face(
-            conservative, primitive, Axis::I, {2, 0, 0}, config,
-            gas, reference, diagnostics, 2, {1.0, 0.0, 0.0});
+        const auto reconstructed = reconstruct_thermodynamic_face(conservative,
+                                                                  primitive,
+                                                                  Axis::I,
+                                                                  {2, 0, 0},
+                                                                  config,
+                                                                  gas,
+                                                                  reference,
+                                                                  diagnostics,
+                                                                  2,
+                                                                  {1.0, 0.0, 0.0});
         WCNS_REQUIRE(diagnostics.fallback_events.empty());
         const auto exact = analytic(0.0);
         Real error = 0.0;
@@ -593,8 +561,7 @@ void test_stage_l_algorithm_benchmarks()
         }
         return error;
     };
-    for (const auto* scheme : {
-             "weno_js", "weno_z", "mdcd_linear", "mdcd_hybrid"}) {
+    for (const auto* scheme : {"weno_js", "weno_z", "mdcd_linear", "mdcd_hybrid"}) {
         const Real coarse = smooth_error(scheme, 0.4);
         const Real fine = smooth_error(scheme, 0.2);
         WCNS_REQUIRE(coarse > fine);
@@ -604,19 +571,16 @@ void test_stage_l_algorithm_benchmarks()
     auto registry = ReconstructionRegistry::with_builtins();
     std::array<Real, 6> non_finite {{0.0, 1.0, 2.0, 3.0, 4.0, 5.0}};
     non_finite[2] = std::numeric_limits<Real>::infinity();
-    for (const auto* scheme : {
-             "weno_js", "weno_z", "mdcd_linear", "mdcd_hybrid"}) {
+    for (const auto* scheme : {"weno_js", "weno_z", "mdcd_linear", "mdcd_hybrid"}) {
         WCNS_REQUIRE_THROWS(
             PhysicsError,
-            registry.create(scheme)->reconstruct_scalar(
-                non_finite, TraceSide::Left, {}));
+            registry.create(scheme)->reconstruct_scalar(non_finite, TraceSide::Left, {}));
     }
     for (int sample = 0; sample < 50; ++sample) {
         std::array<Real, 6> values {};
         for (std::size_t point = 0; point < values.size(); ++point) {
-            values[point] = std::sin(
-                0.37 * static_cast<Real>((sample + 1)
-                    * static_cast<int>(point + 1)));
+            values[point]
+                = std::sin(0.37 * static_cast<Real>((sample + 1) * static_cast<int>(point + 1)));
         }
         WCNS_REQUIRE(mdcd_six_point_smoothness(values, 1.0) >= 0.0);
     }
@@ -627,10 +591,9 @@ void test_stage_l_algorithm_benchmarks()
     const PressurePrimitiveState high_mach_right {0.8, 45.0, 0.0, 0.0, 0.7};
     for (const auto kind : {RiemannSolverKind::Hllc, RiemannSolverKind::Roe}) {
         const RiemannSolver solver(kind);
-        for (const auto result : {
-                 solver.solve(sod_left, sod_right, {1.0, 0.0, 0.0}, gas, floors),
-                 solver.solve(high_mach_left, high_mach_right,
-                     {1.0, 0.0, 0.0}, gas, floors)}) {
+        for (const auto result :
+             {solver.solve(sod_left, sod_right, {1.0, 0.0, 0.0}, gas, floors),
+              solver.solve(high_mach_left, high_mach_right, {1.0, 0.0, 0.0}, gas, floors)}) {
             WCNS_REQUIRE(result.fallback_reason == RiemannFallbackReason::None);
             WCNS_REQUIRE(result.spectral_radius > 0.0);
             for (const auto component : result.flux_per_unit_area) {
@@ -641,25 +604,22 @@ void test_stage_l_algorithm_benchmarks()
 
     const IdealGas ideal {gas.gamma(), floors.density, floors.pressure};
     const PressurePrimitiveState wave_left {1.0, 0.5, 0.0, 0.0, 1.0};
-    const auto wave_basis = make_roe_characteristic_basis(
-        wave_left, wave_left, {1.0, 0.0, 0.0}, gas, floors, 3);
+    const auto wave_basis
+        = make_roe_characteristic_basis(wave_left, wave_left, {1.0, 0.0, 0.0}, gas, floors, 3);
     ConservativeState characteristic_jump {};
     characteristic_jump[4] = 1.0e-6;
     const auto conservative_left = to_conservative(wave_left, ideal);
-    const auto physical_jump = restore_characteristic(
-        characteristic_jump, wave_basis);
+    const auto physical_jump = restore_characteristic(characteristic_jump, wave_basis);
     ConservativeState conservative_right = conservative_left;
     for (int component = 0; component < euler_components; ++component) {
         const auto index = static_cast<std::size_t>(component);
         conservative_right[index] += physical_jump[index];
     }
     const auto wave_right = to_primitive(conservative_right, ideal);
-    const auto roe_wave = RiemannSolver(RiemannSolverKind::Roe).solve(
-        wave_left, wave_right, {1.0, 0.0, 0.0}, gas, floors);
-    const auto wave_left_flux = euler_flux(
-        wave_left, {1.0, 0.0, 0.0}, ideal);
-    const auto wave_right_flux = euler_flux(
-        wave_right, {1.0, 0.0, 0.0}, ideal);
+    const auto roe_wave = RiemannSolver(RiemannSolverKind::Roe)
+                              .solve(wave_left, wave_right, {1.0, 0.0, 0.0}, gas, floors);
+    const auto wave_left_flux = euler_flux(wave_left, {1.0, 0.0, 0.0}, ideal);
+    const auto wave_right_flux = euler_flux(wave_right, {1.0, 0.0, 0.0}, ideal);
     const Real acoustic_speed = 0.5 + std::sqrt(gas.gamma());
     for (int component = 0; component < euler_components; ++component) {
         const auto index = static_cast<std::size_t>(component);
@@ -679,15 +639,12 @@ void test_rusanov_riemann_solver()
     const Normal3 normal {0.6, 0.8, 0.0};
     const RiemannSolver solver;
     const auto flux = solver.flux(state, state, normal, gas, floors);
-    const auto exact = euler_flux(
-        state, normal, {gas.gamma(), floors.density, floors.pressure});
+    const auto exact = euler_flux(state, normal, {gas.gamma(), floors.density, floors.pressure});
     for (int component = 0; component < euler_components; ++component) {
-        WCNS_REQUIRE_NEAR(
-            flux[static_cast<std::size_t>(component)],
-            exact[static_cast<std::size_t>(component)], 1.0e-14);
+        WCNS_REQUIRE_NEAR(flux[static_cast<std::size_t>(component)],
+                          exact[static_cast<std::size_t>(component)],
+                          1.0e-14);
     }
     WCNS_REQUIRE(solver.summary().find("riemann_solver=rusanov;") == 0);
-    WCNS_REQUIRE_THROWS(
-        PhysicsError,
-        solver.flux(state, state, {2.0, 0.0, 0.0}, gas, floors));
+    WCNS_REQUIRE_THROWS(PhysicsError, solver.flux(state, state, {2.0, 0.0, 0.0}, gas, floors));
 }

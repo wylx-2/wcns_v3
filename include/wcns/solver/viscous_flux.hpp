@@ -17,8 +17,7 @@ enum class ViscousPrimitive : int {
 };
 
 using CartesianGradient = std::array<Real, 3>;
-using PrimitiveGradients
-    = std::array<CartesianGradient, viscous_primitive_components>;
+using PrimitiveGradients = std::array<CartesianGradient, viscous_primitive_components>;
 
 struct ViscousFaceTrace {
     TemperaturePrimitiveState state {};
@@ -33,12 +32,11 @@ struct ViscousCartesianFlux {
     Real thermal_coefficient = 0.0;
 };
 
-[[nodiscard]] ViscousCartesianFlux compute_viscous_cartesian_flux(
-    const ViscousFaceTrace& trace,
-    const TransportModel& transport,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors,
-    int dimension);
+[[nodiscard]] ViscousCartesianFlux compute_viscous_cartesian_flux(const ViscousFaceTrace& trace,
+                                                                  const TransportModel& transport,
+                                                                  const GasModel& gas,
+                                                                  const ReferenceScales& reference,
+                                                                  const NumericalFloors& floors,
+                                                                  int dimension);
 
 } // namespace wcns

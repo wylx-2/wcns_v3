@@ -16,11 +16,10 @@
 
 namespace {
 
-void add_boundary(
-    wcns::StructuredBlock& block,
-    const char* name,
-    wcns::FaceLocation face,
-    wcns::BoundaryType type)
+void add_boundary(wcns::StructuredBlock& block,
+                  const char* name,
+                  wcns::FaceLocation face,
+                  wcns::BoundaryType type)
 {
     using namespace wcns;
     const auto vertices = block.vertex_extent();
@@ -47,9 +46,8 @@ void add_boundary(
     block.boundaries.push_back(std::move(patch));
 }
 
-wcns::StructuredMesh make_mesh(
-    wcns::BoundaryType outer_i = wcns::BoundaryType::Farfield,
-    wcns::BoundaryType outer_j = wcns::BoundaryType::Farfield)
+wcns::StructuredMesh make_mesh(wcns::BoundaryType outer_i = wcns::BoundaryType::Farfield,
+                               wcns::BoundaryType outer_j = wcns::BoundaryType::Farfield)
 {
     using namespace wcns;
     constexpr int vertices = 9;
@@ -65,24 +63,32 @@ wcns::StructuredMesh make_mesh(
             right.coordinates.z(i, j, 0) = 0.0;
         }
     }
-    left.connectivities.push_back({
-        "left-right", 0, 1, 0,
-        {Axis::I, Side::Upper}, {Axis::I, Side::Lower},
-        {{vertices - 1, 0, 0}, {vertices - 1, vertices - 1, 0}},
-        {{0, 0, 0}, {0, vertices - 1, 0}},
-        {{vertices - 2, 0, 0}, {vertices - 2, vertices - 2, 0}},
-        {{0, 0, 0}, {0, vertices - 2, 0}},
-        {{vertices - 1, 0, 0}, {vertices - 1, vertices - 2, 0}},
-        {{{1, 2, 3}}}, 3});
-    right.connectivities.push_back({
-        "right-left", 1, 0, 0,
-        {Axis::I, Side::Lower}, {Axis::I, Side::Upper},
-        {{0, 0, 0}, {0, vertices - 1, 0}},
-        {{vertices - 1, 0, 0}, {vertices - 1, vertices - 1, 0}},
-        {{0, 0, 0}, {0, vertices - 2, 0}},
-        {{vertices - 2, 0, 0}, {vertices - 2, vertices - 2, 0}},
-        {{0, 0, 0}, {0, vertices - 2, 0}},
-        {{{1, 2, 3}}}, 3});
+    left.connectivities.push_back({"left-right",
+                                   0,
+                                   1,
+                                   0,
+                                   {Axis::I, Side::Upper},
+                                   {Axis::I, Side::Lower},
+                                   {{vertices - 1, 0, 0}, {vertices - 1, vertices - 1, 0}},
+                                   {{0, 0, 0}, {0, vertices - 1, 0}},
+                                   {{vertices - 2, 0, 0}, {vertices - 2, vertices - 2, 0}},
+                                   {{0, 0, 0}, {0, vertices - 2, 0}},
+                                   {{vertices - 1, 0, 0}, {vertices - 1, vertices - 2, 0}},
+                                   {{{1, 2, 3}}},
+                                   3});
+    right.connectivities.push_back({"right-left",
+                                    1,
+                                    0,
+                                    0,
+                                    {Axis::I, Side::Lower},
+                                    {Axis::I, Side::Upper},
+                                    {{0, 0, 0}, {0, vertices - 1, 0}},
+                                    {{vertices - 1, 0, 0}, {vertices - 1, vertices - 1, 0}},
+                                    {{0, 0, 0}, {0, vertices - 2, 0}},
+                                    {{vertices - 2, 0, 0}, {vertices - 2, vertices - 2, 0}},
+                                    {{0, 0, 0}, {0, vertices - 2, 0}},
+                                    {{{1, 2, 3}}},
+                                    3});
     add_boundary(left, "left-i-lower", {Axis::I, Side::Lower}, outer_i);
     add_boundary(left, "left-j-lower", {Axis::J, Side::Lower}, outer_j);
     add_boundary(left, "left-j-upper", {Axis::J, Side::Upper}, outer_j);
@@ -102,9 +108,7 @@ wcns::GasModel make_gas()
     return wcns::GasModel::from_input(input);
 }
 
-void run_profile(
-    const wcns::MpiRuntime& mpi,
-    wcns::AlgorithmProfileKind kind)
+void run_profile(const wcns::MpiRuntime& mpi, wcns::AlgorithmProfileKind kind)
 {
     using namespace wcns;
     auto mesh = make_mesh();
@@ -112,8 +116,7 @@ void run_profile(
     for (const auto& block : mesh.blocks()) {
         loads.push_back({block.id(), block.cell_extent().size()});
     }
-    const auto distribution = BlockDistribution::balanced(
-        std::move(loads), mpi.size());
+    const auto distribution = BlockDistribution::balanced(std::move(loads), mpi.size());
     distribution.apply(mesh);
     const auto topology = DistributedTopology::build(mesh, distribution);
     std::vector<StructuredBlock> local_storage;
@@ -122,12 +125,10 @@ void run_profile(
     }
     LocalBlockSet local(mpi.rank(), std::move(local_storage), distribution);
     const auto gas = make_gas();
-    const auto reference = ReferenceScales::derive(
-        {340.0, 1.2, 288.0, 1.0, 1.8e-5, {}, {}}, gas);
+    const auto reference = ReferenceScales::derive({340.0, 1.2, 288.0, 1.0, 1.8e-5, {}, {}}, gas);
     const NumericalFloors floors;
     const TemperaturePrimitiveState freestream {{1.0, 0.2, -0.1, 0.0, 1.0}};
-    const auto conservative = thermodynamic_conservative(
-        freestream, gas, reference, floors, 2);
+    const auto conservative = thermodynamic_conservative(freestream, gas, reference, floors, 2);
     const auto profile = ProfileFactory::create(kind);
     BlockMetricMap metrics;
     BlockBoundaryDataMap boundary_data;
@@ -138,11 +139,9 @@ void run_profile(
                 store_state(block.flow.conservative, {i, j, 0}, conservative);
             }
         }
-        metrics.emplace(
-            std::piecewise_construct,
-            std::forward_as_tuple(block.id()),
-            std::forward_as_tuple(
-                initialize_metric_field(block, profile).metric));
+        metrics.emplace(std::piecewise_construct,
+                        std::forward_as_tuple(block.id()),
+                        std::forward_as_tuple(initialize_metric_field(block, profile).metric));
         BoundaryDataMap data;
         for (const auto& patch : block.boundaries) {
             BoundaryData patch_data;
@@ -152,11 +151,20 @@ void run_profile(
         boundary_data.emplace(block.id(), std::move(data));
     }
     ViscousWcnsConfig config;
-    config.inviscid.reconstruction.scheme = std::string(
-        reconstruction_name(ReconstructionKind::Linear5));
-    ViscousWcnsSolver solver(
-        mpi, local, mesh, topology, distribution.rank_count(), metrics,
-        boundary_data, profile, gas, reference, floors, config);
+    config.inviscid.reconstruction.scheme
+        = std::string(reconstruction_name(ReconstructionKind::Linear5));
+    ViscousWcnsSolver solver(mpi,
+                             local,
+                             mesh,
+                             topology,
+                             distribution.rank_count(),
+                             metrics,
+                             boundary_data,
+                             profile,
+                             gas,
+                             reference,
+                             floors,
+                             config);
     const Real time_step = solver.global_time_step(0.2);
     WCNS_REQUIRE(std::isfinite(time_step));
     WCNS_REQUIRE(time_step > 0.0);
@@ -164,19 +172,18 @@ void run_profile(
     solver.compute_residuals(0.0);
     WCNS_REQUIRE(solver.global_residual_l2() < 8.0e-11);
     const Real proposed_time_step = std::min(time_step, 1.0e-3);
-    WCNS_REQUIRE_NEAR(
-        solver.advance(proposed_time_step, 0.0), proposed_time_step, 0.0);
+    WCNS_REQUIRE_NEAR(solver.advance(proposed_time_step, 0.0), proposed_time_step, 0.0);
     Real local_error = 0.0;
     for (const auto& block : local.blocks()) {
         const auto cells = block.cell_extent();
         for (int j = 0; j < cells.nj; ++j) {
             for (int i = 0; i < cells.ni; ++i) {
-                const auto state = load_conservative(
-                    block.flow.conservative, {i, j, 0});
+                const auto state = load_conservative(block.flow.conservative, {i, j, 0});
                 for (int component = 0; component < euler_components; ++component) {
-                    local_error = std::max(local_error,
-                        std::abs(state[static_cast<std::size_t>(component)]
-                            - conservative[static_cast<std::size_t>(component)]));
+                    local_error
+                        = std::max(local_error,
+                                   std::abs(state[static_cast<std::size_t>(component)]
+                                            - conservative[static_cast<std::size_t>(component)]));
                 }
             }
         }
@@ -190,20 +197,15 @@ enum class WallCase {
 };
 
 // 验收多块/MPI 下 Couette 动量平衡、粘性耗散及线性导热能量平衡。
-void run_wall_case(
-    const wcns::MpiRuntime& mpi,
-    wcns::AlgorithmProfileKind kind,
-    WallCase wall_case)
+void run_wall_case(const wcns::MpiRuntime& mpi, wcns::AlgorithmProfileKind kind, WallCase wall_case)
 {
     using namespace wcns;
-    auto mesh = make_mesh(
-        BoundaryType::Outflow, BoundaryType::NoSlipIsothermalWall);
+    auto mesh = make_mesh(BoundaryType::Outflow, BoundaryType::NoSlipIsothermalWall);
     std::vector<BlockLoad> loads;
     for (const auto& block : mesh.blocks()) {
         loads.push_back({block.id(), block.cell_extent().size()});
     }
-    const auto distribution = BlockDistribution::balanced(
-        std::move(loads), mpi.size());
+    const auto distribution = BlockDistribution::balanced(std::move(loads), mpi.size());
     distribution.apply(mesh);
     const auto topology = DistributedTopology::build(mesh, distribution);
     std::vector<StructuredBlock> local_storage;
@@ -212,8 +214,7 @@ void run_wall_case(
     }
     LocalBlockSet local(mpi.rank(), std::move(local_storage), distribution);
     const auto gas = make_gas();
-    const auto reference = ReferenceScales::derive(
-        {340.0, 1.2, 288.0, 1.0, 1.8e-5, {}, {}}, gas);
+    const auto reference = ReferenceScales::derive({340.0, 1.2, 288.0, 1.0, 1.8e-5, {}, {}}, gas);
     const NumericalFloors floors;
     const auto profile = ProfileFactory::create(kind);
     BlockMetricMap metrics;
@@ -221,31 +222,26 @@ void run_wall_case(
     for (auto& block : local.blocks()) {
         const auto cells = block.cell_extent();
         for (int j = 0; j < cells.nj; ++j) {
-            const Real y = (static_cast<Real>(j) + 0.5)
-                / static_cast<Real>(cells.nj);
-            const Real temperature = wall_case == WallCase::Couette
-                ? 1.0 : 1.0 + y;
+            const Real y = (static_cast<Real>(j) + 0.5) / static_cast<Real>(cells.nj);
+            const Real temperature = wall_case == WallCase::Couette ? 1.0 : 1.0 + y;
             const Real velocity = wall_case == WallCase::Couette ? y : 0.0;
-            const TemperaturePrimitiveState state {{
-                1.0 / temperature, velocity, 0.0, 0.0, temperature}};
-            const auto conservative = thermodynamic_conservative(
-                state, gas, reference, floors, 2);
+            const TemperaturePrimitiveState state {
+                {1.0 / temperature, velocity, 0.0, 0.0, temperature}};
+            const auto conservative = thermodynamic_conservative(state, gas, reference, floors, 2);
             for (int i = 0; i < cells.ni; ++i) {
                 store_state(block.flow.conservative, {i, j, 0}, conservative);
             }
         }
-        metrics.emplace(
-            std::piecewise_construct,
-            std::forward_as_tuple(block.id()),
-            std::forward_as_tuple(
-                initialize_metric_field(block, profile).metric));
+        metrics.emplace(std::piecewise_construct,
+                        std::forward_as_tuple(block.id()),
+                        std::forward_as_tuple(initialize_metric_field(block, profile).metric));
         BoundaryDataMap data;
         for (const auto& patch : block.boundaries) {
             BoundaryData patch_data;
             if (patch.type == BoundaryType::NoSlipIsothermalWall) {
                 const bool upper = patch.face.side == Side::Upper;
-                patch_data.wall_temperature = wall_case == WallCase::Couette
-                    ? 1.0 : (upper ? 2.0 : 1.0);
+                patch_data.wall_temperature
+                    = wall_case == WallCase::Couette ? 1.0 : (upper ? 2.0 : 1.0);
                 if (wall_case == WallCase::Couette && upper) {
                     patch_data.wall_velocity = {{1.0, 0.0, 0.0}};
                 }
@@ -255,11 +251,20 @@ void run_wall_case(
         boundary_data.emplace(block.id(), std::move(data));
     }
     ViscousWcnsConfig config;
-    config.inviscid.reconstruction.scheme = std::string(
-        reconstruction_name(ReconstructionKind::Linear5));
-    ViscousWcnsSolver solver(
-        mpi, local, mesh, topology, distribution.rank_count(), metrics,
-        boundary_data, profile, gas, reference, floors, config);
+    config.inviscid.reconstruction.scheme
+        = std::string(reconstruction_name(ReconstructionKind::Linear5));
+    ViscousWcnsSolver solver(mpi,
+                             local,
+                             mesh,
+                             topology,
+                             distribution.rank_count(),
+                             metrics,
+                             boundary_data,
+                             profile,
+                             gas,
+                             reference,
+                             floors,
+                             config);
     solver.compute_residuals(0.0);
 
     Real local_balance_error = 0.0;
@@ -272,14 +277,14 @@ void run_wall_case(
         for (int j = 0; j < cells.nj; ++j) {
             for (int i = 0; i < cells.ni; ++i) {
                 for (int component = 0; component < total_energy; ++component) {
-                    local_balance_error = std::max(local_balance_error,
-                        std::abs(block.flow.residual(i, j, 0, component)));
+                    local_balance_error = std::max(
+                        local_balance_error, std::abs(block.flow.residual(i, j, 0, component)));
                 }
-                const Real expected = wall_case == WallCase::Couette
-                    ? expected_couette_heating : 0.0;
-                local_energy_error = std::max(local_energy_error,
-                    std::abs(block.flow.residual(i, j, 0, total_energy)
-                        - expected));
+                const Real expected
+                    = wall_case == WallCase::Couette ? expected_couette_heating : 0.0;
+                local_energy_error
+                    = std::max(local_energy_error,
+                               std::abs(block.flow.residual(i, j, 0, total_energy) - expected));
             }
         }
     }
@@ -300,17 +305,12 @@ int main(int argc, char** argv)
         wcns::MpiRuntime mpi(argc, argv);
         run_profile(mpi, wcns::AlgorithmProfileKind::PhengleiWcns);
         run_profile(mpi, wcns::AlgorithmProfileKind::Scmm6Wcns);
-        run_wall_case(
-            mpi, wcns::AlgorithmProfileKind::PhengleiWcns, WallCase::Couette);
-        run_wall_case(
-            mpi, wcns::AlgorithmProfileKind::Scmm6Wcns, WallCase::Couette);
-        run_wall_case(mpi, wcns::AlgorithmProfileKind::PhengleiWcns,
-            WallCase::LinearConduction);
-        run_wall_case(mpi, wcns::AlgorithmProfileKind::Scmm6Wcns,
-            WallCase::LinearConduction);
+        run_wall_case(mpi, wcns::AlgorithmProfileKind::PhengleiWcns, WallCase::Couette);
+        run_wall_case(mpi, wcns::AlgorithmProfileKind::Scmm6Wcns, WallCase::Couette);
+        run_wall_case(mpi, wcns::AlgorithmProfileKind::PhengleiWcns, WallCase::LinearConduction);
+        run_wall_case(mpi, wcns::AlgorithmProfileKind::Scmm6Wcns, WallCase::LinearConduction);
         if (mpi.rank() == 0) {
-            std::cout << "viscous WCNS solver tests passed with "
-                      << mpi.size() << " ranks\n";
+            std::cout << "viscous WCNS solver tests passed with " << mpi.size() << " ranks\n";
         }
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {

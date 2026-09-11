@@ -32,12 +32,10 @@ bool contains(const IndexRange3& range, Index3 index)
     return true;
 }
 
-bool connection_covers(
-    const StructuredBlock& block, Axis axis, Side side, Index3 face)
+bool connection_covers(const StructuredBlock& block, Axis axis, Side side, Index3 face)
 {
     for (const auto& connection : block.connectivities) {
-        if (connection.receiver_face.axis == axis
-            && connection.receiver_face.side == side
+        if (connection.receiver_face.axis == axis && connection.receiver_face.side == side
             && contains(connection.shared_face_range.untyped(), face)) {
             return true;
         }
@@ -52,8 +50,7 @@ const FaceAreaVectors& face_metrics(const MetricField& metric, Axis axis)
     return metric.k_faces();
 }
 
-std::array<Real, 3> area_vector(
-    const MetricField& metric, Axis axis, Index3 face)
+std::array<Real, 3> area_vector(const MetricField& metric, Axis axis, Index3 face)
 {
     const auto& values = face_metrics(metric, axis);
     return {{
@@ -63,21 +60,19 @@ std::array<Real, 3> area_vector(
     }};
 }
 
-template<std::size_t N>
-Real interpolate_component(
-    const Field<Real>& field,
-    Axis axis,
-    Index3 face,
-    int component,
-    const std::array<int, N>& offsets,
-    const std::array<Real, N>& coefficients)
+template <std::size_t N>
+Real interpolate_component(const Field<Real>& field,
+                           Axis axis,
+                           Index3 face,
+                           int component,
+                           const std::array<int, N>& offsets,
+                           const std::array<Real, N>& coefficients)
 {
     Real result = 0.0;
     for (std::size_t term = 0; term < N; ++term) {
         auto center = face;
         center[static_cast<std::size_t>(axis)] += offsets[term];
-        result += coefficients[term]
-            * field(center.i, center.j, center.k, component);
+        result += coefficients[term] * field(center.i, center.j, center.k, component);
     }
     if (!std::isfinite(result)) {
         throw PhysicsError("viscous face interpolation produced a non-finite value");
@@ -86,11 +81,7 @@ Real interpolate_component(
 }
 
 Real centered_derivative(
-    const Field<Real>& field,
-    Axis axis,
-    Index3 cell,
-    int component,
-    AlgorithmProfileKind profile)
+    const Field<Real>& field, Axis axis, Index3 cell, int component, AlgorithmProfileKind profile)
 {
     const auto value = [&](int offset) {
         auto face = cell;
@@ -102,31 +93,35 @@ Real centered_derivative(
         return result;
     };
     if (profile == AlgorithmProfileKind::PhengleiWcns) {
-        return (value(-1) - 27.0 * value(0) + 27.0 * value(1) - value(2))
-            / 24.0;
+        return (value(-1) - 27.0 * value(0) + 27.0 * value(1) - value(2)) / 24.0;
     }
-    return (-9.0 * value(-2) + 125.0 * value(-1) - 2250.0 * value(0)
-        + 2250.0 * value(1) - 125.0 * value(2) + 9.0 * value(3))
+    return (-9.0 * value(-2) + 125.0 * value(-1) - 2250.0 * value(0) + 2250.0 * value(1)
+            - 125.0 * value(2) + 9.0 * value(3))
         / 1920.0;
 }
 
 } // namespace
 
-GradientOperandFaceField::GradientOperandFaceField(
-    Extent3 cells,
-    int dimension,
-    AlgorithmProfileKind profile,
-    std::uint64_t version)
+GradientOperandFaceField::GradientOperandFaceField(Extent3 cells,
+                                                   int dimension,
+                                                   AlgorithmProfileKind profile,
+                                                   std::uint64_t version)
     : profile_(profile)
     , version_(version)
     , halo_layers_(profile == AlgorithmProfileKind::PhengleiWcns ? 1 : 2)
     , dimension_(dimension)
-    , i_({cells.ni + 1, cells.nj, cells.nk}, gradient_operand_components,
-          halo_layers_, std::numeric_limits<Real>::quiet_NaN())
-    , j_({cells.ni, cells.nj + 1, cells.nk}, gradient_operand_components,
-          halo_layers_, std::numeric_limits<Real>::quiet_NaN())
-    , k_({cells.ni, cells.nj, cells.nk + 1}, gradient_operand_components,
-          halo_layers_, std::numeric_limits<Real>::quiet_NaN())
+    , i_({cells.ni + 1, cells.nj, cells.nk},
+         gradient_operand_components,
+         halo_layers_,
+         std::numeric_limits<Real>::quiet_NaN())
+    , j_({cells.ni, cells.nj + 1, cells.nk},
+         gradient_operand_components,
+         halo_layers_,
+         std::numeric_limits<Real>::quiet_NaN())
+    , k_({cells.ni, cells.nj, cells.nk + 1},
+         gradient_operand_components,
+         halo_layers_,
+         std::numeric_limits<Real>::quiet_NaN())
 {
     if (dimension != 2 && dimension != 3) {
         throw std::invalid_argument("gradient operand dimension must be two or three");
@@ -158,31 +153,28 @@ void GradientOperandFaceField::reset(std::uint64_t version)
     k_.fill(nan);
 }
 
-PrimitiveGradientField::PrimitiveGradientField(
-    Extent3 cells,
-    int dimension,
-    AlgorithmProfileKind profile,
-    std::uint64_t version)
+PrimitiveGradientField::PrimitiveGradientField(Extent3 cells,
+                                               int dimension,
+                                               AlgorithmProfileKind profile,
+                                               std::uint64_t version)
     : profile_(profile)
     , version_(version)
     , halo_layers_(profile == AlgorithmProfileKind::PhengleiWcns ? 2 : 3)
     , dimension_(dimension)
-    , values_(cells, gradient_operand_components, halo_layers_,
-          std::numeric_limits<Real>::quiet_NaN())
+    , values_(
+          cells, gradient_operand_components, halo_layers_, std::numeric_limits<Real>::quiet_NaN())
 {
     if (dimension != 2 && dimension != 3) {
         throw std::invalid_argument("primitive gradient dimension must be two or three");
     }
 }
 
-Real& PrimitiveGradientField::operator()(
-    Index3 cell, ViscousPrimitive variable, int direction)
+Real& PrimitiveGradientField::operator()(Index3 cell, ViscousPrimitive variable, int direction)
 {
     return values_(cell.i, cell.j, cell.k, operand_component(variable, direction));
 }
 
-Real PrimitiveGradientField::operator()(
-    Index3 cell, ViscousPrimitive variable, int direction) const
+Real PrimitiveGradientField::operator()(Index3 cell, ViscousPrimitive variable, int direction) const
 {
     return values_(cell.i, cell.j, cell.k, operand_component(variable, direction));
 }
@@ -196,54 +188,47 @@ void PrimitiveGradientField::reset(std::uint64_t version)
     values_.fill(std::numeric_limits<Real>::quiet_NaN());
 }
 
-TemperaturePrimitiveState interpolate_temperature_face(
-    const StructuredBlock& block,
-    const AlgorithmProfile& profile,
-    Axis axis,
-    Index3 face)
+TemperaturePrimitiveState interpolate_temperature_face(const StructuredBlock& block,
+                                                       const AlgorithmProfile& profile,
+                                                       Axis axis,
+                                                       Index3 face)
 {
     const auto& field = block.flow.temperature_primitive;
     TemperaturePrimitiveState result {};
     if (profile.kind() == AlgorithmProfileKind::PhengleiWcns) {
         constexpr std::array<int, 4> offsets {{-2, -1, 0, 1}};
-        constexpr std::array<Real, 4> coefficients {{
-            -1.0 / 16.0, 9.0 / 16.0, 9.0 / 16.0, -1.0 / 16.0}};
+        constexpr std::array<Real, 4> coefficients {
+            {-1.0 / 16.0, 9.0 / 16.0, 9.0 / 16.0, -1.0 / 16.0}};
         for (int component = 0; component < fluid_components; ++component) {
-            result[static_cast<std::size_t>(component)] = interpolate_component(
-                field, axis, face, component, offsets, coefficients);
+            result[static_cast<std::size_t>(component)]
+                = interpolate_component(field, axis, face, component, offsets, coefficients);
         }
     } else {
         constexpr std::array<int, 6> offsets {{-3, -2, -1, 0, 1, 2}};
-        constexpr std::array<Real, 6> coefficients {{
-            3.0 / 256.0, -25.0 / 256.0, 150.0 / 256.0,
-            150.0 / 256.0, -25.0 / 256.0, 3.0 / 256.0}};
+        constexpr std::array<Real, 6> coefficients {
+            {3.0 / 256.0, -25.0 / 256.0, 150.0 / 256.0, 150.0 / 256.0, -25.0 / 256.0, 3.0 / 256.0}};
         for (int component = 0; component < fluid_components; ++component) {
-            result[static_cast<std::size_t>(component)] = interpolate_component(
-                field, axis, face, component, offsets, coefficients);
+            result[static_cast<std::size_t>(component)]
+                = interpolate_component(field, axis, face, component, offsets, coefficients);
         }
     }
     if (block.cell_dimension() == 2) result[temperature_velocity_z] = 0.0;
     return result;
 }
 
-void compute_gradient_face_operands_into(
-    GradientOperandFaceField& result,
-    const StructuredBlock& block,
-    const MetricField& metric,
-    const AlgorithmProfile& profile,
-    std::uint64_t version)
+void compute_gradient_face_operands_into(GradientOperandFaceField& result,
+                                         const StructuredBlock& block,
+                                         const MetricField& metric,
+                                         const AlgorithmProfile& profile,
+                                         std::uint64_t version)
 {
-    if (metric.profile() != profile.kind()
-        || metric.dimension() != block.cell_dimension()) {
+    if (metric.profile() != profile.kind() || metric.dimension() != block.cell_dimension()) {
         throw ProfileError("gradient operands use incompatible metric/profile metadata");
     }
     const auto cells = block.cell_extent();
-    if (result.profile() != profile.kind()
-        || result.dimension() != block.cell_dimension()
-        || result.field(Axis::I).interior_extent()
-            != Extent3 {cells.ni + 1, cells.nj, cells.nk}
-        || result.field(Axis::J).interior_extent()
-            != Extent3 {cells.ni, cells.nj + 1, cells.nk}) {
+    if (result.profile() != profile.kind() || result.dimension() != block.cell_dimension()
+        || result.field(Axis::I).interior_extent() != Extent3 {cells.ni + 1, cells.nj, cells.nk}
+        || result.field(Axis::J).interior_extent() != Extent3 {cells.ni, cells.nj + 1, cells.nk}) {
         throw ProfileError("gradient operand workspace metadata mismatch");
     }
     result.reset(version);
@@ -255,8 +240,7 @@ void compute_gradient_face_operands_into(
             for (int j = 0; j < faces.nj; ++j) {
                 for (int i = 0; i < faces.ni; ++i) {
                     const Index3 face {i, j, k};
-                    const auto state = interpolate_temperature_face(
-                        block, profile, axis, face);
+                    const auto state = interpolate_temperature_face(block, profile, axis, face);
                     const auto area = area_vector(metric, axis, face);
                     const std::array<Real, viscous_primitive_components> q {{
                         state[temperature_velocity_x],
@@ -264,8 +248,7 @@ void compute_gradient_face_operands_into(
                         state[temperature_velocity_z],
                         state[temperature_value],
                     }};
-                    for (int variable = 0; variable < viscous_primitive_components;
-                         ++variable) {
+                    for (int variable = 0; variable < viscous_primitive_components; ++variable) {
                         for (int direction = 0; direction < 3; ++direction) {
                             output(i, j, k, variable * 3 + direction)
                                 = q[static_cast<std::size_t>(variable)]
@@ -281,25 +264,22 @@ void compute_gradient_face_operands_into(
     if (block.cell_dimension() == 3) compute_axis(Axis::K);
 }
 
-GradientOperandFaceField compute_gradient_face_operands(
-    const StructuredBlock& block,
-    const MetricField& metric,
-    const AlgorithmProfile& profile,
-    std::uint64_t version)
+GradientOperandFaceField compute_gradient_face_operands(const StructuredBlock& block,
+                                                        const MetricField& metric,
+                                                        const AlgorithmProfile& profile,
+                                                        std::uint64_t version)
 {
     GradientOperandFaceField result(
         block.cell_extent(), block.cell_dimension(), profile.kind(), version);
-    compute_gradient_face_operands_into(
-        result, block, metric, profile, version);
+    compute_gradient_face_operands_into(result, block, metric, profile, version);
     return result;
 }
 
-void compute_primitive_gradients_into(
-    PrimitiveGradientField& result,
-    const StructuredBlock& block,
-    const MetricField& metric,
-    const GradientOperandFaceField& operands,
-    const AlgorithmProfile& profile)
+void compute_primitive_gradients_into(PrimitiveGradientField& result,
+                                      const StructuredBlock& block,
+                                      const MetricField& metric,
+                                      const GradientOperandFaceField& operands,
+                                      const AlgorithmProfile& profile)
 {
     if (metric.profile() != profile.kind() || operands.profile() != profile.kind()
         || metric.dimension() != block.cell_dimension()
@@ -307,8 +287,7 @@ void compute_primitive_gradients_into(
         throw ProfileError("primitive gradient inputs use incompatible metadata");
     }
     const auto cells = block.cell_extent();
-    if (result.profile() != profile.kind()
-        || result.dimension() != block.cell_dimension()
+    if (result.profile() != profile.kind() || result.dimension() != block.cell_dimension()
         || result.values().interior_extent() != cells) {
         throw ProfileError("primitive gradient workspace metadata mismatch");
     }
@@ -321,8 +300,7 @@ void compute_primitive_gradients_into(
                 if (!std::isfinite(jacobian) || jacobian <= 0.0) {
                     throw PhysicsError("primitive gradient has an invalid Jacobian");
                 }
-                for (int variable = 0; variable < viscous_primitive_components;
-                     ++variable) {
+                for (int variable = 0; variable < viscous_primitive_components; ++variable) {
                     for (int direction = 0; direction < 3; ++direction) {
                         Real divergence = 0.0;
                         for (int logical = 0; logical < block.cell_dimension(); ++logical) {
@@ -337,9 +315,8 @@ void compute_primitive_gradients_into(
                                 = connection_covers(block, axis, Side::Lower, lower);
                             const bool connected_upper
                                 = connection_covers(block, axis, Side::Upper, upper);
-                            const int width = profile.kind()
-                                    == AlgorithmProfileKind::PhengleiWcns
-                                ? 1 : 2;
+                            const int width
+                                = profile.kind() == AlgorithmProfileKind::PhengleiWcns ? 1 : 2;
                             const auto& values = operands.field(axis);
                             const int component = variable * 3 + direction;
                             if ((connected_lower && normal < width)
@@ -348,13 +325,13 @@ void compute_primitive_gradients_into(
                                     values, axis, cell, component, profile.kind());
                             } else {
                                 const auto& operators = cached_line_operators(profile, count);
-                                const auto& row = operators.derivative_rows()[
-                                    static_cast<std::size_t>(normal)];
+                                const auto& row
+                                    = operators.derivative_rows()[static_cast<std::size_t>(normal)];
                                 for (const auto [face_index, coefficient] : row) {
                                     auto face = cell;
                                     face[static_cast<std::size_t>(axis)] = face_index;
-                                    divergence += coefficient * values(
-                                        face.i, face.j, face.k, component);
+                                    divergence
+                                        += coefficient * values(face.i, face.j, face.k, component);
                                 }
                             }
                         }
@@ -363,8 +340,7 @@ void compute_primitive_gradients_into(
                     }
                 }
                 if (block.cell_dimension() == 2) {
-                    for (int variable = 0; variable < viscous_primitive_components;
-                         ++variable) {
+                    for (int variable = 0; variable < viscous_primitive_components; ++variable) {
                         result(cell, static_cast<ViscousPrimitive>(variable), 2) = 0.0;
                     }
                     for (int direction = 0; direction < 3; ++direction) {
@@ -376,11 +352,10 @@ void compute_primitive_gradients_into(
     }
 }
 
-PrimitiveGradientField compute_primitive_gradients(
-    const StructuredBlock& block,
-    const MetricField& metric,
-    const GradientOperandFaceField& operands,
-    const AlgorithmProfile& profile)
+PrimitiveGradientField compute_primitive_gradients(const StructuredBlock& block,
+                                                   const MetricField& metric,
+                                                   const GradientOperandFaceField& operands,
+                                                   const AlgorithmProfile& profile)
 {
     PrimitiveGradientField result(
         block.cell_extent(), block.cell_dimension(), profile.kind(), operands.version());
@@ -388,31 +363,25 @@ PrimitiveGradientField compute_primitive_gradients(
     return result;
 }
 
-PrimitiveGradients interpolate_gradient_face(
-    const StructuredBlock& block,
-    const PrimitiveGradientField& gradients,
-    const AlgorithmProfile& profile,
-    Axis axis,
-    Index3 face)
+PrimitiveGradients interpolate_gradient_face(const StructuredBlock& block,
+                                             const PrimitiveGradientField& gradients,
+                                             const AlgorithmProfile& profile,
+                                             Axis axis,
+                                             Index3 face)
 {
-    if (gradients.profile() != profile.kind()
-        || gradients.dimension() != block.cell_dimension()) {
+    if (gradients.profile() != profile.kind() || gradients.dimension() != block.cell_dimension()) {
         throw ProfileError("face-gradient interpolation metadata mismatch");
     }
     const auto cells = block.cell_extent();
     const int count = cells[static_cast<std::size_t>(axis)];
     const int normal = face[static_cast<std::size_t>(axis)];
-    const int lower_offset = profile.kind() == AlgorithmProfileKind::PhengleiWcns
-        ? -2 : -3;
-    const int upper_offset = profile.kind() == AlgorithmProfileKind::PhengleiWcns
-        ? 1 : 2;
+    const int lower_offset = profile.kind() == AlgorithmProfileKind::PhengleiWcns ? -2 : -3;
+    const int upper_offset = profile.kind() == AlgorithmProfileKind::PhengleiWcns ? 1 : 2;
     auto boundary_face = face;
     boundary_face[static_cast<std::size_t>(axis)] = 0;
-    const bool lower_connected = connection_covers(
-        block, axis, Side::Lower, boundary_face);
+    const bool lower_connected = connection_covers(block, axis, Side::Lower, boundary_face);
     boundary_face[static_cast<std::size_t>(axis)] = count;
-    const bool upper_connected = connection_covers(
-        block, axis, Side::Upper, boundary_face);
+    const bool upper_connected = connection_covers(block, axis, Side::Upper, boundary_face);
     const bool lower_available = normal + lower_offset >= 0 || lower_connected;
     const bool upper_available = normal + upper_offset < count || upper_connected;
     const bool centered_available = lower_available && upper_available;
@@ -424,51 +393,50 @@ PrimitiveGradients interpolate_gradient_face(
             if (centered_available) {
                 if (profile.kind() == AlgorithmProfileKind::PhengleiWcns) {
                     constexpr std::array<int, 4> offsets {{-2, -1, 0, 1}};
-                    constexpr std::array<Real, 4> coefficients {{
-                        -1.0 / 16.0, 9.0 / 16.0, 9.0 / 16.0, -1.0 / 16.0}};
+                    constexpr std::array<Real, 4> coefficients {
+                        {-1.0 / 16.0, 9.0 / 16.0, 9.0 / 16.0, -1.0 / 16.0}};
                     value = interpolate_component(
-                        gradients.values(), axis, face, component,
-                        offsets, coefficients);
+                        gradients.values(), axis, face, component, offsets, coefficients);
                 } else {
                     constexpr std::array<int, 6> offsets {{-3, -2, -1, 0, 1, 2}};
-                    constexpr std::array<Real, 6> coefficients {{
-                        3.0 / 256.0, -25.0 / 256.0, 150.0 / 256.0,
-                        150.0 / 256.0, -25.0 / 256.0, 3.0 / 256.0}};
+                    constexpr std::array<Real, 6> coefficients {{3.0 / 256.0,
+                                                                 -25.0 / 256.0,
+                                                                 150.0 / 256.0,
+                                                                 150.0 / 256.0,
+                                                                 -25.0 / 256.0,
+                                                                 3.0 / 256.0}};
                     value = interpolate_component(
-                        gradients.values(), axis, face, component,
-                        offsets, coefficients);
+                        gradients.values(), axis, face, component, offsets, coefficients);
                 }
             } else {
                 const auto& operators = cached_line_operators(profile, count);
-                const auto& row = operators.interpolation_rows()[
-                    static_cast<std::size_t>(normal)];
+                const auto& row = operators.interpolation_rows()[static_cast<std::size_t>(normal)];
                 for (const auto [center_index, coefficient] : row) {
                     auto center = face;
                     center[static_cast<std::size_t>(axis)] = center_index;
-                    value += coefficient * gradients.values()(
-                        center.i, center.j, center.k, component);
+                    value += coefficient
+                        * gradients.values()(center.i, center.j, center.k, component);
                 }
             }
             if (!std::isfinite(value)) {
                 throw PhysicsError("face-gradient interpolation is non-finite");
             }
-            result[static_cast<std::size_t>(variable)]
-                [static_cast<std::size_t>(direction)] = value;
+            result[static_cast<std::size_t>(variable)][static_cast<std::size_t>(direction)] = value;
         }
     }
     if (block.cell_dimension() == 2) {
         result[static_cast<int>(ViscousPrimitive::VelocityZ)] = {{0.0, 0.0, 0.0}};
-        for (auto& gradient : result) gradient[2] = 0.0;
+        for (auto& gradient : result)
+            gradient[2] = 0.0;
     }
     return result;
 }
 
-ViscousFaceTrace interpolate_viscous_face_trace(
-    const StructuredBlock& block,
-    const PrimitiveGradientField& gradients,
-    const AlgorithmProfile& profile,
-    Axis axis,
-    Index3 face)
+ViscousFaceTrace interpolate_viscous_face_trace(const StructuredBlock& block,
+                                                const PrimitiveGradientField& gradients,
+                                                const AlgorithmProfile& profile,
+                                                Axis axis,
+                                                Index3 face)
 {
     return {
         interpolate_temperature_face(block, profile, axis, face),

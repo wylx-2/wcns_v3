@@ -33,41 +33,38 @@ struct BoundaryOutputScales {
     Real moment = 1.0;
 };
 
-[[nodiscard]] BoundaryOutputScales boundary_output_scales(
-    const QuantityContext& context,
-    int dimension);
+[[nodiscard]] BoundaryOutputScales boundary_output_scales(const QuantityContext& context,
+                                                          int dimension);
 
 // stress_normal is tau*n before the equation-level 1/Re factor.  The
 // temperature gradient uses the same outward normal supplied here.
-[[nodiscard]] BoundaryFacePhysics evaluate_boundary_face_physics(
-    Real pressure,
-    Real temperature,
-    Real viscosity,
-    const std::array<Real, 3>& outward_normal,
-    const std::array<Real, 3>& stress_normal,
-    Real thermal_coefficient,
-    const std::array<Real, 3>& temperature_gradient,
-    Real reynolds,
-    bool viscous,
-    const BoundaryOutputConfig& config);
+[[nodiscard]] BoundaryFacePhysics
+evaluate_boundary_face_physics(Real pressure,
+                               Real temperature,
+                               Real viscosity,
+                               const std::array<Real, 3>& outward_normal,
+                               const std::array<Real, 3>& stress_normal,
+                               Real thermal_coefficient,
+                               const std::array<Real, 3>& temperature_gradient,
+                               Real reynolds,
+                               bool viscous,
+                               const BoundaryOutputConfig& config);
 
 class BoundaryOutputWriter {
 public:
-    BoundaryOutputWriter(
-        const MpiRuntime& mpi,
-        const CaseConfig& config,
-        const StructuredPartitionPlan& partition,
-        const LocalBlockSet& local_blocks,
-        const StructuredMesh& global_mesh,
-        const DistributedTopology& topology,
-        const BlockMetricMap& metrics,
-        const BlockBoundaryDataMap& boundary_data,
-        const GlobalConservationWeights& conservation_weights,
-        AlgorithmProfile profile,
-        QuantityContext quantities);
+    BoundaryOutputWriter(const MpiRuntime& mpi,
+                         const CaseConfig& config,
+                         const StructuredPartitionPlan& partition,
+                         const LocalBlockSet& local_blocks,
+                         const StructuredMesh& global_mesh,
+                         const DistributedTopology& topology,
+                         const BlockMetricMap& metrics,
+                         const BlockBoundaryDataMap& boundary_data,
+                         const GlobalConservationWeights& conservation_weights,
+                         AlgorithmProfile profile,
+                         QuantityContext quantities);
 
-    [[nodiscard]] std::vector<std::string> write(
-        const SimulationState& state);
+    [[nodiscard]] std::vector<std::string> write(const SimulationState& state);
 
 private:
     const MpiRuntime& mpi_;

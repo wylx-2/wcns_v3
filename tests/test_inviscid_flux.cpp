@@ -20,8 +20,7 @@ wcns::GasModel flux_gas()
 
 wcns::ReferenceScales flux_reference(const wcns::GasModel& gas)
 {
-    return wcns::ReferenceScales::derive(
-        {340.0, 1.2, 288.0, 1.0, 1.8e-5, {}, {}}, gas);
+    return wcns::ReferenceScales::derive({340.0, 1.2, 288.0, 1.0, 1.8e-5, {}, {}}, gas);
 }
 
 wcns::StructuredBlock make_flux_block(bool wall)
@@ -39,29 +38,40 @@ wcns::StructuredBlock make_flux_block(bool wall)
     }
     compute_metrics(block);
     block.boundaries = {
-        {"i-lower", wall ? BoundaryType::SlipWall : BoundaryType::Farfield,
-            {Axis::I, Side::Lower}, {{0, 0, 0}, {0, vertices.nj - 1, 0}},
-            {{0, 0, 0}, {0, cells.nj - 1, 0}},
-            {{0, 0, 0}, {0, cells.nj - 1, 0}}, {}},
-        {"i-upper", BoundaryType::Farfield, {Axis::I, Side::Upper},
-            {{vertices.ni - 1, 0, 0}, {vertices.ni - 1, vertices.nj - 1, 0}},
-            {{cells.ni - 1, 0, 0}, {cells.ni - 1, cells.nj - 1, 0}},
-            {{cells.ni, 0, 0}, {cells.ni, cells.nj - 1, 0}}, {}},
-        {"j-lower", BoundaryType::Farfield, {Axis::J, Side::Lower},
-            {{0, 0, 0}, {vertices.ni - 1, 0, 0}},
-            {{0, 0, 0}, {cells.ni - 1, 0, 0}},
-            {{0, 0, 0}, {cells.ni - 1, 0, 0}}, {}},
-        {"j-upper", BoundaryType::Farfield, {Axis::J, Side::Upper},
-            {{0, vertices.nj - 1, 0}, {vertices.ni - 1, vertices.nj - 1, 0}},
-            {{0, cells.nj - 1, 0}, {cells.ni - 1, cells.nj - 1, 0}},
-            {{0, cells.nj, 0}, {cells.ni - 1, cells.nj, 0}}, {}},
+        {"i-lower",
+         wall ? BoundaryType::SlipWall : BoundaryType::Farfield,
+         {Axis::I, Side::Lower},
+         {{0, 0, 0}, {0, vertices.nj - 1, 0}},
+         {{0, 0, 0}, {0, cells.nj - 1, 0}},
+         {{0, 0, 0}, {0, cells.nj - 1, 0}},
+         {}},
+        {"i-upper",
+         BoundaryType::Farfield,
+         {Axis::I, Side::Upper},
+         {{vertices.ni - 1, 0, 0}, {vertices.ni - 1, vertices.nj - 1, 0}},
+         {{cells.ni - 1, 0, 0}, {cells.ni - 1, cells.nj - 1, 0}},
+         {{cells.ni, 0, 0}, {cells.ni, cells.nj - 1, 0}},
+         {}},
+        {"j-lower",
+         BoundaryType::Farfield,
+         {Axis::J, Side::Lower},
+         {{0, 0, 0}, {vertices.ni - 1, 0, 0}},
+         {{0, 0, 0}, {cells.ni - 1, 0, 0}},
+         {{0, 0, 0}, {cells.ni - 1, 0, 0}},
+         {}},
+        {"j-upper",
+         BoundaryType::Farfield,
+         {Axis::J, Side::Upper},
+         {{0, vertices.nj - 1, 0}, {vertices.ni - 1, vertices.nj - 1, 0}},
+         {{0, cells.nj - 1, 0}, {cells.ni - 1, cells.nj - 1, 0}},
+         {{0, cells.nj, 0}, {cells.ni - 1, cells.nj, 0}},
+         {}},
     };
     return block;
 }
 
-wcns::BoundaryDataMap flux_boundaries(
-    const wcns::StructuredBlock& block,
-    const wcns::TemperaturePrimitiveState& target)
+wcns::BoundaryDataMap flux_boundaries(const wcns::StructuredBlock& block,
+                                      const wcns::TemperaturePrimitiveState& target)
 {
     wcns::BoundaryDataMap result;
     for (const auto& patch : block.boundaries) {
@@ -75,23 +85,21 @@ wcns::BoundaryDataMap flux_boundaries(
     return result;
 }
 
-void initialize_flux_state(
-    wcns::StructuredBlock& block,
-    const wcns::TemperaturePrimitiveState& state,
-    const wcns::GasModel& gas,
-    const wcns::ReferenceScales& reference,
-    const wcns::NumericalFloors& floors)
+void initialize_flux_state(wcns::StructuredBlock& block,
+                           const wcns::TemperaturePrimitiveState& state,
+                           const wcns::GasModel& gas,
+                           const wcns::ReferenceScales& reference,
+                           const wcns::NumericalFloors& floors)
 {
-    const auto conservative = wcns::thermodynamic_conservative(
-        state, gas, reference, floors, block.cell_dimension());
+    const auto conservative
+        = wcns::thermodynamic_conservative(state, gas, reference, floors, block.cell_dimension());
     const auto cells = block.cell_extent();
     for (int j = 0; j < cells.nj; ++j) {
         for (int i = 0; i < cells.ni; ++i) {
             wcns::store_state(block.flow.conservative, {i, j, 0}, conservative);
         }
     }
-    wcns::update_temperature_primitive_interior(
-        block, gas, reference, floors);
+    wcns::update_temperature_primitive_interior(block, gas, reference, floors);
 }
 
 wcns::StructuredMesh make_flux_mesh()
@@ -99,18 +107,32 @@ wcns::StructuredMesh make_flux_mesh()
     using namespace wcns;
     StructuredBlock left(0, "left", 0, 2, 2, {7, 7, 1}, 3);
     StructuredBlock right(1, "right", 0, 2, 2, {7, 7, 1}, 3);
-    left.connectivities.push_back({
-        "left-right", 0, 1, 0,
-        {Axis::I, Side::Upper}, {Axis::I, Side::Lower},
-        {{6, 0, 0}, {6, 6, 0}}, {{0, 0, 0}, {0, 6, 0}},
-        {{5, 0, 0}, {5, 5, 0}}, {{0, 0, 0}, {0, 5, 0}},
-        {{6, 0, 0}, {6, 5, 0}}, {{{1, 2, 3}}}, 3});
-    right.connectivities.push_back({
-        "right-left", 1, 0, 0,
-        {Axis::I, Side::Lower}, {Axis::I, Side::Upper},
-        {{0, 0, 0}, {0, 6, 0}}, {{6, 0, 0}, {6, 6, 0}},
-        {{0, 0, 0}, {0, 5, 0}}, {{5, 0, 0}, {5, 5, 0}},
-        {{0, 0, 0}, {0, 5, 0}}, {{{1, 2, 3}}}, 3});
+    left.connectivities.push_back({"left-right",
+                                   0,
+                                   1,
+                                   0,
+                                   {Axis::I, Side::Upper},
+                                   {Axis::I, Side::Lower},
+                                   {{6, 0, 0}, {6, 6, 0}},
+                                   {{0, 0, 0}, {0, 6, 0}},
+                                   {{5, 0, 0}, {5, 5, 0}},
+                                   {{0, 0, 0}, {0, 5, 0}},
+                                   {{6, 0, 0}, {6, 5, 0}},
+                                   {{{1, 2, 3}}},
+                                   3});
+    right.connectivities.push_back({"right-left",
+                                    1,
+                                    0,
+                                    0,
+                                    {Axis::I, Side::Lower},
+                                    {Axis::I, Side::Upper},
+                                    {{0, 0, 0}, {0, 6, 0}},
+                                    {{6, 0, 0}, {6, 6, 0}},
+                                    {{0, 0, 0}, {0, 5, 0}},
+                                    {{5, 0, 0}, {5, 5, 0}},
+                                    {{0, 0, 0}, {0, 5, 0}},
+                                    {{{1, 2, 3}}},
+                                    3});
     std::vector<StructuredBlock> blocks;
     blocks.push_back(std::move(left));
     blocks.push_back(std::move(right));
@@ -123,15 +145,12 @@ wcns::Real divergence_error(wcns::AlgorithmProfileKind kind, int count)
     constexpr int transverse_cells = 8;
     const Real pi = std::acos(-1.0);
     const Real spacing = 2.0 * pi / static_cast<Real>(count);
-    StructuredBlock block(
-        0, "smooth-divergence", 0, 2, 2,
-        {count + 1, transverse_cells + 1, 1}, 3);
+    StructuredBlock block(0, "smooth-divergence", 0, 2, 2, {count + 1, transverse_cells + 1, 1}, 3);
     const auto vertices = block.vertex_extent();
     for (int j = 0; j < vertices.nj; ++j) {
         for (int i = 0; i < vertices.ni; ++i) {
             block.coordinates.x(i, j, 0) = spacing * i;
-            block.coordinates.y(i, j, 0)
-                = static_cast<Real>(j) / transverse_cells;
+            block.coordinates.y(i, j, 0) = static_cast<Real>(j) / transverse_cells;
             block.coordinates.z(i, j, 0) = 0.0;
         }
     }
@@ -170,36 +189,40 @@ void test_wcns_inviscid_freestream()
     const auto reference = flux_reference(gas);
     const NumericalFloors floors;
     const TemperaturePrimitiveState state {1.1, 0.7, -0.2, 0.0, 1.0};
-    for (const auto kind : {
-             AlgorithmProfileKind::PhengleiWcns,
-             AlgorithmProfileKind::Scmm6Wcns}) {
+    for (const auto kind : {AlgorithmProfileKind::PhengleiWcns, AlgorithmProfileKind::Scmm6Wcns}) {
         auto block = make_flux_block(false);
         initialize_flux_state(block, state, gas, reference, floors);
         const auto data = flux_boundaries(block, state);
-        const auto ghost_result = PhysicalGhostStateOperator::fill(
-            block, data, gas, reference, floors, 1);
+        const auto ghost_result
+            = PhysicalGhostStateOperator::fill(block, data, gas, reference, floors, 1);
         WCNS_REQUIRE(ghost_result.version == 1);
         const auto profile = ProfileFactory::create(kind);
         const auto metric = initialize_metric_field(block, profile).metric;
         ReconstructionConfig reconstruction;
-        reconstruction.scheme = std::string(
-            reconstruction_name(ReconstructionKind::Linear5));
+        reconstruction.scheme = std::string(reconstruction_name(ReconstructionKind::Linear5));
         ReconstructionDiagnostics diagnostics;
         const RiemannSolver riemann;
-        const auto flux = compute_inviscid_face_fluxes(
-            block, metric, profile, reconstruction, riemann, gas, reference,
-            floors, data, {}, 1, diagnostics);
-        for (const auto mode : {
-                 FluxDifferenceMode::Profile,
-                 FluxDifferenceMode::ConservativeTwoPoint}) {
-            compute_wcns_inviscid_residual(
-                block, metric, flux, profile, mode);
+        const auto flux = compute_inviscid_face_fluxes(block,
+                                                       metric,
+                                                       profile,
+                                                       reconstruction,
+                                                       riemann,
+                                                       gas,
+                                                       reference,
+                                                       floors,
+                                                       data,
+                                                       {},
+                                                       1,
+                                                       diagnostics);
+        for (const auto mode :
+             {FluxDifferenceMode::Profile, FluxDifferenceMode::ConservativeTwoPoint}) {
+            compute_wcns_inviscid_residual(block, metric, flux, profile, mode);
             WCNS_REQUIRE(residual_l2(block) < 2.0e-11);
         }
-        WCNS_REQUIRE(diagnostics.linear_faces
-            == static_cast<std::size_t>(
-                (block.cell_extent().ni + 1) * block.cell_extent().nj
-                + block.cell_extent().ni * (block.cell_extent().nj + 1)));
+        WCNS_REQUIRE(
+            diagnostics.linear_faces
+            == static_cast<std::size_t>((block.cell_extent().ni + 1) * block.cell_extent().nj
+                                        + block.cell_extent().ni * (block.cell_extent().nj + 1)));
     }
 }
 
@@ -211,20 +234,16 @@ void test_stage_l_reconstruction_freestream()
     const auto reference = flux_reference(gas);
     const NumericalFloors floors;
     const TemperaturePrimitiveState state {1.1, 0.7, -0.2, 0.0, 1.0};
-    for (const auto kind : {
-             AlgorithmProfileKind::PhengleiWcns,
-             AlgorithmProfileKind::Scmm6Wcns}) {
-        for (const auto* scheme : {
-                 "weno_js", "weno_z", "mdcd_linear", "mdcd_hybrid"}) {
-            for (const auto variables : {
-                     ReconstructionVariables::Conservative,
-                     ReconstructionVariables::Primitive,
-                     ReconstructionVariables::Characteristic}) {
+    for (const auto kind : {AlgorithmProfileKind::PhengleiWcns, AlgorithmProfileKind::Scmm6Wcns}) {
+        for (const auto* scheme : {"weno_js", "weno_z", "mdcd_linear", "mdcd_hybrid"}) {
+            for (const auto variables : {ReconstructionVariables::Conservative,
+                                         ReconstructionVariables::Primitive,
+                                         ReconstructionVariables::Characteristic}) {
                 auto block = make_flux_block(false);
                 initialize_flux_state(block, state, gas, reference, floors);
                 const auto data = flux_boundaries(block, state);
-                static_cast<void>(PhysicalGhostStateOperator::fill(
-                    block, data, gas, reference, floors, 11));
+                static_cast<void>(
+                    PhysicalGhostStateOperator::fill(block, data, gas, reference, floors, 11));
                 const auto profile = ProfileFactory::create(kind);
                 const auto metric = initialize_metric_field(block, profile).metric;
                 ReconstructionConfig reconstruction;
@@ -232,9 +251,18 @@ void test_stage_l_reconstruction_freestream()
                 reconstruction.variables = variables;
                 ReconstructionDiagnostics diagnostics;
                 const RiemannSolver riemann;
-                const auto flux = compute_inviscid_face_fluxes(
-                    block, metric, profile, reconstruction, riemann,
-                    gas, reference, floors, data, {}, 11, diagnostics);
+                const auto flux = compute_inviscid_face_fluxes(block,
+                                                               metric,
+                                                               profile,
+                                                               reconstruction,
+                                                               riemann,
+                                                               gas,
+                                                               reference,
+                                                               floors,
+                                                               data,
+                                                               {},
+                                                               11,
+                                                               diagnostics);
                 compute_wcns_inviscid_residual(block, metric, flux, profile);
                 WCNS_REQUIRE(residual_l2(block) < 3.0e-11);
                 if (variables == ReconstructionVariables::Characteristic) {
@@ -257,19 +285,27 @@ void test_wcns_strong_wall_flux()
     auto block = make_flux_block(true);
     initialize_flux_state(block, state, gas, reference, floors);
     const auto data = flux_boundaries(block, state);
-    const auto ghost_result = PhysicalGhostStateOperator::fill(
-        block, data, gas, reference, floors, 2);
+    const auto ghost_result
+        = PhysicalGhostStateOperator::fill(block, data, gas, reference, floors, 2);
     WCNS_REQUIRE(ghost_result.version == 2);
     const auto profile = ProfileFactory::create(AlgorithmProfileKind::PhengleiWcns);
     const auto metric = initialize_metric_field(block, profile).metric;
     ReconstructionConfig reconstruction;
-    reconstruction.scheme = std::string(
-        reconstruction_name(ReconstructionKind::Linear5));
+    reconstruction.scheme = std::string(reconstruction_name(ReconstructionKind::Linear5));
     ReconstructionDiagnostics diagnostics;
     const RiemannSolver riemann;
-    const auto flux = compute_inviscid_face_fluxes(
-        block, metric, profile, reconstruction, riemann, gas, reference,
-        floors, data, {}, 2, diagnostics);
+    const auto flux = compute_inviscid_face_fluxes(block,
+                                                   metric,
+                                                   profile,
+                                                   reconstruction,
+                                                   riemann,
+                                                   gas,
+                                                   reference,
+                                                   floors,
+                                                   data,
+                                                   {},
+                                                   2,
+                                                   diagnostics);
     for (int j = 0; j < block.cell_extent().nj; ++j) {
         WCNS_REQUIRE_NEAR(flux.field(Axis::I)(0, j, 0, density), 0.0, 1.0e-14);
         WCNS_REQUIRE_NEAR(flux.field(Axis::I)(0, j, 0, momentum_y), 0.0, 1.0e-14);
@@ -287,19 +323,17 @@ void test_face_flux_halo_plan()
     WCNS_REQUIRE(ph.exchanges()[0].pairs.size() == 6);
     WCNS_REQUIRE(ph.exchanges()[1].pairs.size() == 12);
     WCNS_REQUIRE(ph.exchanges()[0].shared_face_owner == 0);
-    WCNS_REQUIRE(ph.exchanges()[0].message_tag()
-        != ph.exchanges()[1].message_tag());
+    WCNS_REQUIRE(ph.exchanges()[0].message_tag() != ph.exchanges()[1].message_tag());
 
-    const auto scmm = FaceFluxHaloPlan::build(
-        mesh, ProfileFactory::create(AlgorithmProfileKind::Scmm6Wcns), 4);
+    const auto scmm
+        = FaceFluxHaloPlan::build(mesh, ProfileFactory::create(AlgorithmProfileKind::Scmm6Wcns), 4);
     WCNS_REQUIRE(scmm.exchanges()[0].pairs.size() == 12);
     WCNS_REQUIRE(scmm.exchanges()[1].pairs.size() == 18);
     WCNS_REQUIRE(scmm.exchanges()[0].pairs.front().layer == 1);
     WCNS_REQUIRE(scmm.exchanges()[1].pairs.front().layer == 0);
     WCNS_REQUIRE_THROWS(
         TopologyError,
-        FaceFluxHaloPlan::build(
-            mesh, ProfileFactory::create(AlgorithmProfileKind::Scmm6Wcns), 0));
+        FaceFluxHaloPlan::build(mesh, ProfileFactory::create(AlgorithmProfileKind::Scmm6Wcns), 0));
 
     FaceFluxExchangeDescriptor periodic;
     periodic.orientation = -1.0;
@@ -318,14 +352,10 @@ void test_face_flux_halo_plan()
 void test_wcns_flux_divergence_convergence()
 {
     using namespace wcns;
-    const Real ph_coarse = divergence_error(
-        AlgorithmProfileKind::PhengleiWcns, 16);
-    const Real ph_fine = divergence_error(
-        AlgorithmProfileKind::PhengleiWcns, 32);
+    const Real ph_coarse = divergence_error(AlgorithmProfileKind::PhengleiWcns, 16);
+    const Real ph_fine = divergence_error(AlgorithmProfileKind::PhengleiWcns, 32);
     WCNS_REQUIRE(ph_coarse / ph_fine > 3.0);
-    const Real scmm_coarse = divergence_error(
-        AlgorithmProfileKind::Scmm6Wcns, 16);
-    const Real scmm_fine = divergence_error(
-        AlgorithmProfileKind::Scmm6Wcns, 32);
+    const Real scmm_coarse = divergence_error(AlgorithmProfileKind::Scmm6Wcns, 16);
+    const Real scmm_fine = divergence_error(AlgorithmProfileKind::Scmm6Wcns, 32);
     WCNS_REQUIRE(scmm_coarse / scmm_fine > 10.0);
 }

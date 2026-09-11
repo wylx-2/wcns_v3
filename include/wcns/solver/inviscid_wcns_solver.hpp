@@ -29,19 +29,18 @@ struct InviscidWcnsConfig {
 
 class InviscidWcnsSolver {
 public:
-    InviscidWcnsSolver(
-        const MpiRuntime& mpi,
-        LocalBlockSet& local_blocks,
-        const StructuredMesh& global_mesh,
-        const DistributedTopology& topology,
-        int distribution_rank_count,
-        BlockMetricMap& metrics,
-        const BlockBoundaryDataMap& boundary_data,
-        AlgorithmProfile profile,
-        GasModel gas,
-        ReferenceScales reference,
-        NumericalFloors floors,
-        InviscidWcnsConfig config = {});
+    InviscidWcnsSolver(const MpiRuntime& mpi,
+                       LocalBlockSet& local_blocks,
+                       const StructuredMesh& global_mesh,
+                       const DistributedTopology& topology,
+                       int distribution_rank_count,
+                       BlockMetricMap& metrics,
+                       const BlockBoundaryDataMap& boundary_data,
+                       AlgorithmProfile profile,
+                       GasModel gas,
+                       ReferenceScales reference,
+                       NumericalFloors floors,
+                       InviscidWcnsConfig config = {});
 
     void compute_residuals(Real stage_time, int rk_stage = 0);
     [[nodiscard]] Real advance(Real time_step, Real initial_time);
@@ -62,10 +61,9 @@ public:
     [[nodiscard]] RobustnessDiagnostics global_robustness_diagnostics() const;
 
 private:
-    void compute_residuals_impl(
-        Real stage_time,
-        int rk_stage,
-        const BlockFaceRobustnessMap* robustness_levels);
+    void compute_residuals_impl(Real stage_time,
+                                int rk_stage,
+                                const BlockFaceRobustnessMap* robustness_levels);
 
     const MpiRuntime& mpi_;
     LocalBlockSet& local_blocks_;
@@ -80,8 +78,8 @@ private:
     NumericalFloors floors_;
     InviscidWcnsConfig config_;
     SourceTermRegistry source_registry_;
-    RiemannSolver riemann_ {};
-    RiemannSolver robust_riemann_ {};
+    RiemannSolver riemann_;
+    RiemannSolver robust_riemann_;
     RobustnessLadder robustness_ladder_ {};
     std::vector<StructuredBlock*> block_workspace_;
     std::unordered_map<BlockId, InviscidFaceFluxField> face_flux_workspace_;

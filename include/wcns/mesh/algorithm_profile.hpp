@@ -46,15 +46,9 @@ struct ProfileComponents {
 
 class AlgorithmProfile {
 public:
-    [[nodiscard]] AlgorithmProfileKind kind() const noexcept
-    {
-        return components_.profile;
-    }
+    [[nodiscard]] AlgorithmProfileKind kind() const noexcept { return components_.profile; }
 
-    [[nodiscard]] const ProfileComponents& components() const noexcept
-    {
-        return components_;
-    }
+    [[nodiscard]] const ProfileComponents& components() const noexcept { return components_; }
 
     [[nodiscard]] std::string name() const;
     [[nodiscard]] std::string restart_signature() const;
@@ -65,8 +59,7 @@ private:
     friend class ProfileFactory;
     explicit AlgorithmProfile(ProfileComponents components)
         : components_(components)
-    {
-    }
+    { }
 
     ProfileComponents components_;
 };

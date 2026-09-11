@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import gzip
 import hashlib
-import os
 import shutil
 import subprocess
 import tarfile
@@ -49,8 +48,7 @@ def run_git(*arguments: str) -> str:
         check=False,
     )
     if completed.returncode != 0:
-        raise RuntimeError(
-            f"git {' '.join(arguments)} failed: {completed.stderr.strip()}")
+        raise RuntimeError(f"git {' '.join(arguments)} failed: {completed.stderr.strip()}")
     return completed.stdout.strip()
 
 
@@ -67,26 +65,25 @@ def parse_args() -> argparse.Namespace:
 
 def tracked_payload() -> list[Path]:
     tracked = {
-        Path(line)
-        for line in run_git("ls-tree", "-r", "--name-only", "HEAD").splitlines()
-        if line
+        Path(line) for line in run_git("ls-tree", "-r", "--name-only", "HEAD").splitlines() if line
     }
     selected = set(EXPLICIT_FILES)
     for path in tracked:
-        if any(path == prefix or prefix in path.parents
-               for prefix in DIRECTORY_PREFIXES):
+        if any(path == prefix or prefix in path.parents for prefix in DIRECTORY_PREFIXES):
             selected.add(path)
 
     missing = sorted(path for path in selected if path not in tracked)
     if missing:
         raise RuntimeError(
             "package payload contains files not committed in HEAD: "
-            + ", ".join(path.as_posix() for path in missing))
+            + ", ".join(path.as_posix() for path in missing)
+        )
     absent = sorted(path for path in selected if not (REPOSITORY / path).is_file())
     if absent:
         raise RuntimeError(
             "package payload is missing from the worktree: "
-            + ", ".join(path.as_posix() for path in absent))
+            + ", ".join(path.as_posix() for path in absent)
+        )
     return sorted(selected, key=lambda item: item.as_posix())
 
 
@@ -95,8 +92,7 @@ def require_clean_payload(paths: list[Path]) -> None:
     command.extend(path.as_posix() for path in paths)
     completed = subprocess.run(command, cwd=REPOSITORY, check=False)
     if completed.returncode == 1:
-        raise RuntimeError(
-            "selected package files differ from HEAD; commit them before packaging")
+        raise RuntimeError("selected package files differ from HEAD; commit them before packaging")
     if completed.returncode != 0:
         raise RuntimeError("unable to verify package payload against HEAD")
 
@@ -110,7 +106,8 @@ def sha256(path: Path) -> str:
 
 
 def normalized_tar_info(
-    info: tarfile.TarInfo, timestamp: int,
+    info: tarfile.TarInfo,
+    timestamp: int,
 ) -> tarfile.TarInfo:
     info.uid = 0
     info.gid = 0
@@ -129,10 +126,16 @@ def normalized_tar_info(
 def create_archive(source: Path, archive: Path, timestamp: int) -> None:
     with archive.open("wb") as raw:
         with gzip.GzipFile(
-            filename="", mode="wb", fileobj=raw, compresslevel=9, mtime=timestamp,
+            filename="",
+            mode="wb",
+            fileobj=raw,
+            compresslevel=9,
+            mtime=timestamp,
         ) as compressed:
             with tarfile.open(
-                fileobj=compressed, mode="w", format=tarfile.PAX_FORMAT,
+                fileobj=compressed,
+                mode="w",
+                format=tarfile.PAX_FORMAT,
             ) as tar:
                 tar.add(
                     source,
@@ -157,7 +160,8 @@ def main() -> int:
     sidecar = output_directory / f"{package_name}.tar.gz.sha256"
 
     with tempfile.TemporaryDirectory(
-        prefix="wcns-case05-package-", dir=output_directory,
+        prefix="wcns-case05-package-",
+        dir=output_directory,
     ) as temporary:
         package_root = Path(temporary) / package_name
         package_root.mkdir()
@@ -167,7 +171,8 @@ def main() -> int:
             shutil.copy2(REPOSITORY / relative, destination)
 
         (package_root / "WCNS_SOURCE_REVISION").write_text(
-            revision + "\n", encoding="utf-8", newline="\n")
+            revision + "\n", encoding="utf-8", newline="\n"
+        )
 
         manifest_paths = [Path("WCNS_SOURCE_REVISION"), *payload]
         manifest_lines = [
@@ -182,8 +187,7 @@ def main() -> int:
         create_archive(package_root, archive, timestamp)
 
     archive_hash = sha256(archive)
-    sidecar.write_text(
-        f"{archive_hash}  {archive.name}\n", encoding="utf-8", newline="\n")
+    sidecar.write_text(f"{archive_hash}  {archive.name}\n", encoding="utf-8", newline="\n")
     print(f"created: {archive}")
     print(f"created: {sidecar}")
     print(f"revision: {revision}")

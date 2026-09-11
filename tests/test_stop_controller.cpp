@@ -34,26 +34,20 @@ void test_stop_controller()
         progress.time_step = 0.1;
         progress.time = 0.1;
         progress.residuals = uniform_norm(1.0);
-        WCNS_REQUIRE(
-            controller.evaluate(progress).reason == wcns::StopReason::Running);
+        WCNS_REQUIRE(controller.evaluate(progress).reason == wcns::StopReason::Running);
         WCNS_REQUIRE(controller.steady_state().reference_initialized);
-        WCNS_REQUIRE_NEAR(
-            controller.steady_state().reference_l2[0], 1.0, 1.0e-15);
+        WCNS_REQUIRE_NEAR(controller.steady_state().reference_l2[0], 1.0, 1.0e-15);
 
         progress.step = 2;
         progress.time = 0.2;
         progress.residuals = uniform_norm(1.0e-8);
-        WCNS_REQUIRE(
-            controller.evaluate(progress).reason == wcns::StopReason::Running);
+        WCNS_REQUIRE(controller.evaluate(progress).reason == wcns::StopReason::Running);
         WCNS_REQUIRE(controller.steady_state().consecutive_passes == 1);
 
         progress.step = 3;
         progress.time = 0.3;
-        WCNS_REQUIRE(
-            controller.evaluate(progress).reason
-            == wcns::StopReason::SteadyConverged);
-        WCNS_REQUIRE(wcns::stop_reason_exit_code(
-            wcns::StopReason::SteadyConverged) == 0);
+        WCNS_REQUIRE(controller.evaluate(progress).reason == wcns::StopReason::SteadyConverged);
+        WCNS_REQUIRE(wcns::stop_reason_exit_code(wcns::StopReason::SteadyConverged) == 0);
     }
     {
         wcns::CaseRunConfig config;
@@ -68,9 +62,7 @@ void test_stop_controller()
         progress.wall_time = 100.0;
         progress.user_signal = true;
         progress.residuals = uniform_norm(1.0);
-        WCNS_REQUIRE(
-            controller.evaluate(progress).reason
-            == wcns::StopReason::PhysicalTimeReached);
+        WCNS_REQUIRE(controller.evaluate(progress).reason == wcns::StopReason::PhysicalTimeReached);
     }
     {
         wcns::CaseRunConfig config;
@@ -84,10 +76,7 @@ void test_stop_controller()
         progress.time_step = 0.1;
         progress.residuals = uniform_norm(1.0);
         progress.numerical_failure = true;
-        WCNS_REQUIRE(
-            controller.evaluate(progress).reason
-            == wcns::StopReason::NumericalFailure);
-        WCNS_REQUIRE(wcns::stop_reason_exit_code(
-            wcns::StopReason::NumericalFailure) != 0);
+        WCNS_REQUIRE(controller.evaluate(progress).reason == wcns::StopReason::NumericalFailure);
+        WCNS_REQUIRE(wcns::stop_reason_exit_code(wcns::StopReason::NumericalFailure) != 0);
     }
 }

@@ -84,9 +84,7 @@ def execute(command: list[str], log: Path) -> dict[str, object]:
 def wall_coordinate(logical: float, strength: float) -> float:
     if strength == 0.0:
         return logical
-    return 0.5 * (
-        1.0 + math.tanh(strength * (2.0 * logical - 1.0)) / math.tanh(strength)
-    )
+    return 0.5 * (1.0 + math.tanh(strength * (2.0 * logical - 1.0)) / math.tanh(strength))
 
 
 def grid_metadata(strength: float) -> dict[str, object]:
@@ -188,8 +186,14 @@ def main() -> int:
     try:
         records: list[dict[str, object]] = []
         common_grid = [
-            "36", "48", "36", "2", "2",
-            str(2.0 * math.pi), "1.0", str(math.pi),
+            "36",
+            "48",
+            "36",
+            "2",
+            "2",
+            str(2.0 * math.pi),
+            "1.0",
+            str(math.pi),
         ]
         grid_commands = (
             ("uniform", "grids/uniform_36x48x36.cgns", "0.0"),
@@ -201,21 +205,25 @@ def main() -> int:
             if args.resume:
                 if not grid_path.is_file():
                     raise RuntimeError(f"resume grid is missing: {grid_path}")
-                records.append({
-                    "command": command,
-                    "return_code": 0,
-                    "wall_seconds": None,
-                    "peak_process_tree_rss_bytes": None,
-                    "log": f"logs/generate-{label}.log",
-                    "last_line": "existing grid reused",
-                    "reused_existing": True,
-                    "sha256": sha256(grid_path),
-                })
+                records.append(
+                    {
+                        "command": command,
+                        "return_code": 0,
+                        "wall_seconds": None,
+                        "peak_process_tree_rss_bytes": None,
+                        "log": f"logs/generate-{label}.log",
+                        "last_line": "existing grid reused",
+                        "reused_existing": True,
+                        "sha256": sha256(grid_path),
+                    }
+                )
             else:
-                records.append(execute(
-                    command,
-                    CASE_DIR / f"logs/generate-{label}.log",
-                ))
+                records.append(
+                    execute(
+                        command,
+                        CASE_DIR / f"logs/generate-{label}.log",
+                    )
+                )
 
         final_fields: dict[str, Path] = {}
         for name, config in (
@@ -268,27 +276,33 @@ def main() -> int:
                 raise RuntimeError(f"{name} expected initial and final fields, found {len(fields)}")
             final_fields[name] = fields[-1]
             for label, field in (("initial", fields[0]), ("final", fields[-1])):
-                records.append(execute(
-                    [str(validator), "finite", str(field)],
-                    CASE_DIR / f"validation/{name}-{label}-finite.txt",
-                ))
-            records.append(execute(
-                poiseuille_validation_command(
-                    validator, fields[0], 1.0e-12, 1.0e-12, 1.0e-10, 1.0e-10
-                ),
-                CASE_DIR / f"validation/{name}-initial-profile.txt",
-            ))
-            records.append(execute(
-                poiseuille_validation_command(
-                    validator,
-                    fields[-1],
-                    args.velocity_l2_tolerance,
-                    args.crossflow_tolerance,
-                    args.pressure_span_tolerance,
-                    args.homogeneity_tolerance,
-                ),
-                CASE_DIR / f"validation/{name}-final-profile.txt",
-            ))
+                records.append(
+                    execute(
+                        [str(validator), "finite", str(field)],
+                        CASE_DIR / f"validation/{name}-{label}-finite.txt",
+                    )
+                )
+            records.append(
+                execute(
+                    poiseuille_validation_command(
+                        validator, fields[0], 1.0e-12, 1.0e-12, 1.0e-10, 1.0e-10
+                    ),
+                    CASE_DIR / f"validation/{name}-initial-profile.txt",
+                )
+            )
+            records.append(
+                execute(
+                    poiseuille_validation_command(
+                        validator,
+                        fields[-1],
+                        args.velocity_l2_tolerance,
+                        args.crossflow_tolerance,
+                        args.pressure_span_tolerance,
+                        args.homogeneity_tolerance,
+                    ),
+                    CASE_DIR / f"validation/{name}-final-profile.txt",
+                )
+            )
 
         summary = {
             "case": "case02_3d_poiseuille",
@@ -345,12 +359,9 @@ def main() -> int:
         for directory in ("grids", "results", "logs", "validation"):
             generated.extend(path for path in (CASE_DIR / directory).rglob("*") if path.is_file())
         checksum_lines = [
-            f"{sha256(path)}  {path.relative_to(CASE_DIR).as_posix()}"
-            for path in sorted(generated)
+            f"{sha256(path)}  {path.relative_to(CASE_DIR).as_posix()}" for path in sorted(generated)
         ]
-        (CASE_DIR / "files.sha256").write_text(
-            "\n".join(checksum_lines) + "\n", encoding="utf-8"
-        )
+        (CASE_DIR / "files.sha256").write_text("\n".join(checksum_lines) + "\n", encoding="utf-8")
     finally:
         os.chdir(old_cwd)
     print(f"case02 passed: {CASE_DIR / 'case02-summary.json'}", flush=True)

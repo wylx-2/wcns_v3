@@ -11,10 +11,11 @@ namespace wcns {
 namespace {
 
 constexpr std::uint64_t maximum_exact_message_version = 9007199254740992ULL;
+#if WCNS_HAS_MPI
 constexpr int operand_tag_base = 16384;
+#endif
 
-std::array<std::array<Real, 3>, 3> transpose(
-    const std::array<std::array<Real, 3>, 3>& matrix)
+std::array<std::array<Real, 3>, 3> transpose(const std::array<std::array<Real, 3>, 3>& matrix)
 {
     std::array<std::array<Real, 3>, 3> result {};
     for (int i = 0; i < 3; ++i) {
@@ -26,9 +27,8 @@ std::array<std::array<Real, 3>, 3> transpose(
     return result;
 }
 
-std::array<std::array<Real, 3>, 3> transform_tensor(
-    const std::array<std::array<Real, 3>, 3>& donor,
-    const PeriodicTransform& periodic)
+std::array<std::array<Real, 3>, 3> transform_tensor(const std::array<std::array<Real, 3>, 3>& donor,
+                                                    const PeriodicTransform& periodic)
 {
     const auto& q = periodic.rotation;
     const auto qt = transpose(q);
@@ -72,40 +72,36 @@ int mpi_count(std::size_t count)
 }
 #endif
 
-GradientOperandState load_operand(
-    const GradientOperandFaceField& field, Axis axis, Index3 index)
+GradientOperandState load_operand(const GradientOperandFaceField& field, Axis axis, Index3 index)
 {
     GradientOperandState result {};
     const auto& values = field.field(axis);
     for (int component = 0; component < gradient_operand_components; ++component) {
-        result[static_cast<std::size_t>(component)]
-            = values(index.i, index.j, index.k, component);
+        result[static_cast<std::size_t>(component)] = values(index.i, index.j, index.k, component);
     }
     return result;
 }
 
-void store_operand(
-    GradientOperandFaceField& field, Axis axis, Index3 index,
-    const GradientOperandState& state)
+void store_operand(GradientOperandFaceField& field,
+                   Axis axis,
+                   Index3 index,
+                   const GradientOperandState& state)
 {
     auto& values = field.field(axis);
     for (int component = 0; component < gradient_operand_components; ++component) {
-        values(index.i, index.j, index.k, component)
-            = state[static_cast<std::size_t>(component)];
+        values(index.i, index.j, index.k, component) = state[static_cast<std::size_t>(component)];
     }
 }
 
-void validate_operand_field(
-    const GradientOperandFaceField& field,
-    const FaceFluxExchangeDescriptor& descriptor)
+void validate_operand_field(const GradientOperandFaceField& field,
+                            const FaceFluxExchangeDescriptor& descriptor)
 {
     if (field.profile() != descriptor.profile || field.version() != descriptor.version) {
         throw std::invalid_argument("gradient operand field metadata mismatch");
     }
 }
 
-PrimitiveGradients load_gradients(
-    const PrimitiveGradientField& field, Index3 index)
+PrimitiveGradients load_gradients(const PrimitiveGradientField& field, Index3 index)
 {
     PrimitiveGradients result {};
     for (int variable = 0; variable < viscous_primitive_components; ++variable) {
@@ -117,22 +113,21 @@ PrimitiveGradients load_gradients(
     return result;
 }
 
-void store_gradients(
-    PrimitiveGradientField& field, Index3 index,
-    const PrimitiveGradients& gradients)
+void store_gradients(PrimitiveGradientField& field,
+                     Index3 index,
+                     const PrimitiveGradients& gradients)
 {
     for (int variable = 0; variable < viscous_primitive_components; ++variable) {
         for (int direction = 0; direction < 3; ++direction) {
             field(index, static_cast<ViscousPrimitive>(variable), direction)
                 = gradients[static_cast<std::size_t>(variable)]
-                    [static_cast<std::size_t>(direction)];
+                           [static_cast<std::size_t>(direction)];
         }
     }
 }
 
-void validate_gradient_field(
-    const PrimitiveGradientField& field,
-    const GradientExchangeDescriptor& descriptor)
+void validate_gradient_field(const PrimitiveGradientField& field,
+                             const GradientExchangeDescriptor& descriptor)
 {
     if (field.profile() != descriptor.profile || field.version() != descriptor.version
         || field.dimension() != descriptor.dimension) {
@@ -140,17 +135,17 @@ void validate_gradient_field(
     }
 }
 
-const ConnectivityPatch& find_connection(
-    const StructuredMesh& mesh,
-    const DirectedExchange& exchange)
+const ConnectivityPatch& find_connection(const StructuredMesh& mesh,
+                                         const DirectedExchange& exchange)
 {
     const auto& block = mesh.block(exchange.halo.receiver_block);
-    const auto iterator = std::find_if(
-        block.connectivities.begin(), block.connectivities.end(),
-        [&](const ConnectivityPatch& connection) {
-            return connection.name == exchange.halo.connectivity_name
-                && connection.donor_block == exchange.halo.donor_block;
-        });
+    const auto iterator
+        = std::find_if(block.connectivities.begin(),
+                       block.connectivities.end(),
+                       [&](const ConnectivityPatch& connection) {
+                           return connection.name == exchange.halo.connectivity_name
+                               && connection.donor_block == exchange.halo.donor_block;
+                       });
     if (iterator == block.connectivities.end()) {
         throw TopologyError("gradient halo cannot find its connectivity descriptor");
     }
@@ -172,35 +167,32 @@ int ghost_layer(Index3 index, Extent3 extent)
 } // namespace
 
 GradientOperandState transform_gradient_operand_for_receiver(
-    const GradientOperandState& donor,
-    const FaceFluxExchangeDescriptor& descriptor,
-    int dimension)
+    const GradientOperandState& donor, const FaceFluxExchangeDescriptor& descriptor, int dimension)
 {
     std::array<std::array<Real, 3>, 3> velocity_tensor {};
     for (int variable = 0; variable < 3; ++variable) {
         for (int direction = 0; direction < 3; ++direction) {
-            velocity_tensor[static_cast<std::size_t>(variable)]
-                [static_cast<std::size_t>(direction)]
+            velocity_tensor[static_cast<std::size_t>(variable)][static_cast<std::size_t>(direction)]
                 = donor[static_cast<std::size_t>(variable * 3 + direction)];
         }
     }
     const auto transformed = transform_tensor(velocity_tensor, descriptor.periodic);
     const auto transformed_temperature = descriptor.periodic.inverse().apply_vector({{
-        donor[9], donor[10], donor[11],
+        donor[9],
+        donor[10],
+        donor[11],
     }});
     GradientOperandState result {};
     for (int variable = 0; variable < 3; ++variable) {
         for (int direction = 0; direction < 3; ++direction) {
-            result[static_cast<std::size_t>(variable * 3 + direction)]
-                = descriptor.orientation
+            result[static_cast<std::size_t>(variable * 3 + direction)] = descriptor.orientation
                 * transformed[static_cast<std::size_t>(variable)]
-                    [static_cast<std::size_t>(direction)];
+                             [static_cast<std::size_t>(direction)];
         }
     }
     for (int direction = 0; direction < 3; ++direction) {
         result[static_cast<std::size_t>(9 + direction)]
-            = descriptor.orientation
-            * transformed_temperature[static_cast<std::size_t>(direction)];
+            = descriptor.orientation * transformed_temperature[static_cast<std::size_t>(direction)];
     }
     if (dimension == 2) {
         for (int direction = 0; direction < 3; ++direction) {
@@ -213,10 +205,9 @@ GradientOperandState transform_gradient_operand_for_receiver(
     return result;
 }
 
-GradientOperandFaceHaloPlan GradientOperandFaceHaloPlan::build(
-    const StructuredMesh& mesh,
-    const AlgorithmProfile& profile,
-    std::uint64_t version)
+GradientOperandFaceHaloPlan GradientOperandFaceHaloPlan::build(const StructuredMesh& mesh,
+                                                               const AlgorithmProfile& profile,
+                                                               std::uint64_t version)
 {
     GradientOperandFaceHaloPlan result;
     const auto base = FaceFluxHaloPlan::build(mesh, profile, version);
@@ -227,11 +218,11 @@ GradientOperandFaceHaloPlan GradientOperandFaceHaloPlan::build(
 void GradientOperandFaceHaloPlan::set_version(std::uint64_t version)
 {
     require_version(version, "gradient operand halo");
-    for (auto& descriptor : exchanges_) descriptor.version = version;
+    for (auto& descriptor : exchanges_)
+        descriptor.version = version;
 }
 
-void GradientOperandFieldRegistry::add(
-    BlockId block, GradientOperandFaceField& field)
+void GradientOperandFieldRegistry::add(BlockId block, GradientOperandFaceField& field)
 {
     if (block < 0 || !fields_.emplace(block, &field).second) {
         throw std::invalid_argument("gradient operand registry has an invalid block");
@@ -256,12 +247,11 @@ void GradientOperandFaceHaloExchanger::prepare()
 {
     const RankId rank = mpi_.rank();
     for (const auto& descriptor : plan_.exchanges()) {
-        const std::size_t count = 1 + descriptor.pairs.size()
-            * static_cast<std::size_t>(gradient_operand_components);
+        const std::size_t count
+            = 1 + descriptor.pairs.size() * static_cast<std::size_t>(gradient_operand_components);
         if (descriptor.receiver_rank == rank && descriptor.donor_rank != rank) {
             receives_.push_back({&descriptor, std::vector<Real>(count)});
-        } else if (descriptor.donor_rank == rank
-                   && descriptor.receiver_rank != rank) {
+        } else if (descriptor.donor_rank == rank && descriptor.receiver_rank != rank) {
             sends_.push_back({&descriptor, std::vector<Real>(count)});
         }
     }
@@ -270,8 +260,7 @@ void GradientOperandFaceHaloExchanger::prepare()
 #endif
 }
 
-void GradientOperandFaceHaloExchanger::exchange(
-    const GradientOperandFieldRegistry& fields) const
+void GradientOperandFaceHaloExchanger::exchange(const GradientOperandFieldRegistry& fields) const
 {
     const RankId rank = mpi_.rank();
     for (const auto& descriptor : plan_.exchanges()) {
@@ -281,17 +270,19 @@ void GradientOperandFaceHaloExchanger::exchange(
             validate_operand_field(receiver, descriptor);
             validate_operand_field(donor, descriptor);
             for (const auto& pair : descriptor.pairs) {
-                store_operand(receiver, descriptor.receiver_axis, pair.receiver,
-                    transform_gradient_operand_for_receiver(
-                        load_operand(donor, descriptor.donor_axis, pair.donor),
-                        descriptor, receiver.dimension()));
+                store_operand(receiver,
+                              descriptor.receiver_axis,
+                              pair.receiver,
+                              transform_gradient_operand_for_receiver(
+                                  load_operand(donor, descriptor.donor_axis, pair.donor),
+                                  descriptor,
+                                  receiver.dimension()));
             }
         }
     }
     for (const auto& pending : receives_) {
-        validate_operand_field(
-            fields.field(pending.descriptor->receiver_block),
-            *pending.descriptor);
+        validate_operand_field(fields.field(pending.descriptor->receiver_block),
+                               *pending.descriptor);
     }
     for (auto& pending : sends_) {
         const auto& descriptor = *pending.descriptor;
@@ -300,31 +291,37 @@ void GradientOperandFaceHaloExchanger::exchange(
         pending.values[0] = static_cast<Real>(descriptor.version);
         std::size_t offset = 1;
         for (const auto& pair : descriptor.pairs) {
-            const auto state = load_operand(
-                donor, descriptor.donor_axis, pair.donor);
-            for (const Real value : state) pending.values[offset++] = value;
+            const auto state = load_operand(donor, descriptor.donor_axis, pair.donor);
+            for (const Real value : state)
+                pending.values[offset++] = value;
         }
     }
 #if WCNS_HAS_MPI
     std::fill(requests_.begin(), requests_.end(), MPI_REQUEST_NULL);
     std::size_t request = 0;
     for (auto& pending : receives_) {
-        check_mpi(MPI_Irecv(
-            pending.values.data(), mpi_count(pending.values.size()), MPI_DOUBLE,
-            pending.descriptor->donor_rank,
-            pending.descriptor->message_tag(operand_tag_base), mpi_.communicator(),
-            &requests_[request++]), "MPI_Irecv gradient operand");
+        check_mpi(MPI_Irecv(pending.values.data(),
+                            mpi_count(pending.values.size()),
+                            MPI_DOUBLE,
+                            pending.descriptor->donor_rank,
+                            pending.descriptor->message_tag(operand_tag_base),
+                            mpi_.communicator(),
+                            &requests_[request++]),
+                  "MPI_Irecv gradient operand");
     }
     for (auto& pending : sends_) {
-        check_mpi(MPI_Isend(
-            pending.values.data(), mpi_count(pending.values.size()), MPI_DOUBLE,
-            pending.descriptor->receiver_rank,
-            pending.descriptor->message_tag(operand_tag_base), mpi_.communicator(),
-            &requests_[request++]), "MPI_Isend gradient operand");
+        check_mpi(MPI_Isend(pending.values.data(),
+                            mpi_count(pending.values.size()),
+                            MPI_DOUBLE,
+                            pending.descriptor->receiver_rank,
+                            pending.descriptor->message_tag(operand_tag_base),
+                            mpi_.communicator(),
+                            &requests_[request++]),
+                  "MPI_Isend gradient operand");
     }
     if (!requests_.empty()) {
-        check_mpi(MPI_Waitall(
-            static_cast<int>(requests_.size()), requests_.data(), MPI_STATUSES_IGNORE),
+        check_mpi(
+            MPI_Waitall(static_cast<int>(requests_.size()), requests_.data(), MPI_STATUSES_IGNORE),
             "MPI_Waitall gradient operand");
     }
 #else
@@ -340,10 +337,13 @@ void GradientOperandFaceHaloExchanger::exchange(
         std::size_t offset = 1;
         for (const auto& pair : pending.descriptor->pairs) {
             GradientOperandState donor {};
-            for (auto& value : donor) value = pending.values[offset++];
-            store_operand(receiver, pending.descriptor->receiver_axis, pair.receiver,
-                transform_gradient_operand_for_receiver(
-                    donor, *pending.descriptor, receiver.dimension()));
+            for (auto& value : donor)
+                value = pending.values[offset++];
+            store_operand(receiver,
+                          pending.descriptor->receiver_axis,
+                          pair.receiver,
+                          transform_gradient_operand_for_receiver(
+                              donor, *pending.descriptor, receiver.dimension()));
         }
     }
 }
@@ -354,22 +354,21 @@ int GradientExchangeDescriptor::message_tag(int tag_base) const
         throw TopologyError("gradient message tag inputs are invalid");
     }
     const int direction = receiver_block < donor_block ? 0 : 1;
-    const long long tag = static_cast<long long>(tag_base)
-        + 8LL * connection + 2LL * static_cast<int>(profile) + direction;
+    const long long tag = static_cast<long long>(tag_base) + 8LL * connection
+        + 2LL * static_cast<int>(profile) + direction;
     if (tag > std::numeric_limits<int>::max()) {
         throw TopologyError("gradient message tag exceeds int range");
     }
     return static_cast<int>(tag);
 }
 
-PrimitiveGradients transform_primitive_gradients_for_receiver(
-    const PrimitiveGradients& donor,
-    const GradientExchangeDescriptor& descriptor)
+PrimitiveGradients
+transform_primitive_gradients_for_receiver(const PrimitiveGradients& donor,
+                                           const GradientExchangeDescriptor& descriptor)
 {
     std::array<std::array<Real, 3>, 3> velocity {};
     for (int variable = 0; variable < 3; ++variable) {
-        velocity[static_cast<std::size_t>(variable)]
-            = donor[static_cast<std::size_t>(variable)];
+        velocity[static_cast<std::size_t>(variable)] = donor[static_cast<std::size_t>(variable)];
     }
     const auto transformed_velocity = transform_tensor(velocity, descriptor.periodic);
     const auto transformed_temperature = descriptor.periodic.inverse().apply_vector(
@@ -379,20 +378,19 @@ PrimitiveGradients transform_primitive_gradients_for_receiver(
         result[static_cast<std::size_t>(variable)]
             = transformed_velocity[static_cast<std::size_t>(variable)];
     }
-    result[static_cast<int>(ViscousPrimitive::Temperature)]
-        = transformed_temperature;
+    result[static_cast<int>(ViscousPrimitive::Temperature)] = transformed_temperature;
     if (descriptor.dimension == 2) {
         result[static_cast<int>(ViscousPrimitive::VelocityZ)] = {{0.0, 0.0, 0.0}};
-        for (auto& gradient : result) gradient[2] = 0.0;
+        for (auto& gradient : result)
+            gradient[2] = 0.0;
     }
     return result;
 }
 
-GradientHaloPlan GradientHaloPlan::build(
-    const StructuredMesh& mesh,
-    const DistributedTopology& topology,
-    const AlgorithmProfile& profile,
-    std::uint64_t version)
+GradientHaloPlan GradientHaloPlan::build(const StructuredMesh& mesh,
+                                         const DistributedTopology& topology,
+                                         const AlgorithmProfile& profile,
+                                         std::uint64_t version)
 {
     require_version(version, "gradient halo");
     GradientHaloPlan result;
@@ -423,7 +421,8 @@ GradientHaloPlan GradientHaloPlan::build(
 void GradientHaloPlan::set_version(std::uint64_t version)
 {
     require_version(version, "gradient halo");
-    for (auto& descriptor : exchanges_) descriptor.version = version;
+    for (auto& descriptor : exchanges_)
+        descriptor.version = version;
 }
 
 void GradientFieldRegistry::add(BlockId block, PrimitiveGradientField& field)
@@ -451,12 +450,11 @@ void GradientHaloExchanger::prepare()
 {
     const RankId rank = mpi_.rank();
     for (const auto& descriptor : plan_.exchanges()) {
-        const std::size_t count = 1 + descriptor.pairs.size()
-            * static_cast<std::size_t>(gradient_operand_components);
+        const std::size_t count
+            = 1 + descriptor.pairs.size() * static_cast<std::size_t>(gradient_operand_components);
         if (descriptor.receiver_rank == rank && descriptor.donor_rank != rank) {
             receives_.push_back({&descriptor, std::vector<Real>(count)});
-        } else if (descriptor.donor_rank == rank
-                   && descriptor.receiver_rank != rank) {
+        } else if (descriptor.donor_rank == rank && descriptor.receiver_rank != rank) {
             sends_.push_back({&descriptor, std::vector<Real>(count)});
         }
     }
@@ -465,8 +463,7 @@ void GradientHaloExchanger::prepare()
 #endif
 }
 
-void GradientHaloExchanger::exchange(
-    const GradientFieldRegistry& fields) const
+void GradientHaloExchanger::exchange(const GradientFieldRegistry& fields) const
 {
     const RankId rank = mpi_.rank();
     for (const auto& descriptor : plan_.exchanges()) {
@@ -476,16 +473,16 @@ void GradientHaloExchanger::exchange(
             validate_gradient_field(receiver, descriptor);
             validate_gradient_field(donor, descriptor);
             for (const auto& pair : descriptor.pairs) {
-                store_gradients(receiver, pair.receiver_ghost,
-                    transform_primitive_gradients_for_receiver(
-                        load_gradients(donor, pair.donor_interior), descriptor));
+                store_gradients(receiver,
+                                pair.receiver_ghost,
+                                transform_primitive_gradients_for_receiver(
+                                    load_gradients(donor, pair.donor_interior), descriptor));
             }
         }
     }
     for (const auto& pending : receives_) {
-        validate_gradient_field(
-            fields.field(pending.descriptor->receiver_block),
-            *pending.descriptor);
+        validate_gradient_field(fields.field(pending.descriptor->receiver_block),
+                                *pending.descriptor);
     }
     for (auto& pending : sends_) {
         const auto& descriptor = *pending.descriptor;
@@ -496,7 +493,8 @@ void GradientHaloExchanger::exchange(
         for (const auto& pair : descriptor.pairs) {
             const auto gradients = load_gradients(donor, pair.donor_interior);
             for (const auto& gradient : gradients) {
-                for (const Real value : gradient) pending.values[offset++] = value;
+                for (const Real value : gradient)
+                    pending.values[offset++] = value;
             }
         }
     }
@@ -504,20 +502,28 @@ void GradientHaloExchanger::exchange(
     std::fill(requests_.begin(), requests_.end(), MPI_REQUEST_NULL);
     std::size_t request = 0;
     for (auto& pending : receives_) {
-        check_mpi(MPI_Irecv(
-            pending.values.data(), mpi_count(pending.values.size()), MPI_DOUBLE,
-            pending.descriptor->donor_rank, pending.descriptor->message_tag(),
-            mpi_.communicator(), &requests_[request++]), "MPI_Irecv gradient");
+        check_mpi(MPI_Irecv(pending.values.data(),
+                            mpi_count(pending.values.size()),
+                            MPI_DOUBLE,
+                            pending.descriptor->donor_rank,
+                            pending.descriptor->message_tag(),
+                            mpi_.communicator(),
+                            &requests_[request++]),
+                  "MPI_Irecv gradient");
     }
     for (auto& pending : sends_) {
-        check_mpi(MPI_Isend(
-            pending.values.data(), mpi_count(pending.values.size()), MPI_DOUBLE,
-            pending.descriptor->receiver_rank, pending.descriptor->message_tag(),
-            mpi_.communicator(), &requests_[request++]), "MPI_Isend gradient");
+        check_mpi(MPI_Isend(pending.values.data(),
+                            mpi_count(pending.values.size()),
+                            MPI_DOUBLE,
+                            pending.descriptor->receiver_rank,
+                            pending.descriptor->message_tag(),
+                            mpi_.communicator(),
+                            &requests_[request++]),
+                  "MPI_Isend gradient");
     }
     if (!requests_.empty()) {
-        check_mpi(MPI_Waitall(
-            static_cast<int>(requests_.size()), requests_.data(), MPI_STATUSES_IGNORE),
+        check_mpi(
+            MPI_Waitall(static_cast<int>(requests_.size()), requests_.data(), MPI_STATUSES_IGNORE),
             "MPI_Waitall gradient");
     }
 #else
@@ -534,11 +540,12 @@ void GradientHaloExchanger::exchange(
         for (const auto& pair : pending.descriptor->pairs) {
             PrimitiveGradients donor {};
             for (auto& gradient : donor) {
-                for (auto& value : gradient) value = pending.values[offset++];
+                for (auto& value : gradient)
+                    value = pending.values[offset++];
             }
-            store_gradients(receiver, pair.receiver_ghost,
-                transform_primitive_gradients_for_receiver(
-                    donor, *pending.descriptor));
+            store_gradients(receiver,
+                            pair.receiver_ghost,
+                            transform_primitive_gradients_for_receiver(donor, *pending.descriptor));
         }
     }
 }

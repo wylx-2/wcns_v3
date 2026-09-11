@@ -10,8 +10,7 @@
 namespace wcns {
 
 struct GeometryHaloPlanBuilderAccess {
-    static std::vector<GeometryExchangeDescriptor>& exchanges(
-        GeometryHaloPlan& plan)
+    static std::vector<GeometryExchangeDescriptor>& exchanges(GeometryHaloPlan& plan)
     {
         return plan.exchanges_;
     }
@@ -45,9 +44,8 @@ auto connection_key(const ConnectivityPatch& connection)
     };
 }
 
-const ConnectivityPatch& reciprocal_connection(
-    const StructuredMesh& mesh,
-    const ConnectivityPatch& connection)
+const ConnectivityPatch& reciprocal_connection(const StructuredMesh& mesh,
+                                               const ConnectivityPatch& connection)
 {
     const auto& donor = mesh.block(connection.donor_block);
     const auto iterator = std::find_if(
@@ -58,8 +56,7 @@ const ConnectivityPatch& reciprocal_connection(
                 && candidate.donor_block == connection.receiver_block
                 && candidate.receiver_face == connection.donor_face
                 && candidate.donor_face == connection.receiver_face
-                && candidate.transform
-                    == connection.transform.inverse(donor.cell_dimension());
+                && candidate.transform == connection.transform.inverse(donor.cell_dimension());
         });
     if (iterator == donor.connectivities.end()) {
         throw TopologyError("geometry plan cannot find a reciprocal connection");
@@ -67,10 +64,9 @@ const ConnectivityPatch& reciprocal_connection(
     return *iterator;
 }
 
-std::vector<BlockId> resolve_donor_path(
-    const StructuredMesh& mesh,
-    const ConnectivityPatch& connection,
-    int required_width)
+std::vector<BlockId> resolve_donor_path(const StructuredMesh& mesh,
+                                        const ConnectivityPatch& connection,
+                                        int required_width)
 {
     if (required_width <= 0) {
         return {connection.donor_block};
@@ -81,8 +77,8 @@ std::vector<BlockId> resolve_donor_path(
     for (int hop = 0; hop < 64; ++hop) {
         const auto& donor = mesh.block(current->donor_block);
         path.push_back(donor.id());
-        const int available = donor.cell_extent()[
-            static_cast<std::size_t>(current->donor_face.axis)];
+        const int available
+            = donor.cell_extent()[static_cast<std::size_t>(current->donor_face.axis)];
         remaining -= available;
         if (remaining <= 0) {
             return path;
@@ -110,15 +106,14 @@ std::vector<BlockId> resolve_donor_path(
     throw TopologyError("geometry donor path did not terminate within 64 connections");
 }
 
-void append_descriptor(
-    GeometryHaloPlan& plan,
-    const StructuredMesh& mesh,
-    const ConnectivityPatch& connection,
-    ConnectionId id,
-    BlockId owner,
-    GeometryMessageKind kind,
-    GeometryOperandStage stage,
-    int width)
+void append_descriptor(GeometryHaloPlan& plan,
+                       const StructuredMesh& mesh,
+                       const ConnectivityPatch& connection,
+                       ConnectionId id,
+                       BlockId owner,
+                       GeometryMessageKind kind,
+                       GeometryOperandStage stage,
+                       int width)
 {
     GeometryExchangeDescriptor descriptor;
     descriptor.connection = id;
@@ -144,18 +139,16 @@ int GeometryExchangeDescriptor::message_tag(int tag_base) const
     }
     const int direction = receiver_block < donor_block ? 0 : 1;
     const long long tag = static_cast<long long>(tag_base)
-        + 32LL * static_cast<long long>(connection)
-        + 10LL * static_cast<int>(kind) + 2LL * static_cast<int>(stage)
-        + direction;
+        + 32LL * static_cast<long long>(connection) + 10LL * static_cast<int>(kind)
+        + 2LL * static_cast<int>(stage) + direction;
     if (tag > std::numeric_limits<int>::max()) {
         throw TopologyError("geometry message tag exceeds int range");
     }
     return static_cast<int>(tag);
 }
 
-GeometryHaloPlan GeometryHaloPlan::build(
-    const StructuredMesh& mesh,
-    const AlgorithmProfile& profile)
+GeometryHaloPlan GeometryHaloPlan::build(const StructuredMesh& mesh,
+                                         const AlgorithmProfile& profile)
 {
     mesh.validate_connectivities();
     std::vector<const ConnectivityPatch*> canonical;
@@ -187,10 +180,8 @@ GeometryHaloPlan GeometryHaloPlan::build(
 
     GeometryHaloPlan plan;
     plan.profile_ = profile.kind();
-    const int operand_width
-        = profile.kind() == AlgorithmProfileKind::PhengleiWcns ? 3 : 5;
-    const int final_width
-        = profile.kind() == AlgorithmProfileKind::PhengleiWcns ? 3 : 3;
+    const int operand_width = profile.kind() == AlgorithmProfileKind::PhengleiWcns ? 3 : 5;
+    constexpr int shared_metric_width = 3; // Identical final support for both profiles.
     for (std::size_t index = 0; index < canonical.size(); ++index) {
         if (index > static_cast<std::size_t>(std::numeric_limits<ConnectionId>::max())) {
             throw TopologyError("geometry connection count exceeds ConnectionId range");
@@ -200,24 +191,35 @@ GeometryHaloPlan GeometryHaloPlan::build(
         const auto& reverse = reciprocal_connection(mesh, forward);
         const BlockId owner = std::min(forward.receiver_block, forward.donor_block);
         for (const auto* directed : {&forward, &reverse}) {
-            append_descriptor(
-                plan, mesh, *directed, id, owner,
-                GeometryMessageKind::GeometryVertex,
-                GeometryOperandStage::None, 2);
-            for (const auto stage : {
-                     GeometryOperandStage::CenterCoordinates,
-                     GeometryOperandStage::FirstDerivative,
-                     GeometryOperandStage::MetricProduct,
-                     GeometryOperandStage::JacobianProduct}) {
-                append_descriptor(
-                    plan, mesh, *directed, id, owner,
-                    GeometryMessageKind::GeometryOperand,
-                    stage, operand_width);
+            append_descriptor(plan,
+                              mesh,
+                              *directed,
+                              id,
+                              owner,
+                              GeometryMessageKind::GeometryVertex,
+                              GeometryOperandStage::None,
+                              2);
+            for (const auto stage : {GeometryOperandStage::CenterCoordinates,
+                                     GeometryOperandStage::FirstDerivative,
+                                     GeometryOperandStage::MetricProduct,
+                                     GeometryOperandStage::JacobianProduct}) {
+                append_descriptor(plan,
+                                  mesh,
+                                  *directed,
+                                  id,
+                                  owner,
+                                  GeometryMessageKind::GeometryOperand,
+                                  stage,
+                                  operand_width);
             }
-            append_descriptor(
-                plan, mesh, *directed, id, owner,
-                GeometryMessageKind::SharedMetric,
-                GeometryOperandStage::None, final_width);
+            append_descriptor(plan,
+                              mesh,
+                              *directed,
+                              id,
+                              owner,
+                              GeometryMessageKind::SharedMetric,
+                              GeometryOperandStage::None,
+                              shared_metric_width);
         }
     }
     std::set<int> tags;
@@ -229,15 +231,11 @@ GeometryHaloPlan GeometryHaloPlan::build(
     return plan;
 }
 
-FaceAreaVectors& SharedMetricSynchronizer::face_vectors(
-    MetricField& metric,
-    Axis axis)
+FaceAreaVectors& SharedMetricSynchronizer::face_vectors(MetricField& metric, Axis axis)
 {
     switch (axis) {
-    case Axis::I:
-        return metric.i_faces_;
-    case Axis::J:
-        return metric.j_faces_;
+    case Axis::I: return metric.i_faces_;
+    case Axis::J: return metric.j_faces_;
     case Axis::K:
         if (metric.dimension_ != 3) {
             throw TopologyError("2D shared metric cannot be K-face located");
@@ -247,9 +245,8 @@ FaceAreaVectors& SharedMetricSynchronizer::face_vectors(
     throw TopologyError("invalid shared metric face axis");
 }
 
-void SharedMetricSynchronizer::synchronize(
-    const StructuredMesh& mesh,
-    std::unordered_map<BlockId, MetricField>& metrics)
+void SharedMetricSynchronizer::synchronize(const StructuredMesh& mesh,
+                                           std::unordered_map<BlockId, MetricField>& metrics)
 {
     mesh.validate_connectivities();
     for (const auto& block : mesh.blocks()) {
@@ -262,55 +259,48 @@ void SharedMetricSynchronizer::synchronize(
             if (owner_iterator == metrics.end() || donor_iterator == metrics.end()) {
                 throw TopologyError("shared metric synchronization is missing a block metric");
             }
-            auto& owner_faces
-                = face_vectors(owner_iterator->second, connection.receiver_face.axis);
-            auto& donor_faces
-                = face_vectors(donor_iterator->second, connection.donor_face.axis);
+            auto& owner_faces = face_vectors(owner_iterator->second, connection.receiver_face.axis);
+            auto& donor_faces = face_vectors(donor_iterator->second, connection.donor_face.axis);
             const auto& reciprocal = reciprocal_connection(mesh, connection);
             const auto counts = connection.shared_face_range.counts();
-            const Real orientation = static_cast<Real>(
-                -side_sign(connection.receiver_face.side)
-                / side_sign(connection.donor_face.side));
+            const Real orientation = static_cast<Real>(-side_sign(connection.receiver_face.side)
+                                                       / side_sign(connection.donor_face.side));
             for (int k = 0; k < counts.nk; ++k) {
                 for (int j = 0; j < counts.nj; ++j) {
                     for (int i = 0; i < counts.ni; ++i) {
                         const Index3 owner_ordinal {i, j, k};
                         Index3 donor_ordinal;
-                        for (int receiver_axis = 0;
-                             receiver_axis < block.cell_dimension();
+                        for (int receiver_axis = 0; receiver_axis < block.cell_dimension();
                              ++receiver_axis) {
-                            const int donor_axis = std::abs(
-                                connection.transform.receiver_to_donor[
-                                    static_cast<std::size_t>(receiver_axis)])
+                            const int donor_axis
+                                = std::abs(connection.transform
+                                               .receiver_to_donor[static_cast<std::size_t>(
+                                                   receiver_axis)])
                                 - 1;
                             donor_ordinal[static_cast<std::size_t>(donor_axis)]
                                 = owner_ordinal[static_cast<std::size_t>(receiver_axis)];
                         }
-                        const auto owner_index
-                            = connection.shared_face_range.at(owner_ordinal);
-                        const auto donor_index
-                            = reciprocal.shared_face_range.at(donor_ordinal);
+                        const auto owner_index = connection.shared_face_range.at(owner_ordinal);
+                        const auto donor_index = reciprocal.shared_face_range.at(donor_ordinal);
                         const std::array<Real, 3> owner_vector {{
                             owner_faces.x(owner_index.i, owner_index.j, owner_index.k),
                             owner_faces.y(owner_index.i, owner_index.j, owner_index.k),
                             owner_faces.z(owner_index.i, owner_index.j, owner_index.k),
                         }};
-                        const auto transformed
-                            = connection.periodic.apply_vector(owner_vector);
+                        const auto transformed = connection.periodic.apply_vector(owner_vector);
                         donor_faces.x(donor_index.i, donor_index.j, donor_index.k)
                             = orientation * transformed[0];
                         donor_faces.y(donor_index.i, donor_index.j, donor_index.k)
                             = orientation * transformed[1];
                         donor_faces.z(donor_index.i, donor_index.j, donor_index.k)
                             = orientation * transformed[2];
-                        const Real owner_area = std::sqrt(
-                            owner_vector[0] * owner_vector[0]
-                            + owner_vector[1] * owner_vector[1]
-                            + owner_vector[2] * owner_vector[2]);
+                        const Real owner_area = std::sqrt(owner_vector[0] * owner_vector[0]
+                                                          + owner_vector[1] * owner_vector[1]
+                                                          + owner_vector[2] * owner_vector[2]);
                         const Real donor_area
                             = donor_faces.area(donor_index.i, donor_index.j, donor_index.k);
-                        if (std::abs(owner_area - donor_area)
-                            > 256.0 * std::numeric_limits<Real>::epsilon()
+                        if (std::abs(owner_area - donor_area) > 256.0
+                                * std::numeric_limits<Real>::epsilon()
                                 * std::max(Real {1}, owner_area)) {
                             throw TopologyError("published shared metric has an inconsistent area");
                         }

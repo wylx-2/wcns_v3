@@ -40,13 +40,12 @@ public:
 
 class InviscidSimulationSolver final : public ISimulationSolver {
 public:
-    InviscidSimulationSolver(
-        InviscidWcnsSolver& solver,
-        const MpiRuntime& mpi,
-        const LocalBlockSet& local_blocks,
-        const BlockMetricMap& metrics,
-        const StructuredPartitionPlan& partition,
-        AlgorithmProfile profile);
+    InviscidSimulationSolver(InviscidWcnsSolver& solver,
+                             const MpiRuntime& mpi,
+                             const LocalBlockSet& local_blocks,
+                             const BlockMetricMap& metrics,
+                             const StructuredPartitionPlan& partition,
+                             AlgorithmProfile profile);
 
     [[nodiscard]] Real global_time_step(Real cfl) override;
     [[nodiscard]] Real advance(Real time_step, Real initial_time) override;
@@ -65,13 +64,12 @@ private:
 
 class ViscousSimulationSolver final : public ISimulationSolver {
 public:
-    ViscousSimulationSolver(
-        ViscousWcnsSolver& solver,
-        const MpiRuntime& mpi,
-        const LocalBlockSet& local_blocks,
-        const BlockMetricMap& metrics,
-        const StructuredPartitionPlan& partition,
-        AlgorithmProfile profile);
+    ViscousSimulationSolver(ViscousWcnsSolver& solver,
+                            const MpiRuntime& mpi,
+                            const LocalBlockSet& local_blocks,
+                            const BlockMetricMap& metrics,
+                            const StructuredPartitionPlan& partition,
+                            AlgorithmProfile profile);
 
     [[nodiscard]] Real global_time_step(Real cfl) override;
     [[nodiscard]] Real advance(Real time_step, Real initial_time) override;
@@ -107,23 +105,19 @@ public:
     {
         return std::numeric_limits<Real>::infinity();
     }
-    virtual void on_initial(const SimulationState&) {}
-    virtual void on_step(const SimulationState&, bool) {}
-    virtual void on_final(const SimulationState&) {}
+    virtual void on_initial(const SimulationState&) { }
+    virtual void on_step(const SimulationState&, bool) { }
+    virtual void on_final(const SimulationState&) { }
 };
 
-class NullSimulationObserver final : public ISimulationObserver {
-};
+class NullSimulationObserver final : public ISimulationObserver { };
 
 class CompositeSimulationObserver final : public ISimulationObserver {
 public:
     void add(ISimulationObserver& observer);
-    [[nodiscard]] Real next_time_event(
-        const SimulationState& state) const override;
+    [[nodiscard]] Real next_time_event(const SimulationState& state) const override;
     void on_initial(const SimulationState& state) override;
-    void on_step(
-        const SimulationState& state,
-        bool residual_checked) override;
+    void on_step(const SimulationState& state, bool residual_checked) override;
     void on_final(const SimulationState& state) override;
 
 private:
@@ -141,20 +135,17 @@ public:
     using StopRequest = std::function<bool()>;
     using WallClock = std::function<Real()>;
 
-    SimulationDriver(
-        const MpiRuntime& mpi,
-        ISimulationSolver& solver,
-        CaseRunConfig config,
-        ISimulationObserver& observer,
-        StopRequest stop_requested = {},
-        WallClock wall_clock = {});
+    SimulationDriver(const MpiRuntime& mpi,
+                     ISimulationSolver& solver,
+                     CaseRunConfig config,
+                     ISimulationObserver& observer,
+                     StopRequest stop_requested = {},
+                     WallClock wall_clock = {});
 
     [[nodiscard]] SimulationState run(SimulationInitialState initial = {});
 
 private:
-    [[nodiscard]] Real limited_time_step(
-        Real proposed,
-        const SimulationState& state) const;
+    [[nodiscard]] Real limited_time_step(Real proposed, const SimulationState& state) const;
     [[nodiscard]] bool all_ranks_succeeded(bool local_success) const;
 
     const MpiRuntime& mpi_;

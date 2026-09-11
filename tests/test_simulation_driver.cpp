@@ -17,10 +17,7 @@ public:
     bool fail_advance = false;
     wcns::Real accepted_fraction = 1.0;
 
-    wcns::Real global_time_step(wcns::Real) override
-    {
-        return proposed_time_step;
-    }
+    wcns::Real global_time_step(wcns::Real) override { return proposed_time_step; }
 
     wcns::Real advance(wcns::Real time_step, wcns::Real) override
     {
@@ -30,7 +27,7 @@ public:
         residual_value *= 1.0e-4;
         return accepted_fraction * time_step;
     }
-    void refresh_residuals(wcns::Real) override {}
+    void refresh_residuals(wcns::Real) override { }
 
     wcns::ResidualNorms residual_norms() const override
     {
@@ -40,29 +37,19 @@ public:
         return result;
     }
 
-    wcns::SolverDiagnostics diagnostics() const override
-    {
-        return {};
-    }
+    wcns::SolverDiagnostics diagnostics() const override { return {}; }
 };
 
 class TimeEventObserver final : public wcns::ISimulationObserver {
 public:
     wcns::Real next_time_event(const wcns::SimulationState& state) const override
     {
-        return state.time < 0.5 - 1.0e-14
-            ? 0.5 : std::numeric_limits<wcns::Real>::infinity();
+        return state.time < 0.5 - 1.0e-14 ? 0.5 : std::numeric_limits<wcns::Real>::infinity();
     }
 
-    void on_step(const wcns::SimulationState& state, bool) override
-    {
-        times.push_back(state.time);
-    }
+    void on_step(const wcns::SimulationState& state, bool) override { times.push_back(state.time); }
 
-    void on_final(const wcns::SimulationState&) override
-    {
-        ++final_count;
-    }
+    void on_final(const wcns::SimulationState&) override { ++final_count; }
 
     std::vector<wcns::Real> times;
     int final_count = 0;
@@ -92,13 +79,10 @@ void test_simulation_driver()
         config.end_time = 1.0;
         config.max_steps = 4;
         wcns::Real clock = 0.0;
-        wcns::SimulationDriver driver(
-            mpi,
-            solver,
-            config,
-            observer,
-            {},
-            [&clock] { clock += 0.01; return clock; });
+        wcns::SimulationDriver driver(mpi, solver, config, observer, {}, [&clock] {
+            clock += 0.01;
+            return clock;
+        });
         const auto final = driver.run();
         WCNS_REQUIRE(final.stop_reason == wcns::StopReason::PhysicalTimeReached);
         WCNS_REQUIRE(final.step == 4);
@@ -150,11 +134,11 @@ void test_simulation_driver()
         config.max_wall_time = 0.005;
         config.steady.min_steps = 100;
         wcns::Real clock = 0.0;
-        wcns::SimulationDriver driver(
-            mpi, solver, config, observer, {},
-            [&clock] { clock += 0.01; return clock; });
-        WCNS_REQUIRE(
-            driver.run().stop_reason == wcns::StopReason::WallTimeCheckpoint);
+        wcns::SimulationDriver driver(mpi, solver, config, observer, {}, [&clock] {
+            clock += 0.01;
+            return clock;
+        });
+        WCNS_REQUIRE(driver.run().stop_reason == wcns::StopReason::WallTimeCheckpoint);
     }
     {
         FakeSolver solver;
@@ -163,10 +147,8 @@ void test_simulation_driver()
         config.mode = wcns::RunMode::Steady;
         config.max_steps = 1;
         config.steady.min_steps = 100;
-        wcns::SimulationDriver driver(
-            mpi, solver, config, observer, [] { return true; });
-        WCNS_REQUIRE(
-            driver.run().stop_reason == wcns::StopReason::UserSignalCheckpoint);
+        wcns::SimulationDriver driver(mpi, solver, config, observer, [] { return true; });
+        WCNS_REQUIRE(driver.run().stop_reason == wcns::StopReason::UserSignalCheckpoint);
     }
     {
         FakeSolver solver;
@@ -177,8 +159,7 @@ void test_simulation_driver()
         config.max_steps = 10;
         config.steady.min_steps = 100;
         wcns::SimulationDriver driver(mpi, solver, config, observer);
-        WCNS_REQUIRE(
-            driver.run().stop_reason == wcns::StopReason::NumericalFailure);
+        WCNS_REQUIRE(driver.run().stop_reason == wcns::StopReason::NumericalFailure);
     }
     {
         FakeSolver solver;
@@ -192,8 +173,9 @@ void test_simulation_driver()
         try {
             static_cast<void>(driver.run());
         } catch (const std::runtime_error& error) {
-            reported_original_error = std::string(error.what()).find(
-                "MPI rank 0: injected observer failure") != std::string::npos;
+            reported_original_error
+                = std::string(error.what()).find("MPI rank 0: injected observer failure")
+                != std::string::npos;
         }
         WCNS_REQUIRE(reported_original_error);
     }

@@ -14,8 +14,7 @@ namespace {
 void check_cgns(int status, const char* operation)
 {
     if (status != CG_OK) {
-        throw std::runtime_error(
-            std::string(operation) + ": " + cg_get_error());
+        throw std::runtime_error(std::string(operation) + ": " + cg_get_error());
     }
 }
 
@@ -28,9 +27,7 @@ std::map<std::string, std::string> descriptors(int file)
     for (int index = 1; index <= count; ++index) {
         char name[33] = {};
         char* value = nullptr;
-        check_cgns(
-            cg_descriptor_read(index, name, &value),
-            "cg_descriptor_read checkpoint test");
+        check_cgns(cg_descriptor_read(index, name, &value), "cg_descriptor_read checkpoint test");
         result.emplace(name, value == nullptr ? "" : value);
         if (value != nullptr) cg_free(value);
     }
@@ -49,9 +46,8 @@ int main(int argc, char** argv)
     }
     int file = 0;
     try {
-        check_cgns(
-            cg_open(argv[1], argc == 3 ? CG_MODE_MODIFY : CG_MODE_READ, &file),
-            "cg_open checkpoint test");
+        check_cgns(cg_open(argv[1], argc == 3 ? CG_MODE_MODIFY : CG_MODE_READ, &file),
+                   "cg_open checkpoint test");
         const auto metadata = descriptors(file);
         WCNS_REQUIRE(metadata.at("WCNS_Version") == "1");
         WCNS_REQUIRE(metadata.at("WCNS_Step") == "1");
@@ -70,29 +66,25 @@ int main(int argc, char** argv)
         cgsize_t lower[2] = {1, 1};
         cgsize_t upper[2] = {size[2], size[3]};
         check_cgns(
-            cg_field_read(
-                file, 1, 1, 1, "Density", RealDouble,
-                lower, upper, density.data()),
+            cg_field_read(file, 1, 1, 1, "Density", RealDouble, lower, upper, density.data()),
             "cg_field_read checkpoint Density");
-        for (const double value : density) WCNS_REQUIRE_NEAR(value, 1.0, 1.0e-12);
+        for (const double value : density)
+            WCNS_REQUIRE_NEAR(value, 1.0, 1.0e-12);
         if (argc == 3) {
             WCNS_REQUIRE(std::string(argv[2]) == "--strip-default-transport");
             const auto& signature = metadata.at("WCNS_RestartSignature");
             const auto suffix = signature.find(";transport=transport_v1;");
             WCNS_REQUIRE(suffix != std::string::npos);
             const auto legacy = signature.substr(0, suffix);
-            check_cgns(
-                cg_delete_node("WCNS_RestartSignature"),
-                "cg_delete_node checkpoint transport signature");
-            check_cgns(
-                cg_descriptor_write("WCNS_RestartSignature", legacy.c_str()),
-                "cg_descriptor_write legacy checkpoint signature");
+            check_cgns(cg_delete_node("WCNS_RestartSignature"),
+                       "cg_delete_node checkpoint transport signature");
+            check_cgns(cg_descriptor_write("WCNS_RestartSignature", legacy.c_str()),
+                       "cg_descriptor_write legacy checkpoint signature");
         }
         check_cgns(cg_close(file), "cg_close checkpoint test");
         file = 0;
         std::cout << "checkpoint independently re-read"
-                  << (argc == 3 ? " and converted to v1.0 transport signature\n"
-                                : "\n");
+                  << (argc == 3 ? " and converted to v1.0 transport signature\n" : "\n");
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {
         if (file > 0) cg_close(file);

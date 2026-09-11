@@ -32,38 +32,41 @@ void TransportConfig::validate() const
     if (!positive_finite(prandtl)) {
         throw std::invalid_argument("transport Prandtl number must be positive and finite");
     }
-    std::visit([](const auto& law) {
-        using Law = std::decay_t<decltype(law)>;
-        if constexpr (std::is_same_v<Law, ConstantViscosity>) {
-            if (!positive_finite(law.viscosity_ratio)) {
-                throw std::invalid_argument(
-                    "constant viscosity ratio must be positive and finite");
+    std::visit(
+        [](const auto& law) {
+            using Law = std::decay_t<decltype(law)>;
+            if constexpr (std::is_same_v<Law, ConstantViscosity>) {
+                if (!positive_finite(law.viscosity_ratio)) {
+                    throw std::invalid_argument(
+                        "constant viscosity ratio must be positive and finite");
+                }
+            } else {
+                if (!positive_finite(law.reference_viscosity_ratio)
+                    || !positive_finite(law.constant_temperature_ratio)) {
+                    throw std::invalid_argument(
+                        "Sutherland viscosity ratios must be positive and finite");
+                }
             }
-        } else {
-            if (!positive_finite(law.reference_viscosity_ratio)
-                || !positive_finite(law.constant_temperature_ratio)) {
-                throw std::invalid_argument(
-                    "Sutherland viscosity ratios must be positive and finite");
-            }
-        }
-    }, viscosity);
+        },
+        viscosity);
 }
 
 std::string TransportConfig::summary() const
 {
     validate();
     std::string result = "transport Pr=" + number(prandtl);
-    std::visit([&](const auto& law) {
-        using Law = std::decay_t<decltype(law)>;
-        if constexpr (std::is_same_v<Law, ConstantViscosity>) {
-            result += " law=constant mu_const_over_mu_ref="
-                + number(law.viscosity_ratio);
-        } else {
-            result += " law=sutherland mu_Tref_over_mu_ref="
-                + number(law.reference_viscosity_ratio)
-                + " S_over_Tref=" + number(law.constant_temperature_ratio);
-        }
-    }, viscosity);
+    std::visit(
+        [&](const auto& law) {
+            using Law = std::decay_t<decltype(law)>;
+            if constexpr (std::is_same_v<Law, ConstantViscosity>) {
+                result += " law=constant mu_const_over_mu_ref=" + number(law.viscosity_ratio);
+            } else {
+                result += " law=sutherland mu_Tref_over_mu_ref="
+                    + number(law.reference_viscosity_ratio)
+                    + " S_over_Tref=" + number(law.constant_temperature_ratio);
+            }
+        },
+        viscosity);
     return result;
 }
 
@@ -83,30 +86,30 @@ Real TransportModel::viscosity(Real temperature) const
     if (!positive_finite(temperature)) {
         throw PhysicsError("transport temperature must be positive and finite");
     }
-    const Real result = std::visit([temperature](const auto& law) {
-        using Law = std::decay_t<decltype(law)>;
-        if constexpr (std::is_same_v<Law, ConstantViscosity>) {
-            return law.viscosity_ratio;
-        } else {
-            return law.reference_viscosity_ratio
-                * std::pow(temperature, 1.5)
-                * (1.0 + law.constant_temperature_ratio)
-                / (temperature + law.constant_temperature_ratio);
-        }
-    }, config_.viscosity);
+    const Real result = std::visit(
+        [temperature](const auto& law) {
+            using Law = std::decay_t<decltype(law)>;
+            if constexpr (std::is_same_v<Law, ConstantViscosity>) {
+                return law.viscosity_ratio;
+            } else {
+                return law.reference_viscosity_ratio * std::pow(temperature, 1.5)
+                    * (1.0 + law.constant_temperature_ratio)
+                    / (temperature + law.constant_temperature_ratio);
+            }
+        },
+        config_.viscosity);
     if (!positive_finite(result)) {
         throw PhysicsError("transport viscosity is not positive and finite");
     }
     return result;
 }
 
-Real TransportModel::thermal_coefficient(
-    Real temperature,
-    const GasModel& gas,
-    const ReferenceScales& reference) const
+Real TransportModel::thermal_coefficient(Real temperature,
+                                         const GasModel& gas,
+                                         const ReferenceScales& reference) const
 {
-    const Real denominator = (gas.gamma() - 1.0)
-        * reference.mach() * reference.mach() * config_.prandtl;
+    const Real denominator
+        = (gas.gamma() - 1.0) * reference.mach() * reference.mach() * config_.prandtl;
     if (!positive_finite(denominator)) {
         throw PhysicsError("thermal coefficient denominator is invalid");
     }

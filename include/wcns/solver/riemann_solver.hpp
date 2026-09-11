@@ -76,23 +76,20 @@ struct RiemannDiagnostics {
 
     void record(const RiemannResult& result, FaceDiagnosticLocation location);
     [[nodiscard]] std::size_t fallback_count() const noexcept;
-    [[nodiscard]] std::size_t fallback_count(
-        RiemannFallbackReason reason) const;
+    [[nodiscard]] std::size_t fallback_count(RiemannFallbackReason reason) const;
 };
 
-[[nodiscard]] std::string_view riemann_fallback_reason_name(
-    RiemannFallbackReason reason);
+[[nodiscard]] std::string_view riemann_fallback_reason_name(RiemannFallbackReason reason);
 
 class IRiemannSolver {
 public:
     virtual ~IRiemannSolver() = default;
     [[nodiscard]] virtual std::string_view name() const noexcept = 0;
-    [[nodiscard]] virtual RiemannResult solve(
-        const PressurePrimitiveState& left,
-        const PressurePrimitiveState& right,
-        Normal3 unit_normal,
-        const GasModel& gas,
-        const NumericalFloors& floors) const = 0;
+    [[nodiscard]] virtual RiemannResult solve(const PressurePrimitiveState& left,
+                                              const PressurePrimitiveState& right,
+                                              Normal3 unit_normal,
+                                              const GasModel& gas,
+                                              const NumericalFloors& floors) const = 0;
 };
 
 class RiemannSolverRegistry {
@@ -101,12 +98,11 @@ public:
 
     void register_solver(std::string name, Factory factory);
     [[nodiscard]] bool contains(std::string_view name) const noexcept;
-    [[nodiscard]] std::unique_ptr<IRiemannSolver> create(
-        std::string_view name) const;
+    [[nodiscard]] std::unique_ptr<IRiemannSolver> create(std::string_view name) const;
     [[nodiscard]] std::vector<std::string> names() const;
 
-    [[nodiscard]] static RiemannSolverRegistry with_builtins(
-        const RiemannSolverParameters& parameters = {});
+    [[nodiscard]] static RiemannSolverRegistry
+    with_builtins(const RiemannSolverParameters& parameters = {});
 
 private:
     std::unordered_map<std::string, Factory> factories_;
@@ -116,31 +112,27 @@ private:
 
 class RiemannSolver {
 public:
-    explicit RiemannSolver(
-        RiemannSolverKind kind = RiemannSolverKind::Rusanov,
-        RiemannSolverParameters parameters = {});
-    explicit RiemannSolver(
-        std::string_view name,
-        const RiemannSolverRegistry& registry,
-        RiemannSolverParameters parameters = {});
+    explicit RiemannSolver(RiemannSolverKind kind = RiemannSolverKind::Rusanov,
+                           RiemannSolverParameters parameters = {});
+    explicit RiemannSolver(std::string_view name,
+                           const RiemannSolverRegistry& registry,
+                           RiemannSolverParameters parameters = {});
 
     [[nodiscard]] std::string_view name() const noexcept;
     [[nodiscard]] std::string summary() const;
     [[nodiscard]] std::string restart_signature() const;
 
-    [[nodiscard]] RiemannResult solve(
-        const PressurePrimitiveState& left,
-        const PressurePrimitiveState& right,
-        Normal3 unit_normal,
-        const GasModel& gas,
-        const NumericalFloors& floors) const;
+    [[nodiscard]] RiemannResult solve(const PressurePrimitiveState& left,
+                                      const PressurePrimitiveState& right,
+                                      Normal3 unit_normal,
+                                      const GasModel& gas,
+                                      const NumericalFloors& floors) const;
 
-    [[nodiscard]] ConservativeState flux(
-        const PressurePrimitiveState& left,
-        const PressurePrimitiveState& right,
-        Normal3 unit_normal,
-        const GasModel& gas,
-        const NumericalFloors& floors) const;
+    [[nodiscard]] ConservativeState flux(const PressurePrimitiveState& left,
+                                         const PressurePrimitiveState& right,
+                                         Normal3 unit_normal,
+                                         const GasModel& gas,
+                                         const NumericalFloors& floors) const;
 
 private:
     std::unique_ptr<IRiemannSolver> implementation_;

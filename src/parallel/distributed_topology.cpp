@@ -7,17 +7,14 @@
 namespace wcns {
 namespace {
 
-template<class LeftRange, class RightRange>
+template <class LeftRange, class RightRange>
 bool same_undirected_range(const LeftRange& lhs, const RightRange& rhs)
 {
     return (lhs.begin == rhs.begin && lhs.end == rhs.end)
         || (lhs.begin == rhs.end && lhs.end == rhs.begin);
 }
 
-bool reciprocal(
-    const ConnectivityPatch& lhs,
-    const ConnectivityPatch& rhs,
-    int dimension)
+bool reciprocal(const ConnectivityPatch& lhs, const ConnectivityPatch& rhs, int dimension)
 {
     return rhs.receiver_block == lhs.donor_block && rhs.donor_block == lhs.receiver_block
         && rhs.receiver_face == lhs.donor_face && rhs.donor_face == lhs.receiver_face
@@ -51,18 +48,17 @@ int DirectedExchange::message_tag(int tag_base) const
         throw TopologyError("message tags require non-negative base and connection id");
     }
     const int direction = halo.receiver_block < halo.donor_block ? 0 : 1;
-    const auto tag = static_cast<long long>(tag_base)
-        + 2LL * static_cast<long long>(connection) + direction;
+    const auto tag
+        = static_cast<long long>(tag_base) + 2LL * static_cast<long long>(connection) + direction;
     if (tag > std::numeric_limits<int>::max()) {
         throw TopologyError("message tag exceeds int range");
     }
     return static_cast<int>(tag);
 }
 
-DistributedTopology DistributedTopology::build(
-    const StructuredMesh& mesh,
-    const BlockDistribution& distribution,
-    bool validate_coordinates)
+DistributedTopology DistributedTopology::build(const StructuredMesh& mesh,
+                                               const BlockDistribution& distribution,
+                                               bool validate_coordinates)
 {
     if (mesh.block_count() != distribution.assignments().size()) {
         throw TopologyError("mesh and distribution contain different block counts");
@@ -80,12 +76,9 @@ DistributedTopology DistributedTopology::build(
             }
         }
     }
-    std::sort(
-        canonical.begin(),
-        canonical.end(),
-        [](const auto* lhs, const auto* rhs) {
-            return connection_key(*lhs) < connection_key(*rhs);
-        });
+    std::sort(canonical.begin(), canonical.end(), [](const auto* lhs, const auto* rhs) {
+        return connection_key(*lhs) < connection_key(*rhs);
+    });
 
     DistributedTopology result;
     result.exchanges_.reserve(canonical.size() * 2);
@@ -99,7 +92,8 @@ DistributedTopology DistributedTopology::build(
             donor_block.connectivities.begin(),
             donor_block.connectivities.end(),
             [&](const ConnectivityPatch& candidate) {
-                return reciprocal(forward, candidate, mesh.block(forward.receiver_block).cell_dimension());
+                return reciprocal(
+                    forward, candidate, mesh.block(forward.receiver_block).cell_dimension());
             });
         if (reverse_iterator == donor_block.connectivities.end()) {
             throw TopologyError("canonical connectivity has no reciprocal record");
@@ -116,21 +110,19 @@ DistributedTopology DistributedTopology::build(
                 connection_id,
                 receiver_rank,
                 donor_rank,
-                make_halo_exchange_plan(
-                    connection,
-                    mesh.block(connection.receiver_block).cell_extent(),
-                    mesh.block(connection.donor_block).cell_extent(),
-                    mesh.block(connection.receiver_block).cell_dimension()),
+                make_halo_exchange_plan(connection,
+                                        mesh.block(connection.receiver_block).cell_extent(),
+                                        mesh.block(connection.donor_block).cell_extent(),
+                                        mesh.block(connection.receiver_block).cell_dimension()),
             });
         }
     }
-    std::sort(
-        result.exchanges_.begin(),
-        result.exchanges_.end(),
-        [](const DirectedExchange& lhs, const DirectedExchange& rhs) {
-            return std::tuple {lhs.connection, lhs.halo.receiver_block}
-                < std::tuple {rhs.connection, rhs.halo.receiver_block};
-        });
+    std::sort(result.exchanges_.begin(),
+              result.exchanges_.end(),
+              [](const DirectedExchange& lhs, const DirectedExchange& rhs) {
+                  return std::tuple {lhs.connection, lhs.halo.receiver_block}
+                  < std::tuple {rhs.connection, rhs.halo.receiver_block};
+              });
     return result;
 }
 

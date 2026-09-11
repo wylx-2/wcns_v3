@@ -235,6 +235,37 @@ output.statistics.quantities = total_mass,total_momentum_x,total_momentum_y,tota
 # output.statistics.channel_walls.upper_patch = top
 # output.statistics.channel_walls.half_height = 1.0
 
+# v1.1 边界面事件和积分载荷。下面是二维圆柱式示例；默认关闭。
+# patch 必须是 CGNS 物理边界名。无黏性运行不要请求 mu_w/Cf/q_wall 或 viscous traction。
+output.boundary.enabled = false
+# output.boundary.format = tecplot
+# output.boundary.every_steps = 100
+# output.boundary.every_time = 0
+# output.boundary.explicit_times = 0.025,0.05,0.075
+# output.boundary.write_initial = true
+# output.boundary.write_final = true
+# output.boundary.patches = cylinder
+# output.boundary.quantities = p_w,T_w,mu_w,Cp,Cf,q_wall,traction_x,traction_y
+# output.boundary.reference_pressure = 17.8571428759968
+# output.boundary.reference_density = 1.0
+# output.boundary.reference_velocity_x = 1.0
+# output.boundary.reference_velocity_y = 0.0
+# output.boundary.reference_velocity_z = 0.0
+# output.boundary.reference_area = 1.0
+# output.boundary.reference_length = 1.0
+# output.boundary.moment_center_x = 0.0
+# output.boundary.moment_center_y = 0.0
+# output.boundary.moment_center_z = 0.0
+# output.boundary.drag_direction_x = 1.0
+# output.boundary.drag_direction_y = 0.0
+# output.boundary.drag_direction_z = 0.0
+# output.boundary.lift_direction_x = 0.0
+# output.boundary.lift_direction_y = 1.0
+# output.boundary.lift_direction_z = 0.0
+# output.boundary.tangent_direction_x = 1.0
+# output.boundary.tangent_direction_y = 0.0
+# output.boundary.tangent_direction_z = 0.0
+
 # 内部 CGNS 检查点。即使只想在终止时保存，也要保持 enabled=true。
 output.checkpoint.enabled = true
 output.checkpoint.every_steps = 1000

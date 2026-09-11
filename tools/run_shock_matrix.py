@@ -75,8 +75,7 @@ def main() -> int:
     fields: dict[int, Path] = {}
     for rank_count in ranks:
         case_name = (
-            f"{args.case}-{args.profile}-{args.reconstruction}-"
-            f"{args.riemann}-r{rank_count}"
+            f"{args.case}-{args.profile}-{args.reconstruction}-" f"{args.riemann}-r{rank_count}"
         )
         output = root / f"output-r{rank_count}"
         config = root / f"{case_name}.wcns"

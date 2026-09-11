@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "stage": "U",
+  "status": "pass",
+  "date": "2026-09-11",
+  "tested_implementation_commit": "843b88777b66e932bbabc8d160323edb3629b261",
+  "package_source_commit": "c7cb353de21d",
+  "candidate_tag": "v1.1.0-rc.1",
+  "platform": {
+    "os": "Windows 11 10.0.26200",
+    "compiler": "MinGW-w64 GCC 8.1.0",
+    "cmake": "3.28.0",
+    "mpi": "Intel MPI 2021.10",
+    "logical_cpus": 12,
+    "external_ci": {
+      "configuration_audited": true,
+      "jobs": [
+        "Linux GCC serial Release",
+        "Linux Clang serial Release",
+        "Linux GCC OpenMPI Release",
+        "Linux Clang ASan+UBSan Debug",
+        "Windows MSVC serial Release"
+      ],
+      "result": "pending: stage branch is not synchronized to origin"
+    }
+  },
+  "clean_build": {
+    "serial": {
+      "build_type": "Release",
+      "warnings": 0,
+      "ctest_passed": 60,
+      "ctest_total": 60,
+      "ctest_seconds": 28.47,
+      "installed": true
+    },
+    "mpi": {
+      "build_type": "Release",
+      "warnings": 0,
+      "ctest_passed": 108,
+      "ctest_total": 108,
+      "ctest_seconds": 78.09,
+      "ranks_covered": [1, 2, 4, 8],
+      "installed": true
+    },
+    "algorithm_spec_passed": 6,
+    "algorithm_spec_total": 6
+  },
+  "release_matrix": {
+    "freestream": {
+      "status": "pass",
+      "profiles": ["phenglei_wcns", "scmm6_wcns"],
+      "dimensions": [2, 3],
+      "ranks": [1, 2, 4, 8],
+      "native_multizone": true,
+      "maximum_uniform_error": 3.390343561449072e-14,
+      "maximum_rank_field_difference": 0.0
+    },
+    "isentropic_vortex": {
+      "status": "pass",
+      "combinations": 6,
+      "resolutions": [32, 64, 128],
+      "end_time": 10.0,
+      "minimum_64_to_128_order": 3.7993417857882,
+      "maximum_128_l1": 5.36797329802534e-6,
+      "rank_consistency_ranks": [1, 2, 4, 8],
+      "rank_field_difference": 0.0
+    },
+    "strong_discontinuities": {
+      "status": "pass",
+      "sod_combinations": 5,
+      "maximum_sod_rho_l1": 0.0014835885420527515,
+      "maximum_sod_position_error_cells": 0.19620960391595751,
+      "quadrant_symmetry_l1": 0.0,
+      "double_mach_reflection_smoke": true
+    },
+    "viscous_transport": {
+      "status": "pass",
+      "couette_ranks": [1, 2, 4],
+      "couette_wall_shear_relative_error": 2.7654545320388024e-11,
+      "conduction_ranks": [1, 2, 4],
+      "conduction_linf": 4.440892098500626e-16,
+      "sutherland_serial_and_2_rank": true,
+      "stage_r_case07_reynolds_evidence_reused": [20, 40, 100]
+    },
+    "source_and_manufactured": {
+      "status": "pass",
+      "uniform_source_ranks": [1, 2, 4],
+      "uniform_source_max_error": 1.7763568394002505e-15,
+      "manufactured_2d_ranks": [1, 2, 4],
+      "manufactured_3d_ranks": [1, 2, 4, 8],
+      "maximum_rank_field_difference": 0.0,
+      "ssprk3_orders": [3.0123564122272644, 3.1440850475341304]
+    },
+    "failure_paths": {
+      "status": "pass",
+      "classes": 16,
+      "ranks": [1, 2, 4],
+      "timeout_seconds": 30.0
+    }
+  },
+  "case07_mach5": {
+    "status": "pass",
+    "solver_source_commit": "eaa6857f6e22",
+    "ranks": 4,
+    "end_time": 8.0,
+    "steps": 12084,
+    "wall_seconds": 134.29479420001735,
+    "maximum_level1_faces": 111,
+    "maximum_level2_faces": 65,
+    "maximum_level3_faces": 156,
+    "maximum_troubled_cells": 60,
+    "maximum_local_recomputations": 18,
+    "maximum_step_retries": 3,
+    "recovered_invalid_candidate_rows": 436,
+    "final_accepted_candidate_state": {
+      "minimum_rho": 0.01894666521254726,
+      "minimum_p": 0.0005285916683687926,
+      "minimum_T": 0.733482612845075,
+      "minimum_e": 0.052391615258535744
+    },
+    "load_rows": 17,
+    "final_cgns_independently_read": true,
+    "latest_checkpoint_present": true,
+    "temporary_files": 0
+  },
+  "performance": {
+    "status": "pass",
+    "protocol": {
+      "warmups": 1,
+      "samples": 5,
+      "scaling_steps": 5,
+      "pin_processor_list": "0,2,4,6,8,9,10,11",
+      "high_priority": true
+    },
+    "allocation": {
+      "baseline": 946214,
+      "candidate": 6,
+      "reduction": 0.9999936589397325
+    },
+    "serial": [
+      {"id": "vortex-2d-100x100", "speedup": 1.5892348988504856, "cv": 0.0020159980764313736},
+      {"id": "case07-cylinder-4zone-48x32", "speedup": 1.1641494021910566, "cv": 0.007994874728721185},
+      {"id": "viscous-3d-36x48x36", "speedup": 7.9417680084177995, "cv": 0.0019391011382711109}
+    ],
+    "strong_scaling_efficiency": {
+      "2": 0.9629354626002721,
+      "4": 0.8417346660397953,
+      "8": 0.5700682786543008
+    },
+    "weak_scaling_efficiency": {
+      "2": 0.9929705238283473,
+      "4": 0.8721071494821038,
+      "8": 0.6084624745637596
+    },
+    "maximum_detailed_timing_overhead": 0.0037406429954023324
+  },
+  "package": {
+    "status": "pass",
+    "archive": "wcns-1.1.0-source-c7cb353de21d.tar.gz",
+    "sha256": "562e9b2ef31aee88267f57ae94440f8ae45cc8b279f1f6ec171816b41457ba8a",
+    "archive_bytes": 2644573,
+    "payload_files": 271,
+    "two_builds_byte_identical": true,
+    "sidecar_verified": true,
+    "internal_content_manifest_verified": true,
+    "contains_git_directory": false,
+    "contains_manual_cases": false,
+    "clean_package_build_and_install": true,
+    "installed_file_counts": {"bin": 11, "include": 8, "lib": 3, "share": 64},
+    "smoke_ranks": [1, 2],
+    "restart": {
+      "continuous_steps": 100,
+      "split_steps": [40, 60],
+      "ranks": [1, 2],
+      "maximum_history_difference": 3.885780586188048e-16,
+      "maximum_statistics_difference": 1.1102230246251565e-14
+    }
+  },
+  "repository": {
+    "release_merge_commits": ["651ceae", "47ce10b", "652a102", "775a48e", "9d276b2"],
+    "p_through_t_tags_audited": true,
+    "main_merged": false,
+    "formal_v1_1_0_tag_created": false,
+    "remote_synchronized": false,
+    "untouched_excluded_directory": "cases/manual/case06_2d_naca0012/"
+  },
+  "release_constraints": {
+    "license": "private/internal use only; project license decision pending",
+    "external_ci": "pending",
+    "human_gate": "required before any merge to release/main or formal v1.1.0 tag"
+  }
+}

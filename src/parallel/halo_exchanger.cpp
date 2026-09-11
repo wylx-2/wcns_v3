@@ -19,10 +19,9 @@ std::size_t value_count(const DirectedExchange& exchange, int components)
     return cells * component_count;
 }
 
-void validate_field_for_exchange(
-    const Field<Real>& field,
-    const DirectedExchange& exchange,
-    bool receiver)
+void validate_field_for_exchange(const Field<Real>& field,
+                                 const DirectedExchange& exchange,
+                                 bool receiver)
 {
     const auto extent = field.interior_extent();
     const int ghost = field.ghost_width();
@@ -30,21 +29,17 @@ void validate_field_for_exchange(
         const auto index = receiver ? pair.receiver_ghost : pair.donor_interior;
         const bool valid = receiver
             ? index.i >= -ghost && index.i < extent.ni + ghost && index.j >= -ghost
-                && index.j < extent.nj + ghost && index.k >= -ghost
-                && index.k < extent.nk + ghost
-            : index.i >= 0 && index.i < extent.ni && index.j >= 0
-                && index.j < extent.nj && index.k >= 0 && index.k < extent.nk;
+                && index.j < extent.nj + ghost && index.k >= -ghost && index.k < extent.nk + ghost
+            : index.i >= 0 && index.i < extent.ni && index.j >= 0 && index.j < extent.nj
+                && index.k >= 0 && index.k < extent.nk;
         if (!valid) {
-            throw std::invalid_argument(
-                receiver ? "halo receiver index is outside field storage"
-                         : "halo donor index is outside field interior");
+            throw std::invalid_argument(receiver ? "halo receiver index is outside field storage"
+                                                 : "halo donor index is outside field interior");
         }
     }
 }
 
-void copy_local(
-    const DirectedExchange& exchange,
-    const BlockFieldRegistry& fields)
+void copy_local(const DirectedExchange& exchange, const BlockFieldRegistry& fields)
 {
     auto& receiver = fields.field(exchange.halo.receiver_block);
     const auto& donor = fields.field(exchange.halo.donor_block);
@@ -52,23 +47,14 @@ void copy_local(
     validate_field_for_exchange(donor, exchange, false);
     for (const auto& pair : exchange.halo.cell_pairs) {
         for (int component = 0; component < fields.components(); ++component) {
-            receiver(
-                pair.receiver_ghost.i,
-                pair.receiver_ghost.j,
-                pair.receiver_ghost.k,
-                component)
+            receiver(pair.receiver_ghost.i, pair.receiver_ghost.j, pair.receiver_ghost.k, component)
                 = donor(
-                    pair.donor_interior.i,
-                    pair.donor_interior.j,
-                    pair.donor_interior.k,
-                    component);
+                    pair.donor_interior.i, pair.donor_interior.j, pair.donor_interior.k, component);
         }
     }
 }
 
-void pack_send(
-    HaloMessageBuffer& pending,
-    const BlockFieldRegistry& fields)
+void pack_send(HaloMessageBuffer& pending, const BlockFieldRegistry& fields)
 {
     const auto& donor = fields.field(pending.exchange->halo.donor_block);
     validate_field_for_exchange(donor, *pending.exchange, false);
@@ -76,28 +62,19 @@ void pack_send(
     for (const auto& pair : pending.exchange->halo.cell_pairs) {
         for (int component = 0; component < fields.components(); ++component) {
             pending.values[output++] = donor(
-                pair.donor_interior.i,
-                pair.donor_interior.j,
-                pair.donor_interior.k,
-                component);
+                pair.donor_interior.i, pair.donor_interior.j, pair.donor_interior.k, component);
         }
     }
 }
 
-void unpack_receive(
-    const HaloMessageBuffer& pending,
-    const BlockFieldRegistry& fields)
+void unpack_receive(const HaloMessageBuffer& pending, const BlockFieldRegistry& fields)
 {
     auto& receiver = fields.field(pending.exchange->halo.receiver_block);
     validate_field_for_exchange(receiver, *pending.exchange, true);
     std::size_t input = 0;
     for (const auto& pair : pending.exchange->halo.cell_pairs) {
         for (int component = 0; component < fields.components(); ++component) {
-            receiver(
-                pair.receiver_ghost.i,
-                pair.receiver_ghost.j,
-                pair.receiver_ghost.k,
-                component)
+            receiver(pair.receiver_ghost.i, pair.receiver_ghost.j, pair.receiver_ghost.k, component)
                 = pending.values[input++];
         }
     }
@@ -147,11 +124,10 @@ Field<Real>& BlockFieldRegistry::field(BlockId block) const
     return *iterator->second;
 }
 
-HaloExchanger::HaloExchanger(
-    const MpiRuntime& mpi,
-    const DistributedTopology& topology,
-    int distribution_rank_count,
-    int prepared_components)
+HaloExchanger::HaloExchanger(const MpiRuntime& mpi,
+                             const DistributedTopology& topology,
+                             int distribution_rank_count,
+                             int prepared_components)
     : mpi_(mpi)
     , topology_(topology)
 {
@@ -178,13 +154,11 @@ void HaloExchanger::prepare_buffers(int components) const
             {exchange, std::vector<Real>(value_count(*exchange, components))});
     }
     for (const auto* exchange : send_descriptors_) {
-        send_buffers_.push_back(
-            {exchange, std::vector<Real>(value_count(*exchange, components))});
+        send_buffers_.push_back({exchange, std::vector<Real>(value_count(*exchange, components))});
     }
     prepared_components_ = components;
 #if WCNS_HAS_MPI
-    requests_.resize(
-        receive_buffers_.size() + send_buffers_.size(), MPI_REQUEST_NULL);
+    requests_.resize(receive_buffers_.size() + send_buffers_.size(), MPI_REQUEST_NULL);
 #endif
 }
 
@@ -215,8 +189,7 @@ void HaloExchanger::exchange(const BlockFieldRegistry& fields) const
     int* tag_upper_bound = nullptr;
     int has_tag_upper_bound = 0;
     check_mpi(
-        MPI_Comm_get_attr(
-            mpi_.communicator(), MPI_TAG_UB, &tag_upper_bound, &has_tag_upper_bound),
+        MPI_Comm_get_attr(mpi_.communicator(), MPI_TAG_UB, &tag_upper_bound, &has_tag_upper_bound),
         "MPI_Comm_get_attr MPI_TAG_UB");
     if (has_tag_upper_bound == 0 || tag_upper_bound == nullptr) {
         throw MpiError("MPI_TAG_UB is unavailable");
@@ -229,37 +202,32 @@ void HaloExchanger::exchange(const BlockFieldRegistry& fields) const
         if (tag > *tag_upper_bound) {
             throw MpiError("halo receive tag exceeds MPI_TAG_UB");
         }
-        check_mpi(
-            MPI_Irecv(
-                pending.values.data(),
-                mpi_count(pending.values.size()),
-                MPI_DOUBLE,
-                pending.exchange->donor_rank,
-                tag,
-                mpi_.communicator(),
-                &requests_[request_index++]),
-            "MPI_Irecv halo");
+        check_mpi(MPI_Irecv(pending.values.data(),
+                            mpi_count(pending.values.size()),
+                            MPI_DOUBLE,
+                            pending.exchange->donor_rank,
+                            tag,
+                            mpi_.communicator(),
+                            &requests_[request_index++]),
+                  "MPI_Irecv halo");
     }
     for (auto& pending : send_buffers_) {
         const int tag = pending.exchange->message_tag();
         if (tag > *tag_upper_bound) {
             throw MpiError("halo send tag exceeds MPI_TAG_UB");
         }
-        check_mpi(
-            MPI_Isend(
-                pending.values.data(),
-                mpi_count(pending.values.size()),
-                MPI_DOUBLE,
-                pending.exchange->receiver_rank,
-                tag,
-                mpi_.communicator(),
-                &requests_[request_index++]),
-            "MPI_Isend halo");
+        check_mpi(MPI_Isend(pending.values.data(),
+                            mpi_count(pending.values.size()),
+                            MPI_DOUBLE,
+                            pending.exchange->receiver_rank,
+                            tag,
+                            mpi_.communicator(),
+                            &requests_[request_index++]),
+                  "MPI_Isend halo");
     }
     if (!requests_.empty()) {
         check_mpi(
-            MPI_Waitall(
-                static_cast<int>(requests_.size()), requests_.data(), MPI_STATUSES_IGNORE),
+            MPI_Waitall(static_cast<int>(requests_.size()), requests_.data(), MPI_STATUSES_IGNORE),
             "MPI_Waitall halo");
     }
 #else

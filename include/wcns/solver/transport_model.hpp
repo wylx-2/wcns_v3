@@ -33,10 +33,9 @@ public:
 
     [[nodiscard]] const TransportConfig& config() const noexcept { return config_; }
     [[nodiscard]] Real viscosity(Real temperature) const;
-    [[nodiscard]] Real thermal_coefficient(
-        Real temperature,
-        const GasModel& gas,
-        const ReferenceScales& reference) const;
+    [[nodiscard]] Real thermal_coefficient(Real temperature,
+                                           const GasModel& gas,
+                                           const ReferenceScales& reference) const;
 
 private:
     TransportConfig config_;

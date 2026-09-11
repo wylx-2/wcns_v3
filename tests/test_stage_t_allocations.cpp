@@ -35,8 +35,7 @@ struct AllocationSample {
     std::size_t bytes = 0;
 };
 
-template <class Function>
-AllocationSample measure(Function&& function)
+template <class Function> AllocationSample measure(Function&& function)
 {
     allocation_count = 0;
     allocation_bytes = 0;
@@ -51,10 +50,7 @@ AllocationSample measure(Function&& function)
     return {allocation_count, allocation_bytes};
 }
 
-void add_boundary(
-    wcns::StructuredBlock& block,
-    const char* name,
-    wcns::FaceLocation face)
+void add_boundary(wcns::StructuredBlock& block, const char* name, wcns::FaceLocation face)
 {
     using namespace wcns;
     const auto vertices = block.vertex_extent();
@@ -85,8 +81,7 @@ wcns::StructuredMesh make_mesh()
 {
     using namespace wcns;
     constexpr int vertices = 25;
-    StructuredBlock block(0, "allocation-probe", 0, 2, 2,
-        {vertices, vertices, 1}, 3);
+    StructuredBlock block(0, "allocation-probe", 0, 2, 2, {vertices, vertices, 1}, 3);
     for (int j = 0; j < vertices; ++j) {
         for (int i = 0; i < vertices; ++i) {
             block.coordinates.x(i, j, 0) = static_cast<Real>(i) / (vertices - 1);
@@ -144,8 +139,8 @@ int main(int argc, char** argv)
             throw std::runtime_error("stage T allocation probe requires one rank");
         }
         auto mesh = make_mesh();
-        const auto distribution = BlockDistribution::balanced(
-            {{0, mesh.block(0).cell_extent().size()}}, 1);
+        const auto distribution
+            = BlockDistribution::balanced({{0, mesh.block(0).cell_extent().size()}}, 1);
         distribution.apply(mesh);
         const auto topology = DistributedTopology::build(mesh, distribution);
         std::vector<StructuredBlock> local_storage {mesh.block(0)};
@@ -154,14 +149,12 @@ int main(int argc, char** argv)
         GasModelInput gas_input;
         gas_input.specific_gas_constant = 287.0;
         const auto gas = GasModel::from_input(gas_input);
-        const auto reference = ReferenceScales::derive(
-            {340.0, 1.2, 288.0, 1.0, 1.8e-5, {}, {}}, gas);
+        const auto reference
+            = ReferenceScales::derive({340.0, 1.2, 288.0, 1.0, 1.8e-5, {}, {}}, gas);
         const NumericalFloors floors;
-        const auto profile = ProfileFactory::create(
-            AlgorithmProfileKind::Scmm6Wcns);
+        const auto profile = ProfileFactory::create(AlgorithmProfileKind::Scmm6Wcns);
         const TemperaturePrimitiveState freestream {{1.0, 0.2, 0.0, 0.0, 1.0}};
-        const auto conservative = thermodynamic_conservative(
-            freestream, gas, reference, floors, 2);
+        const auto conservative = thermodynamic_conservative(freestream, gas, reference, floors, 2);
 
         BlockMetricMap metrics;
         BlockBoundaryDataMap boundary_data;
@@ -184,9 +177,18 @@ int main(int argc, char** argv)
 
         ViscousWcnsConfig config;
         config.inviscid.reconstruction.scheme = "linear5";
-        ViscousWcnsSolver solver(
-            mpi, local, mesh, topology, 1, metrics, boundary_data,
-            profile, gas, reference, floors, config);
+        ViscousWcnsSolver solver(mpi,
+                                 local,
+                                 mesh,
+                                 topology,
+                                 1,
+                                 metrics,
+                                 boundary_data,
+                                 profile,
+                                 gas,
+                                 reference,
+                                 floors,
+                                 config);
         const auto first = measure([&] { solver.compute_residuals(0.0, 1); });
         const auto second = measure([&] { solver.compute_residuals(0.0, 2); });
         if (first.count == 0 || second.count == 0) {
@@ -200,15 +202,13 @@ int main(int argc, char** argv)
                 "stage T residual allocations did not decrease by at least 90 percent");
         }
         if (second.count > first.count) {
-            throw std::runtime_error(
-                "stage T residual workspace expanded on its second use");
+            throw std::runtime_error("stage T residual workspace expanded on its second use");
         }
         std::cout << "stage_t_allocation_probe"
                   << " baseline_allocations=" << baseline_allocations
-                  << " first_allocations=" << first.count
-                  << " first_bytes=" << first.bytes
-                  << " second_allocations=" << second.count
-                  << " second_bytes=" << second.bytes << '\n';
+                  << " first_allocations=" << first.count << " first_bytes=" << first.bytes
+                  << " second_allocations=" << second.count << " second_bytes=" << second.bytes
+                  << '\n';
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {
         allocation_probe_enabled = false;

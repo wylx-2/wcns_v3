@@ -217,8 +217,16 @@ python cases\manual\case07_2d_cylinder\scripts\analyze_case07.py `
 C_p=\frac{p-p_\infty}{\tfrac12\rho_\infty U_\infty^2}.
 \]
 
-程序直接从当前算法 profile 的真实边界迹输出 $p_w,T_w,\mu_w$；黏性壁使用强修正后的
-$\nabla\boldsymbol u_w$ 和 $\nabla T_w$。每个离散面使用
+程序直接从当前算法 profile 的真实边界迹输出所请求的壁面量。Mach 5 Euler 算例只请求
+$p_w$、$C_p$、压力牵引和总牵引，不计算与无粘载荷无关的热学量；黏性算例还输出
+$T_w,\mu_w$，并使用强修正后的 $\nabla\boldsymbol u_w$ 和 $\nabla T_w$。
+
+Mach 5 激波撞击壁面时，高阶内部迹可能产生非正的输出侧超调。若 $p_w^{HO}$ 非有限或不大于
+压力 floor，写出器退回该面最近内部真实单元的正压力；两者都无效才失败。该退回只影响边界
+诊断/载荷文件，不回写流场，也不参与通量与时间推进。于是压力/载荷输出不会反向否决一个已通过
+求解器正性检查的接受状态。
+
+每个离散面使用
 
 \[
 \Delta A_f=w_{b,f}|\boldsymbol S_f|,

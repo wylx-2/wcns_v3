@@ -9,20 +9,14 @@ namespace {
 const FaceMetric& face_metric(const StructuredBlock& block, Axis axis)
 {
     switch (axis) {
-    case Axis::I:
-        return block.face_metrics.i_faces;
-    case Axis::J:
-        return block.face_metrics.j_faces;
-    case Axis::K:
-        return block.face_metrics.k_faces;
+    case Axis::I: return block.face_metrics.i_faces;
+    case Axis::J: return block.face_metrics.j_faces;
+    case Axis::K: return block.face_metrics.k_faces;
     }
     throw std::invalid_argument("invalid boundary axis");
 }
 
-Normal3 outward_normal(
-    const StructuredBlock& block,
-    const BoundaryPatch& patch,
-    Index3 face)
+Normal3 outward_normal(const StructuredBlock& block, const BoundaryPatch& patch, Index3 face)
 {
     const auto& metric = face_metric(block, patch.face.axis);
     const Real sign = patch.face.side == Side::Lower ? -1.0 : 1.0;
@@ -31,8 +25,8 @@ Normal3 outward_normal(
         sign * metric.normal_y(face.i, face.j, face.k),
         sign * metric.normal_z(face.i, face.j, face.k),
     };
-    const Real magnitude = std::sqrt(
-        normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+    const Real magnitude
+        = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
     if (!std::isfinite(magnitude) || magnitude <= 0.0) {
         throw PhysicsError("boundary face has an invalid normal");
     }
@@ -44,30 +38,24 @@ Normal3 outward_normal(
 
 PrimitiveState reflected(PrimitiveState state, Normal3 normal)
 {
-    const Real normal_velocity = state[velocity_x] * normal.x
-        + state[velocity_y] * normal.y + state[velocity_z] * normal.z;
+    const Real normal_velocity = state[velocity_x] * normal.x + state[velocity_y] * normal.y
+        + state[velocity_z] * normal.z;
     state[velocity_x] -= 2.0 * normal_velocity * normal.x;
     state[velocity_y] -= 2.0 * normal_velocity * normal.y;
     state[velocity_z] -= 2.0 * normal_velocity * normal.z;
     return state;
 }
 
-void store_primitive_and_conservative(
-    StructuredBlock& block,
-    Index3 index,
-    const PrimitiveState& primitive,
-    const IdealGas& gas)
+void store_primitive_and_conservative(StructuredBlock& block,
+                                      Index3 index,
+                                      const PrimitiveState& primitive,
+                                      const IdealGas& gas)
 {
     store_state(block.flow.primitive, index, primitive);
     store_state(block.flow.conservative, index, to_conservative(primitive, gas));
 }
 
-Index3 ghost_index(
-    Index3 face,
-    Axis axis,
-    Side side,
-    int layer,
-    const Extent3& extent)
+Index3 ghost_index(Index3 face, Axis axis, Side side, int layer, const Extent3& extent)
 {
     const auto a = static_cast<std::size_t>(axis);
     face[a] = side == Side::Lower ? -layer : extent[a] - 1 + layer;
@@ -81,40 +69,31 @@ Index3 adjacent_index(Index3 face, Axis axis, Side side, const Extent3& extent)
     return face;
 }
 
-Index3 mirror_index(
-    Index3 face,
-    Axis axis,
-    Side side,
-    int layer,
-    const Extent3& extent)
+Index3 mirror_index(Index3 face, Axis axis, Side side, int layer, const Extent3& extent)
 {
     const auto a = static_cast<std::size_t>(axis);
     face[a] = side == Side::Lower ? layer - 1 : extent[a] - layer;
     return face;
 }
 
-PrimitiveState boundary_state(
-    StructuredBlock& block,
-    const BoundaryPatch& patch,
-    Index3 face,
-    int layer,
-    const PrimitiveState& prescribed)
+PrimitiveState boundary_state(StructuredBlock& block,
+                              const BoundaryPatch& patch,
+                              Index3 face,
+                              int layer,
+                              const PrimitiveState& prescribed)
 {
     const auto extent = block.cell_extent();
     switch (patch.type) {
     case BoundaryType::Farfield:
-    case BoundaryType::Inflow:
-        return prescribed;
+    case BoundaryType::Inflow: return prescribed;
     case BoundaryType::Outflow:
-        return load_primitive(
-            block.flow.primitive,
-            adjacent_index(face, patch.face.axis, patch.face.side, extent));
+        return load_primitive(block.flow.primitive,
+                              adjacent_index(face, patch.face.axis, patch.face.side, extent));
     case BoundaryType::SlipWall:
     case BoundaryType::Symmetry:
         return reflected(
-            load_primitive(
-                block.flow.primitive,
-                mirror_index(face, patch.face.axis, patch.face.side, layer, extent)),
+            load_primitive(block.flow.primitive,
+                           mirror_index(face, patch.face.axis, patch.face.side, layer, extent)),
             outward_normal(block, patch, face));
     case BoundaryType::NoSlipAdiabaticWall:
     case BoundaryType::NoSlipIsothermalWall:
@@ -122,25 +101,19 @@ PrimitiveState boundary_state(
     case BoundaryType::Periodic:
         throw PhysicsError("periodic boundaries must be represented as connectivities");
     case BoundaryType::DoubleMachReflection:
-        throw PhysicsError(
-            "double-Mach reflection requires PhysicalGhostStateOperator");
-    case BoundaryType::Undefined:
-        throw PhysicsError("undefined physical boundary type");
+        throw PhysicsError("double-Mach reflection requires PhysicalGhostStateOperator");
+    case BoundaryType::Undefined: throw PhysicsError("undefined physical boundary type");
     }
     throw PhysicsError("unsupported physical boundary type");
 }
 
 } // namespace
 
-void update_primitive_cell(
-    StructuredBlock& block,
-    Index3 index,
-    const IdealGas& gas)
+void update_primitive_cell(StructuredBlock& block, Index3 index, const IdealGas& gas)
 {
-    store_state(
-        block.flow.primitive,
-        index,
-        to_primitive(load_conservative(block.flow.conservative, index), gas));
+    store_state(block.flow.primitive,
+                index,
+                to_primitive(load_conservative(block.flow.conservative, index), gas));
 }
 
 void update_primitive_interior(StructuredBlock& block, const IdealGas& gas)
@@ -155,10 +128,9 @@ void update_primitive_interior(StructuredBlock& block, const IdealGas& gas)
     }
 }
 
-void fill_physical_boundaries(
-    StructuredBlock& block,
-    const PrimitiveState& prescribed,
-    const IdealGas& gas)
+void fill_physical_boundaries(StructuredBlock& block,
+                              const PrimitiveState& prescribed,
+                              const IdealGas& gas)
 {
     static_cast<void>(to_conservative(prescribed, gas));
     const int ghost_width = block.ghost_width();
@@ -173,11 +145,7 @@ void fill_physical_boundaries(
                     const auto face = patch.boundary_face_range.at({oi, oj, ok});
                     for (int layer = 1; layer <= ghost_width; ++layer) {
                         const auto ghost = ghost_index(
-                            face,
-                            patch.face.axis,
-                            patch.face.side,
-                            layer,
-                            block.cell_extent());
+                            face, patch.face.axis, patch.face.side, layer, block.cell_extent());
                         store_primitive_and_conservative(
                             block,
                             ghost,

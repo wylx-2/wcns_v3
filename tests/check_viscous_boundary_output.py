@@ -1,5 +1,4 @@
 import glob
-import math
 import os
 import sys
 
@@ -46,14 +45,10 @@ elif case == "conduction":
     expected_heat = chi / reynolds
     for row in lower:
         if relative_error(row[19], expected_heat) > 5.0e-11:
-            raise SystemExit(
-                f"lower conduction heat flux mismatch: {row[19]} vs {expected_heat}"
-            )
+            raise SystemExit(f"lower conduction heat flux mismatch: {row[19]} vs {expected_heat}")
     for row in upper:
         if relative_error(row[19], -expected_heat) > 5.0e-11:
-            raise SystemExit(
-                f"upper conduction heat flux mismatch: {row[19]} vs {-expected_heat}"
-            )
+            raise SystemExit(f"upper conduction heat flux mismatch: {row[19]} vs {-expected_heat}")
     if max(abs(row[18]) for row in rows) > 1.0e-13:
         raise SystemExit("linear conduction skin friction is nonzero")
 else:

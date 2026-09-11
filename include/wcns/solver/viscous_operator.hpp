@@ -9,11 +9,10 @@ namespace wcns {
 
 class ViscousFaceFluxField {
 public:
-    ViscousFaceFluxField(
-        Extent3 cell_extent,
-        int dimension,
-        AlgorithmProfileKind profile,
-        std::uint64_t version);
+    ViscousFaceFluxField(Extent3 cell_extent,
+                         int dimension,
+                         AlgorithmProfileKind profile,
+                         std::uint64_t version);
 
     [[nodiscard]] AlgorithmProfileKind profile() const noexcept { return profile_; }
     [[nodiscard]] std::uint64_t version() const noexcept { return version_; }
@@ -33,16 +32,14 @@ private:
     Field<Real> k_;
 };
 
-[[nodiscard]] ConservativeState transform_viscous_face_flux_for_receiver(
-    const ConservativeState& donor,
-    const FaceFluxExchangeDescriptor& descriptor);
+[[nodiscard]] ConservativeState
+transform_viscous_face_flux_for_receiver(const ConservativeState& donor,
+                                         const FaceFluxExchangeDescriptor& descriptor);
 
 class ViscousFaceFluxHaloPlan {
 public:
-    [[nodiscard]] static ViscousFaceFluxHaloPlan build(
-        const StructuredMesh& mesh,
-        const AlgorithmProfile& profile,
-        std::uint64_t version);
+    [[nodiscard]] static ViscousFaceFluxHaloPlan
+    build(const StructuredMesh& mesh, const AlgorithmProfile& profile, std::uint64_t version);
 
     [[nodiscard]] const std::vector<FaceFluxExchangeDescriptor>& exchanges() const noexcept
     {
@@ -66,10 +63,9 @@ private:
 
 class ViscousFaceFluxHaloExchanger {
 public:
-    ViscousFaceFluxHaloExchanger(
-        const MpiRuntime& mpi,
-        const ViscousFaceFluxHaloPlan& plan)
-        : mpi_(mpi), plan_(plan)
+    ViscousFaceFluxHaloExchanger(const MpiRuntime& mpi, const ViscousFaceFluxHaloPlan& plan)
+        : mpi_(mpi)
+        , plan_(plan)
     {
         prepare();
     }
@@ -92,36 +88,34 @@ private:
 #endif
 };
 
-[[nodiscard]] ViscousFaceFluxField compute_viscous_face_fluxes(
-    const StructuredBlock& block,
-    const MetricField& metric,
-    const PrimitiveGradientField& gradients,
-    const AlgorithmProfile& profile,
-    const TransportModel& transport,
-    const BoundaryDataMap& boundary_data,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors,
-    std::uint64_t version);
+[[nodiscard]] ViscousFaceFluxField
+compute_viscous_face_fluxes(const StructuredBlock& block,
+                            const MetricField& metric,
+                            const PrimitiveGradientField& gradients,
+                            const AlgorithmProfile& profile,
+                            const TransportModel& transport,
+                            const BoundaryDataMap& boundary_data,
+                            const GasModel& gas,
+                            const ReferenceScales& reference,
+                            const NumericalFloors& floors,
+                            std::uint64_t version);
 
-void compute_viscous_face_fluxes_into(
-    ViscousFaceFluxField& result,
-    const StructuredBlock& block,
-    const MetricField& metric,
-    const PrimitiveGradientField& gradients,
-    const AlgorithmProfile& profile,
-    const TransportModel& transport,
-    const BoundaryDataMap& boundary_data,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors,
-    std::uint64_t version);
+void compute_viscous_face_fluxes_into(ViscousFaceFluxField& result,
+                                      const StructuredBlock& block,
+                                      const MetricField& metric,
+                                      const PrimitiveGradientField& gradients,
+                                      const AlgorithmProfile& profile,
+                                      const TransportModel& transport,
+                                      const BoundaryDataMap& boundary_data,
+                                      const GasModel& gas,
+                                      const ReferenceScales& reference,
+                                      const NumericalFloors& floors,
+                                      std::uint64_t version);
 
-void add_wcns_viscous_residual(
-    StructuredBlock& block,
-    const MetricField& metric,
-    const ViscousFaceFluxField& flux,
-    const AlgorithmProfile& profile,
-    Real reynolds);
+void add_wcns_viscous_residual(StructuredBlock& block,
+                               const MetricField& metric,
+                               const ViscousFaceFluxField& flux,
+                               const AlgorithmProfile& profile,
+                               Real reynolds);
 
 } // namespace wcns

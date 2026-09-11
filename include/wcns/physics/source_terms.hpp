@@ -37,16 +37,13 @@ struct SourceTermConfig {
 // actual source evaluation is implemented in stage J.
 class SourceTermRegistry {
 public:
-    [[nodiscard]] static SourceTermRegistry create_stage_h(
-        const SourceTermConfig& config);
-    [[nodiscard]] static SourceTermRegistry create_stage_j(
-        const SourceTermConfig& config);
+    [[nodiscard]] static SourceTermRegistry create_stage_h(const SourceTermConfig& config);
+    [[nodiscard]] static SourceTermRegistry create_stage_j(const SourceTermConfig& config);
 
-    [[nodiscard]] std::array<Real, 5> evaluate(
-        const std::array<Real, 5>& conservative,
-        const std::array<Real, 3>& coordinates,
-        Real time,
-        int dimension) const;
+    [[nodiscard]] std::array<Real, 5> evaluate(const std::array<Real, 5>& conservative,
+                                               const std::array<Real, 3>& coordinates,
+                                               Real time,
+                                               int dimension) const;
 
     [[nodiscard]] constexpr bool empty() const noexcept { return model_count_ == 0; }
     [[nodiscard]] constexpr std::size_t size() const noexcept { return model_count_; }

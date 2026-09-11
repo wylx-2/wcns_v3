@@ -18,7 +18,7 @@ def set_key(text: str, key: str, value: str) -> str:
     matches = list(pattern.finditer(text))
     if len(matches) != 1:
         raise RuntimeError(f"expected exactly one {key}, found {len(matches)}")
-    return text[:matches[0].start()] + f"{key} = {value}" + text[matches[0].end():]
+    return text[: matches[0].start()] + f"{key} = {value}" + text[matches[0].end() :]
 
 
 def safe_token(value: float) -> str:
@@ -83,30 +83,30 @@ def main() -> int:
             log_text = completed.stdout + completed.stderr
             log = root / f"{label}-cfl-{token}.log"
             log.write_text(log_text, encoding="utf-8")
-            matches = re.findall(
-                r"reason=([a-z_]+) step=(\d+) time=(\S+)", log_text
-            )
+            matches = re.findall(r"reason=([a-z_]+) step=(\d+) time=(\S+)", log_text)
             match = matches[-1] if matches else None
             reason = match[0] if match else "startup_failure"
             if completed.returncode == 1 or match is None:
                 raise RuntimeError(f"unexpected startup failure for {label} CFL={cfl}: {log}")
             if reason != "numerical_failure":
                 successful += 1
-            records.append({
-                "case": label,
-                "config_source": str(config_path.resolve()),
-                "cfl": cfl,
-                "exit_code": completed.returncode,
-                "stop_reason": reason,
-                "step": int(match[1]),
-                "time": float(match[2]),
-                "maximum_troubled_cells": diagnostic_maximum(
-                    output, "troubled_cells"),
-                "maximum_local_recomputations": diagnostic_maximum(
-                    output, "local_recomputations"),
-                "maximum_step_retries": diagnostic_maximum(output, "step_retries"),
-                "log": str(log),
-            })
+            records.append(
+                {
+                    "case": label,
+                    "config_source": str(config_path.resolve()),
+                    "cfl": cfl,
+                    "exit_code": completed.returncode,
+                    "stop_reason": reason,
+                    "step": int(match[1]),
+                    "time": float(match[2]),
+                    "maximum_troubled_cells": diagnostic_maximum(output, "troubled_cells"),
+                    "maximum_local_recomputations": diagnostic_maximum(
+                        output, "local_recomputations"
+                    ),
+                    "maximum_step_retries": diagnostic_maximum(output, "step_retries"),
+                    "log": str(log),
+                }
+            )
         if successful == 0:
             raise RuntimeError(f"CFL scan has no successful point for {label}")
     summary = {

@@ -15,8 +15,7 @@ struct HaloCellPair {
 
     friend bool operator==(const HaloCellPair& lhs, const HaloCellPair& rhs)
     {
-        return lhs.receiver_ghost == rhs.receiver_ghost
-            && lhs.donor_interior == rhs.donor_interior;
+        return lhs.receiver_ghost == rhs.receiver_ghost && lhs.donor_interior == rhs.donor_interior;
     }
 };
 
@@ -28,11 +27,9 @@ struct HaloExchangePlan {
     std::vector<HaloCellPair> cell_pairs;
 };
 
-[[nodiscard]] HaloExchangePlan make_halo_exchange_plan(
-    const ConnectivityPatch& connection,
-    Extent3 receiver_cell_extent,
-    Extent3 donor_cell_extent,
-    int dimension);
+[[nodiscard]] HaloExchangePlan make_halo_exchange_plan(const ConnectivityPatch& connection,
+                                                       Extent3 receiver_cell_extent,
+                                                       Extent3 donor_cell_extent,
+                                                       int dimension);
 
 } // namespace wcns
-

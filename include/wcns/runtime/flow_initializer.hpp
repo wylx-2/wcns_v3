@@ -12,29 +12,26 @@ public:
 
 class FlowInitializer {
 public:
-    static void initialize_block(
-        StructuredBlock& block,
-        const MetricField& metrics,
-        const InitialConditionConfig& config,
-        const GasModel& gas,
-        const ReferenceScales& reference,
-        const NumericalFloors& floors = {});
+    static void initialize_block(StructuredBlock& block,
+                                 const MetricField& metrics,
+                                 const InitialConditionConfig& config,
+                                 const GasModel& gas,
+                                 const ReferenceScales& reference,
+                                 const NumericalFloors& floors = {});
 
-    static void initialize_local_blocks(
-        LocalBlockSet& local_blocks,
-        const BlockMetricMap& metrics,
-        const InitialConditionConfig& config,
-        const GasModel& gas,
-        const ReferenceScales& reference,
-        const NumericalFloors& floors = {});
+    static void initialize_local_blocks(LocalBlockSet& local_blocks,
+                                        const BlockMetricMap& metrics,
+                                        const InitialConditionConfig& config,
+                                        const GasModel& gas,
+                                        const ReferenceScales& reference,
+                                        const NumericalFloors& floors = {});
 
-    [[nodiscard]] static TemperaturePrimitiveState evaluate(
-        const InitialConditionConfig& config,
-        std::array<Real, 3> coordinates,
-        const GasModel& gas,
-        const ReferenceScales& reference,
-        const NumericalFloors& floors,
-        int dimension);
+    [[nodiscard]] static TemperaturePrimitiveState evaluate(const InitialConditionConfig& config,
+                                                            std::array<Real, 3> coordinates,
+                                                            const GasModel& gas,
+                                                            const ReferenceScales& reference,
+                                                            const NumericalFloors& floors,
+                                                            int dimension);
 };
 
 } // namespace wcns

@@ -76,9 +76,7 @@ def main() -> int:
             raise RuntimeError(f"unexpected wall temperature {temperature}")
         target = expected[target_temperature]
         if abs(viscosity - target) > 1.0e-13 * target:
-            raise RuntimeError(
-                f"wall viscosity {viscosity} differs from Sutherland value {target}"
-            )
+            raise RuntimeError(f"wall viscosity {viscosity} differs from Sutherland value {target}")
         seen.add(target_temperature)
     if seen != set(expected):
         raise RuntimeError(f"both wall temperatures were not observed: {seen}")

@@ -11,15 +11,13 @@ namespace {
 
 using LineWeights = std::array<LineConservationWeights, 3>;
 
-const PartitionLeaf& leaf_for(
-    const std::unordered_map<BlockId, const PartitionLeaf*>& leaves,
-    BlockId block)
+const PartitionLeaf& leaf_for(const std::unordered_map<BlockId, const PartitionLeaf*>& leaves,
+                              BlockId block)
 {
     const auto iterator = leaves.find(block);
     if (iterator == leaves.end()) {
-        throw CaseConfigurationError(
-            "residual norm cannot find partition leaf for block "
-            + std::to_string(block));
+        throw CaseConfigurationError("residual norm cannot find partition leaf for block "
+                                     + std::to_string(block));
     }
     return *iterator->second;
 }
@@ -44,16 +42,12 @@ int stop_reason_exit_code(StopReason reason)
 {
     switch (reason) {
     case StopReason::SteadyConverged:
-    case StopReason::PhysicalTimeReached:
-        return 0;
+    case StopReason::PhysicalTimeReached: return 0;
     case StopReason::MaximumSteps:
     case StopReason::WallTimeCheckpoint:
-    case StopReason::UserSignalCheckpoint:
-        return 2;
-    case StopReason::NumericalFailure:
-        return 3;
-    case StopReason::Running:
-        return 4;
+    case StopReason::UserSignalCheckpoint: return 2;
+    case StopReason::NumericalFailure: return 3;
+    case StopReason::Running: return 4;
     }
     return 4;
 }
@@ -61,16 +55,16 @@ int stop_reason_exit_code(StopReason reason)
 Real ResidualNorms::total_l2() const
 {
     Real sum = 0.0;
-    for (const Real value : l2) sum += value * value;
+    for (const Real value : l2)
+        sum += value * value;
     return std::sqrt(sum / static_cast<Real>(euler_components));
 }
 
-ResidualNorms compute_global_residual_norms(
-    const MpiRuntime& mpi,
-    const LocalBlockSet& local_blocks,
-    const BlockMetricMap& metrics,
-    const StructuredPartitionPlan& partition,
-    const AlgorithmProfile& profile)
+ResidualNorms compute_global_residual_norms(const MpiRuntime& mpi,
+                                            const LocalBlockSet& local_blocks,
+                                            const BlockMetricMap& metrics,
+                                            const StructuredPartitionPlan& partition,
+                                            const AlgorithmProfile& profile)
 {
     std::unordered_map<BlockId, const PartitionLeaf*> leaves;
     for (const auto& leaf : partition.leaves()) {
@@ -79,14 +73,10 @@ ResidualNorms compute_global_residual_norms(
     std::unordered_map<BlockId, LineWeights> zone_weights;
     for (const auto& zone : partition.zones()) {
         LineWeights lines;
-        lines[0] = build_line_conservation_weights(
-            profile, zone.cell_extent.ni);
-        lines[1] = build_line_conservation_weights(
-            profile, zone.cell_extent.nj);
+        lines[0] = build_line_conservation_weights(profile, zone.cell_extent.ni);
+        lines[1] = build_line_conservation_weights(profile, zone.cell_extent.nj);
         lines[2] = build_line_conservation_weights(
-            profile,
-            zone.cell_dimension == 3 ? zone.cell_extent.nk : 1,
-            zone.cell_dimension == 2);
+            profile, zone.cell_dimension == 3 ? zone.cell_extent.nk : 1, zone.cell_dimension == 2);
         zone_weights.emplace(zone.source_zone, std::move(lines));
     }
 
@@ -99,12 +89,10 @@ ResidualNorms compute_global_residual_norms(
         const auto metric_iterator = metrics.find(block.id());
         const auto line_iterator = zone_weights.find(leaf.source_zone);
         if (metric_iterator == metrics.end() || line_iterator == zone_weights.end()) {
-            throw CaseConfigurationError(
-                "residual norm is missing metric or source-zone weights");
+            throw CaseConfigurationError("residual norm is missing metric or source-zone weights");
         }
         if (block.cell_extent() != leaf.cell_extent()) {
-            throw CaseConfigurationError(
-                "residual norm block and partition extents differ");
+            throw CaseConfigurationError("residual norm block and partition extents differ");
         }
         const auto& jacobian = metric_iterator->second.jacobian();
         const auto& lines = line_iterator->second;
@@ -113,30 +101,24 @@ ResidualNorms compute_global_residual_norms(
             for (int j = 0; j < extent.nj; ++j) {
                 for (int i = 0; i < extent.ni; ++i) {
                     const Real weight
-                        = lines[0].cell_weights[static_cast<std::size_t>(
-                              leaf.cells.begin.i + i)]
-                        * lines[1].cell_weights[static_cast<std::size_t>(
-                              leaf.cells.begin.j + j)]
-                        * lines[2].cell_weights[static_cast<std::size_t>(
-                              leaf.cells.begin.k + k)]
+                        = lines[0].cell_weights[static_cast<std::size_t>(leaf.cells.begin.i + i)]
+                        * lines[1].cell_weights[static_cast<std::size_t>(leaf.cells.begin.j + j)]
+                        * lines[2].cell_weights[static_cast<std::size_t>(leaf.cells.begin.k + k)]
                         * jacobian(i, j, k);
                     if (!std::isfinite(weight) || weight <= 0.0) {
                         local_finite = false;
                         continue;
                     }
                     local_weight += weight;
-                    for (int component = 0; component < euler_components;
-                         ++component) {
-                        const Real value = block.flow.residual(
-                            i, j, k, component);
+                    for (int component = 0; component < euler_components; ++component) {
+                        const Real value = block.flow.residual(i, j, k, component);
                         if (!std::isfinite(value)) {
                             local_finite = false;
                             continue;
                         }
                         const auto index = static_cast<std::size_t>(component);
                         local_squared[index] += weight * value * value;
-                        local_maximum[index] = std::max(
-                            local_maximum[index], std::abs(value));
+                        local_maximum[index] = std::max(local_maximum[index], std::abs(value));
                     }
                 }
             }
@@ -145,19 +127,17 @@ ResidualNorms compute_global_residual_norms(
 
     ResidualNorms result;
     const Real global_weight = mpi.sum(local_weight);
-    result.finite = mpi.all_true(local_finite)
-        && std::isfinite(global_weight) && global_weight > 0.0;
+    result.finite
+        = mpi.all_true(local_finite) && std::isfinite(global_weight) && global_weight > 0.0;
     for (int component = 0; component < euler_components; ++component) {
         const auto index = static_cast<std::size_t>(component);
         const Real squared = mpi.sum(local_squared[index]);
         result.linf[index] = mpi.max(local_maximum[index]);
-        if (!std::isfinite(squared) || squared < 0.0
-            || !std::isfinite(result.linf[index])) {
+        if (!std::isfinite(squared) || squared < 0.0 || !std::isfinite(result.linf[index])) {
             result.finite = false;
         }
-        result.l2[index] = result.finite
-            ? std::sqrt(squared / global_weight)
-            : std::numeric_limits<Real>::quiet_NaN();
+        result.l2[index] = result.finite ? std::sqrt(squared / global_weight)
+                                         : std::numeric_limits<Real>::quiet_NaN();
     }
     if (!result.finite) {
         result.l2.fill(std::numeric_limits<Real>::quiet_NaN());
@@ -177,10 +157,10 @@ bool StopController::steady_passed(const ResidualNorms& residuals)
     if (!steady_state_.reference_initialized) {
         for (int component = 0; component < euler_components; ++component) {
             const auto index = static_cast<std::size_t>(component);
-            steady_state_.reference_l2[index] = std::max(
-                residuals.l2[index], config_.steady.reference_floor);
-            steady_state_.reference_linf[index] = std::max(
-                residuals.linf[index], config_.steady.reference_floor);
+            steady_state_.reference_l2[index]
+                = std::max(residuals.l2[index], config_.steady.reference_floor);
+            steady_state_.reference_linf[index]
+                = std::max(residuals.linf[index], config_.steady.reference_floor);
         }
         steady_state_.reference_initialized = true;
     }
@@ -201,9 +181,8 @@ bool StopController::steady_passed(const ResidualNorms& residuals)
 StopDecision StopController::evaluate(const SimulationProgress& progress)
 {
     StopDecision decision;
-    if (progress.numerical_failure || !progress.residuals.finite
-        || !std::isfinite(progress.time) || progress.time < 0.0
-        || !std::isfinite(progress.time_step) || progress.time_step <= 0.0) {
+    if (progress.numerical_failure || !progress.residuals.finite || !std::isfinite(progress.time)
+        || progress.time < 0.0 || !std::isfinite(progress.time_step) || progress.time_step <= 0.0) {
         decision.reason = StopReason::NumericalFailure;
         return decision;
     }
@@ -217,16 +196,15 @@ StopDecision StopController::evaluate(const SimulationProgress& progress)
         } else {
             steady_state_.consecutive_passes = 0;
         }
-        if (steady_state_.consecutive_passes
-            >= config_.steady.consecutive_checks) {
+        if (steady_state_.consecutive_passes >= config_.steady.consecutive_checks) {
             decision.reason = StopReason::SteadyConverged;
             return decision;
         }
     }
 
     if (config_.mode == RunMode::Unsteady) {
-        const Real tolerance = 64.0 * std::numeric_limits<Real>::epsilon()
-            * std::max(Real {1.0}, config_.end_time);
+        const Real tolerance
+            = 64.0 * std::numeric_limits<Real>::epsilon() * std::max(Real {1.0}, config_.end_time);
         if (progress.time + tolerance >= config_.end_time) {
             decision.reason = StopReason::PhysicalTimeReached;
             return decision;
@@ -236,8 +214,7 @@ StopDecision StopController::evaluate(const SimulationProgress& progress)
         decision.reason = StopReason::UserSignalCheckpoint;
         return decision;
     }
-    if (config_.max_wall_time > 0.0
-        && progress.wall_time >= config_.max_wall_time) {
+    if (config_.max_wall_time > 0.0 && progress.wall_time >= config_.max_wall_time) {
         decision.reason = StopReason::WallTimeCheckpoint;
         return decision;
     }
@@ -252,12 +229,10 @@ void StopController::restore_steady_state(SteadyConvergenceState state)
     for (int component = 0; component < euler_components; ++component) {
         const auto index = static_cast<std::size_t>(component);
         if (state.reference_initialized
-            && (!std::isfinite(state.reference_l2[index])
-                || state.reference_l2[index] <= 0.0
+            && (!std::isfinite(state.reference_l2[index]) || state.reference_l2[index] <= 0.0
                 || !std::isfinite(state.reference_linf[index])
                 || state.reference_linf[index] <= 0.0)) {
-            throw CaseConfigurationError(
-                "restored steady residual reference is invalid");
+            throw CaseConfigurationError("restored steady residual reference is invalid");
         }
     }
     steady_state_ = std::move(state);

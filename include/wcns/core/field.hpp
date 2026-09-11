@@ -11,8 +11,7 @@
 namespace wcns {
 
 // Cell-major field storage: component is the fastest-varying index.
-template<class T>
-class Field {
+template <class T> class Field {
 public:
     Field() = default;
 
@@ -22,8 +21,7 @@ public:
         , components_(checked_components(components))
         , ghost_width_(ghost_width)
         , data_(checked_value_count(storage_, components_))
-    {
-    }
+    { }
 
     Field(Extent3 interior, int components, int ghost_width, const T& initial_value)
         : Field(interior, components, ghost_width)
@@ -31,50 +29,26 @@ public:
         fill(initial_value);
     }
 
-    [[nodiscard]] const Extent3& interior_extent() const noexcept
-    {
-        return interior_;
-    }
+    [[nodiscard]] const Extent3& interior_extent() const noexcept { return interior_; }
 
-    [[nodiscard]] const Extent3& storage_extent() const noexcept
-    {
-        return storage_;
-    }
+    [[nodiscard]] const Extent3& storage_extent() const noexcept { return storage_; }
 
-    [[nodiscard]] int components() const noexcept
-    {
-        return components_;
-    }
+    [[nodiscard]] int components() const noexcept { return components_; }
 
-    [[nodiscard]] int ghost_width() const noexcept
-    {
-        return ghost_width_;
-    }
+    [[nodiscard]] int ghost_width() const noexcept { return ghost_width_; }
 
     [[nodiscard]] std::size_t cell_count() const noexcept
     {
         return components_ == 0 ? 0 : data_.size() / static_cast<std::size_t>(components_);
     }
 
-    [[nodiscard]] std::size_t size() const noexcept
-    {
-        return data_.size();
-    }
+    [[nodiscard]] std::size_t size() const noexcept { return data_.size(); }
 
-    [[nodiscard]] bool empty() const noexcept
-    {
-        return data_.empty();
-    }
+    [[nodiscard]] bool empty() const noexcept { return data_.empty(); }
 
-    T* data() noexcept
-    {
-        return data_.data();
-    }
+    T* data() noexcept { return data_.data(); }
 
-    const T* data() const noexcept
-    {
-        return data_.data();
-    }
+    const T* data() const noexcept { return data_.data(); }
 
     T& operator()(int i, int j, int k, int component)
     {
@@ -93,7 +67,7 @@ public:
         const auto storage_j = static_cast<std::size_t>(j + ghost_width_);
         const auto storage_k = static_cast<std::size_t>(k + ghost_width_);
         return (storage_k * static_cast<std::size_t>(storage_.nj) + storage_j)
-                * static_cast<std::size_t>(storage_.ni)
+            * static_cast<std::size_t>(storage_.ni)
             + storage_i;
     }
 
@@ -106,10 +80,7 @@ public:
             + static_cast<std::size_t>(component);
     }
 
-    void fill(const T& value)
-    {
-        std::fill(data_.begin(), data_.end(), value);
-    }
+    void fill(const T& value) { std::fill(data_.begin(), data_.end(), value); }
 
 private:
     static int checked_components(int components)
@@ -155,9 +126,9 @@ private:
 
     void check_cell_index(int i, int j, int k) const
     {
-        if (i < -ghost_width_ || i >= interior_.ni + ghost_width_
-            || j < -ghost_width_ || j >= interior_.nj + ghost_width_
-            || k < -ghost_width_ || k >= interior_.nk + ghost_width_) {
+        if (i < -ghost_width_ || i >= interior_.ni + ghost_width_ || j < -ghost_width_
+            || j >= interior_.nj + ghost_width_ || k < -ghost_width_
+            || k >= interior_.nk + ghost_width_) {
             throw std::out_of_range("Field cell index is outside interior and ghost storage");
         }
     }
@@ -170,4 +141,3 @@ private:
 };
 
 } // namespace wcns
-
