@@ -90,7 +90,7 @@ detailed 关闭时开销 `<=2%`；4-rank 强扩展效率 `>=70%` 且每 rank 至
 1. 连续生成两份归档并证明 SHA-256 完全相同；
 2. 校验 sidecar、包内逐文件 manifest，确认无额外或缺失 payload；
 3. 解包至空目录，在没有 `.git` 的条件下配置并确认 manifest 中
-   `program_version=1.1.0`、`source_revision=<WCNS_SOURCE_REVISION>`；
+   `program_version=1.1.0`、`git_commit=<WCNS_SOURCE_REVISION>`；
 4. 完成 Release 构建、安装、网格生成、正式求解 dry-run、短程求解、检查点生成及重启；
 5. 审计安装树含二进制、模板、示例、用户文档、发布说明、许可证和第三方通知。
 
