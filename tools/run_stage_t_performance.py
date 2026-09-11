@@ -38,6 +38,18 @@ def parse_args() -> argparse.Namespace:
         "--reuse-serial-manifest", type=Path,
         help="reuse serial/allocation results from a prior stage-T manifest",
     )
+    parser.add_argument(
+        "--reuse-scaling-manifest", type=Path,
+        help="reuse passing scaling groups from a prior stage-T manifest",
+    )
+    parser.add_argument(
+        "--rerun-strong-ranks", default="1,2,4,8",
+        help="comma-separated strong-scaling ranks to measure",
+    )
+    parser.add_argument(
+        "--rerun-weak-ranks", default="1,2,4,8",
+        help="comma-separated weak-scaling ranks to measure",
+    )
     return parser.parse_args()
 
 
@@ -230,6 +242,9 @@ def scaling_matrix(
     warmups: int,
     repetitions: int,
     detailed: bool,
+    prior: dict[str, object] | None = None,
+    rerun_strong: set[int] | None = None,
+    rerun_weak: set[int] | None = None,
 ) -> dict[str, object]:
     root.mkdir(parents=True, exist_ok=True)
     ranks = [1, 2, 4, 8]
@@ -241,29 +256,46 @@ def scaling_matrix(
         root / "generate-strong.log",
     )
     strong_config = viscous_config(repository, strong_mesh, "t-strong", 2)
-    strong: list[dict[str, object]] = []
+    prior_strong = {
+        int(item["ranks"]): item
+        for item in ([] if prior is None else prior["strong"])
+    }
+    strong_by_rank: dict[int, dict[str, object]] = dict(prior_strong)
     for rank_count in ranks:
+        if rerun_strong is not None and rank_count not in rerun_strong:
+            if rank_count not in strong_by_rank:
+                raise RuntimeError(f"no reused strong result for r{rank_count}")
+            continue
         measured = measure_case(
             [str(mpiexec), "-n", str(rank_count)], executable, strong_config,
             root / "strong" / f"r{rank_count}", warmups, repetitions,
             math.prod(strong_grid), 2, detailed,
         )
-        strong.append({
+        strong_by_rank[rank_count] = {
             "ranks": rank_count,
             "cells_per_rank": math.prod(strong_grid) // rank_count,
             **measured,
-        })
+        }
+    strong = [strong_by_rank[rank_count] for rank_count in ranks]
     t1 = float(strong[0]["median_wall_seconds"])
     for item in strong:
         rank_count = int(item["ranks"])
         item["efficiency"] = t1 / (rank_count * float(item["median_wall_seconds"]))
 
-    weak: list[dict[str, object]] = []
+    prior_weak = {
+        int(item["ranks"]): item
+        for item in ([] if prior is None else prior["weak"])
+    }
+    weak_by_rank: dict[int, dict[str, object]] = dict(prior_weak)
     # Both periodic directions are split into two source zones, so their
     # global counts must remain divisible by two at every rank count.
     local_grid = (24, 24, 28)
     local_cells = math.prod(local_grid)
     for rank_count in ranks:
+        if rerun_weak is not None and rank_count not in rerun_weak:
+            if rank_count not in weak_by_rank:
+                raise RuntimeError(f"no reused weak result for r{rank_count}")
+            continue
         grid = (local_grid[0] * rank_count, local_grid[1], local_grid[2])
         mesh = root / f"weak-r{rank_count}.cgns"
         run_checked(
@@ -277,12 +309,13 @@ def scaling_matrix(
             root / "weak" / f"r{rank_count}", warmups, repetitions,
             local_cells * rank_count, 2, detailed,
         )
-        weak.append({
+        weak_by_rank[rank_count] = {
             "ranks": rank_count,
             "cells_per_rank": local_cells,
             "grid": list(grid),
             **measured,
-        })
+        }
+    weak = [weak_by_rank[rank_count] for rank_count in ranks]
     weak_t1 = float(weak[0]["median_wall_seconds"])
     for item in weak:
         item["efficiency"] = weak_t1 / float(item["median_wall_seconds"])
@@ -336,10 +369,27 @@ def main() -> int:
     if not args.skip_scaling:
         if args.mpiexec is None or args.mpi_run is None:
             raise RuntimeError("scaling requires --mpiexec and --mpi-run")
+        prior_scaling = None
+        if args.reuse_scaling_manifest is not None:
+            prior_manifest = json.loads(
+                args.reuse_scaling_manifest.resolve().read_text(encoding="utf-8")
+            )
+            prior_scaling = prior_manifest.get("scaling")
+            if prior_scaling is None:
+                raise RuntimeError("reused manifest has no scaling results")
+        parse_ranks = lambda text: {
+            int(value) for value in text.split(",") if value.strip()
+        }
+        rerun_strong = parse_ranks(args.rerun_strong_ranks)
+        rerun_weak = parse_ranks(args.rerun_weak_ranks)
+        if not rerun_strong.issubset({1, 2, 4, 8}) \
+                or not rerun_weak.issubset({1, 2, 4, 8}):
+            raise RuntimeError("scaling ranks must be selected from 1,2,4,8")
         scaling = scaling_matrix(
             repository, root / "scaling", generator, args.mpiexec.resolve(),
             args.mpi_run.resolve(), args.scaling_warmups,
-            args.scaling_repetitions, args.detailed,
+            args.scaling_repetitions, args.detailed, prior_scaling,
+            rerun_strong, rerun_weak,
         )
 
     try:
