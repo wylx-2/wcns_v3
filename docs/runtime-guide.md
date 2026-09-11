@@ -1,6 +1,7 @@
 # WCNS 运行、配置、输出与重启指南
 
-本文对应配置 `schema_version = 1` 和阶段 N 的正式生产入口 `wcns_run`，定位为简明速查。
+本文对应 WCNS `1.1.0` 候选、配置 `schema_version = 1` 和正式生产入口 `wcns_run`，定位为
+简明速查。
 逐步用户手册见 [`user-manual.md`](user-manual.md)，源码扩展指南见
 [`developer-guide.md`](developer-guide.md)，完整配置模板见
 [`examples/full_case_template.wcns`](../examples/full_case_template.wcns)，算法数学约定见
@@ -10,9 +11,10 @@
 
 ## 1. 构建与运行
 
-v1.0 已验证的环境包括 Windows 10、CMake 3.28.0、MinGW-w64 GCC 8.1.0、Python 3.14.5
+v1.1.0 本机候选已验证环境包括 Windows 10、CMake 3.28.0、MinGW-w64 GCC 8.1.0、Python 3.14.5
 和 Intel MPI 2021.10。CMake 最低声明版本为 3.20；未列出的编译器、操作系统和 MPI 组合
-目前属于未验证环境，而不是已知不兼容。
+目前属于未验证环境，而不是已知不兼容。Linux GCC/Clang、OpenMPI 与 Sanitizer 已配置在
+CI 中；是否取得当前候选的远端结果以 U 阶段验收报告为准。
 
 串行 Release 构建（运行示例前需把目标结构网格放到 `examples/freestream.cgns`，或修改模板
 中的 `mesh.path`）：

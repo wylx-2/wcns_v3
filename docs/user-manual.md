@@ -1,6 +1,8 @@
 # WCNS 用户手册
 
-本文面向第一次接触本程序的算例使用者，对应 WCNS `1.0.0`、配置`schema_version = 1` 和生产入口 `wcns_run`。按本文顺序操作，可以从源码构建程序、准备CGNS 网格、填写配置、完成串行或 MPI 计算、识别停止状态、读取输出并从检查点续算。
+本文面向第一次接触本程序的算例使用者，对应 WCNS `1.1.0` 候选、配置
+`schema_version = 1` 和生产入口 `wcns_run`。按本文顺序操作，可以从源码构建程序、准备
+CGNS 网格、填写配置、完成串行或 MPI 计算、识别停止状态、读取输出并从检查点续算。
 
 本手册描述的是当前程序已经实现的行为。数学定义见[`算法补充.md`](../算法补充.md)，源码扩展见[`developer-guide.md`](developer-guide.md)，实现边界见[`known-limitations.md`](known-limitations.md)。可复制的完整配置见[`examples/full_case_template.wcns`](../examples/full_case_template.wcns)。
 
@@ -1105,7 +1107,8 @@ Linux 迁移前检查见 [`case05`](../cases/manual/case05_3d_turbulent_channel/
 用 `wcns_generate_release_cgns cylinder-o` 生成带首尾周期连接的多块 O 网格。低速圆柱使用
 可压缩层流 Navier--Stokes、绝热无滑移壁和远场边界，可通过 Re=20/40 与 Re=100/200
 分别观察稳定对称尾迹和非定常涡脱落；Mach 5 钝体功能检查使用 Euler、滑移壁和远场边界。
-当前粗网格结果只作定性验收，壁面升阻力由后处理近似而非求解器 face-based 输出。完整参数、
+当前粗网格结果只作定性验收。v1.1 已用求解器权威边界面迹直接输出压力/黏性牵引、热流，
+并对全局边界权重积分得到升阻力、力矩和系数；Case07 保留旧后处理结果仅供历史对照。完整参数、
 命令、实际结果、图像和限制见
 [`case07`](../cases/manual/case07_2d_cylinder/README.md)。
 

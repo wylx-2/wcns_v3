@@ -1,6 +1,6 @@
 # WCNS 用户自定义开发指南
 
-本文面向需要修改或扩展 WCNS 的开发者，对应当前 `1.0.0`/schema 1 源码。目标不是只告诉读者“改哪个文件”，而是说明一次扩展必须穿过哪些数据、验证、并行、重启、输出和测试路径，避免新增代码在串行小算例中可运行、到多块/MPI/重启时失效。
+本文面向需要修改或扩展 WCNS 的开发者，对应当前 `1.1.0` 候选/schema 1 源码。目标不是只告诉读者“改哪个文件”，而是说明一次扩展必须穿过哪些数据、验证、并行、重启、输出和测试路径，避免新增代码在串行小算例中可运行、到多块/MPI/重启时失效。
 
 精简的 `wcns_v3_release` 仓库按发布要求不携带开发仓库中的完整 `tests/`、人工算例结果和阶段记录。本文中涉及这些目录的回归方法仍用于说明扩展应达到的验证层级；需要复现项目完整历史矩阵时，应使用 `wcns_v3` 开发仓库。精简仓库中的 `examples/` 可用于最小端到端检查。
 
@@ -257,14 +257,15 @@ public:
 
 ### 10.2 当前输运模型
 
-底层 `TransportConfig` 已支持常黏度和 Sutherland、Prandtl，但 schema 1 的生产入口只实例化默认 `Pr=0.72,mu/mu_ref=1` 常黏度。若暴露配置：
+`TransportConfig` 的常黏度和 Sutherland、Prandtl 已完整接入 schema 1、生产装配、配置摘要、
+manifest 与重启签名。修改或增加输运模型时：
 
 1. 在 `CaseConfig` 增加 transport 配置与键；
 2. 解析 `constant|sutherland` 及参数并验证正值；
 3. 把**同一份** config 同时传给 `ViscousWcnsConfig::transport` 和输出
    `QuantityContext::transport`，否则求解黏度与输出黏度不一致；
 4. 把 transport summary 纳入真正被 checkpoint 使用的 `CaseConfig::restart_signature()`；
-5. 更新 Re/Pr/Sutherland 解析解、时间步稳定性和输出测试。
+5. 更新 Re/Pr/Sutherland 解析解、时间步稳定性、黏度/壁面输出和配置迁移测试。
 
 若增加湍流或多方程模型，还需扩展流场分量、halo payload、checkpoint 和输出，不应假装为一个等效黏度标量完成。
 
@@ -1081,3 +1082,48 @@ ctest --test-dir build-dev-mpi --output-on-failure
 
 若其中任何一项失败，只提交已经独立成立的小目标；修复后重新验收。历史 case 结果与新配置
 不一致时必须标明生成版本并重算，禁止通过手工补列或修改结果文本伪造证据。
+
+## 26. v1.1 热路径工作区与发布维护
+
+### 26.1 结构缓存键和版本
+
+v1.1 的求解器不再在每次残差内重新装配不变对象。缓存身份由
+
+```text
+(mesh_signature, partition_digest, profile, dimension, local_layout)
+```
+
+共同决定：每个本地块/有效轴的 `LineOperators`、face/operand/gradient/viscous halo plan、
+block registry、面通量/梯度字段、SSPRK 初始状态和通信消息缓冲都必须与该键一致。不得只按
+网格尺寸复用，因为相同尺寸可能具有不同拓扑、profile 或 owner 布局。
+
+字段/描述符的单调 `version` 是时序一致性，不属于结构键。一次残差开始时统一推进版本，
+plan 的 `set_version` 只能改变消息头版本，不能改变 pairs、owner、tag 或 payload 长度。工作
+字段改写前用 NaN 重置；消费者逐项验证 profile、extent 和版本。若改动网格、分区、profile、
+维数或本地布局，必须显式重建完整 workspace，不能在旧缓冲上局部修补。
+
+### 26.2 API 与性能不变量
+
+- 生产残差优先使用预构造 `LineOperators` 和写入既有字段的 `*_into` 入口；返回值 API 只作
+  兼容薄包装，不能重新成为热路径默认。
+- SSPRK 每次整步覆盖复用初始状态，Q 阶段稳健模式的未修改 `U^n` 回滚契约仍优先于复用。
+- MPI exchanger 在初始化时按 descriptor 精确分配缓冲；交换只做 pack/post/wait/version
+  check/unpack。没有经过内部区/连接邻域证明，不得把同步交换改名为“通信计算重叠”。
+- root 输出每次只持有当前 zone/quantity payload；CGNS 检查点和场量写完即释放。修改 I/O
+  时必须用独立重读同时检查 schema 和数值，不能只看文件是否存在。
+
+涉及这些路径的提交至少运行 allocation probe、串行/MPI 数值等价、旧版本/错误长度/NaN
+注入以及对应性能组。详细公式、分配减少率和扩展效率定义见《算法补充》11.6；冻结阈值见
+[`v1.1.0/stage-t-design.md`](v1.1.0/stage-t-design.md)。
+
+### 26.3 发布步骤
+
+1. 在独立 stage 分支提交设计、实现和机器可读证据；禁止把运行输出或用户未跟踪目录加入。
+2. 从空串行/MPI 目录配置 Release、编译、全量 CTest，并执行算法规格校验。
+3. 用 `tools/package_release.py` 从 `HEAD` 已跟踪 payload 生成确定性私有源码包；验证两次归档
+   SHA-256 一致和包内 `PACKAGE_CONTENTS.sha256`。
+4. 从没有 `.git` 的解包目录重新构建、安装、运行和重启，核对 manifest 的版本/来源提交。
+5. 运行发布矩阵、错误路径和固定性能协议，写阶段验收报告；候选标签只指向报告提交。
+6. 候选后的人工卡口通过前，不得合并 `main` 或创建正式版本标签。
+
+当前 v1.1.0 的完整发布卡口见 [`v1.1.0/stage-u-design.md`](v1.1.0/stage-u-design.md)。
