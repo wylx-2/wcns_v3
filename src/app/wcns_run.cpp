@@ -155,12 +155,17 @@ std::vector<wcns::CgnsPartitionLeaf> cgns_leaves(
 std::tuple<wcns::Real, wcns::Real, wcns::Real, wcns::Real>
 transport_range(
     const wcns::MpiRuntime& mpi,
-    const wcns::LocalBlockSet& local_blocks,
+    wcns::LocalBlockSet& local_blocks,
+    const wcns::GasModel& gas,
+    const wcns::ReferenceScales& reference,
+    const wcns::NumericalFloors& floors,
     const wcns::TransportModel& transport)
 {
     wcns::Real local_minimum_temperature = std::numeric_limits<wcns::Real>::infinity();
     wcns::Real local_maximum_temperature = -std::numeric_limits<wcns::Real>::infinity();
-    for (const auto& block : local_blocks.blocks()) {
+    for (auto& block : local_blocks.blocks()) {
+        wcns::update_temperature_primitive_interior(
+            block, gas, reference, floors);
         const auto cells = block.cell_extent();
         for (int k = 0; k < cells.nk; ++k) {
             for (int j = 0; j < cells.nj; ++j) {
@@ -516,7 +521,8 @@ int main(int argc, char** argv)
         const auto [minimum_temperature, maximum_temperature,
                     minimum_temperature_viscosity,
                     maximum_temperature_viscosity]
-            = transport_range(mpi, local_blocks, transport);
+            = transport_range(
+                mpi, local_blocks, gas, reference, floors, transport);
 
         if (mpi.rank() == 0) {
             std::cout << config.summary() << '\n'
