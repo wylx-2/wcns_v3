@@ -12,6 +12,7 @@ reference.density = 1.225
 reference.temperature = 288.15
 reference.length = 1.0
 reference.viscosity = 1.7894e-5
+@WCNS_TRANSPORT_LINES@
 partition.mode = auto_split
 partition.allow_idle_ranks = false
 partition.max_load_ratio = 1.2
