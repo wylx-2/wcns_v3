@@ -24,6 +24,7 @@ public:
     [[nodiscard]] int dimension() const noexcept { return dimension_; }
     [[nodiscard]] Field<Real>& field(Axis axis);
     [[nodiscard]] const Field<Real>& field(Axis axis) const;
+    void reset(std::uint64_t version);
 
 private:
     AlgorithmProfileKind profile_;
@@ -54,6 +55,7 @@ public:
         Index3 cell, ViscousPrimitive variable, int cartesian_direction);
     [[nodiscard]] Real operator()(
         Index3 cell, ViscousPrimitive variable, int cartesian_direction) const;
+    void reset(std::uint64_t version);
 
 private:
     AlgorithmProfileKind profile_;
@@ -75,7 +77,21 @@ private:
     const AlgorithmProfile& profile,
     std::uint64_t version);
 
+void compute_gradient_face_operands_into(
+    GradientOperandFaceField& result,
+    const StructuredBlock& block,
+    const MetricField& metric,
+    const AlgorithmProfile& profile,
+    std::uint64_t version);
+
 [[nodiscard]] PrimitiveGradientField compute_primitive_gradients(
+    const StructuredBlock& block,
+    const MetricField& metric,
+    const GradientOperandFaceField& operands,
+    const AlgorithmProfile& profile);
+
+void compute_primitive_gradients_into(
+    PrimitiveGradientField& result,
     const StructuredBlock& block,
     const MetricField& metric,
     const GradientOperandFaceField& operands,

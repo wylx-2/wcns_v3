@@ -1,6 +1,7 @@
 #include <wcns/mesh/linear_operators.hpp>
 
 #include <cmath>
+#include <map>
 #include <stdexcept>
 
 namespace wcns {
@@ -194,6 +195,21 @@ LineOperators LineOperators::build(
         cell_count,
         scmm_interpolation(cell_count),
         scmm_derivative(cell_count));
+}
+
+const LineOperators& cached_line_operators(
+    const AlgorithmProfile& profile,
+    int cell_count)
+{
+    ProfileFactory::validate_bundle(profile.components());
+    const auto key = std::make_pair(
+        static_cast<int>(profile.kind()), cell_count);
+    static std::map<std::pair<int, int>, LineOperators> cache;
+    const auto found = cache.find(key);
+    if (found != cache.end()) return found->second;
+    const auto inserted = cache.emplace(
+        key, LineOperators::build(profile, cell_count));
+    return inserted.first->second;
 }
 
 std::vector<Real> LineOperators::interpolate(

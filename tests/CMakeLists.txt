@@ -41,6 +41,13 @@ target_link_libraries(
     wcns_unit_tests
     PRIVATE wcns::core wcns::mesh wcns::parallel wcns::solver wcns::runtime
 )
+
+add_executable(wcns_stage_t_allocation_probe test_stage_t_allocations.cpp)
+target_link_libraries(
+    wcns_stage_t_allocation_probe
+    PRIVATE wcns::core wcns::mesh wcns::parallel wcns::solver
+)
+add_test(NAME wcns.stage_t.allocations COMMAND wcns_stage_t_allocation_probe)
 if(WCNS_ENABLE_CGNS)
     target_link_libraries(wcns_unit_tests PRIVATE wcns::cgns)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)

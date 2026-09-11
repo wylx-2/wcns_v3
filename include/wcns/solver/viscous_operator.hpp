@@ -21,6 +21,7 @@ public:
     [[nodiscard]] int dimension() const noexcept { return dimension_; }
     [[nodiscard]] Field<Real>& field(Axis axis);
     [[nodiscard]] const Field<Real>& field(Axis axis) const;
+    void reset(std::uint64_t version);
 
 private:
     AlgorithmProfileKind profile_;
@@ -47,6 +48,7 @@ public:
     {
         return exchanges_;
     }
+    void set_version(std::uint64_t version);
 
 private:
     std::vector<FaceFluxExchangeDescriptor> exchanges_;
@@ -69,16 +71,41 @@ public:
         const ViscousFaceFluxHaloPlan& plan)
         : mpi_(mpi), plan_(plan)
     {
+        prepare();
     }
 
     void exchange(const ViscousFaceFluxFieldRegistry& fields) const;
 
 private:
+    struct Pending {
+        const FaceFluxExchangeDescriptor* descriptor = nullptr;
+        std::vector<Real> values;
+    };
+    void prepare();
+
     const MpiRuntime& mpi_;
     const ViscousFaceFluxHaloPlan& plan_;
+    mutable std::vector<Pending> receives_;
+    mutable std::vector<Pending> sends_;
+#if WCNS_HAS_MPI
+    mutable std::vector<MPI_Request> requests_;
+#endif
 };
 
 [[nodiscard]] ViscousFaceFluxField compute_viscous_face_fluxes(
+    const StructuredBlock& block,
+    const MetricField& metric,
+    const PrimitiveGradientField& gradients,
+    const AlgorithmProfile& profile,
+    const TransportModel& transport,
+    const BoundaryDataMap& boundary_data,
+    const GasModel& gas,
+    const ReferenceScales& reference,
+    const NumericalFloors& floors,
+    std::uint64_t version);
+
+void compute_viscous_face_fluxes_into(
+    ViscousFaceFluxField& result,
     const StructuredBlock& block,
     const MetricField& metric,
     const PrimitiveGradientField& gradients,

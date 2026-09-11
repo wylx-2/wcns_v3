@@ -41,6 +41,7 @@ public:
 
     [[nodiscard]] Field<Real>& field(Axis axis);
     [[nodiscard]] const Field<Real>& field(Axis axis) const;
+    void reset(std::uint64_t version);
 
 private:
     AlgorithmProfileKind profile_;
@@ -103,6 +104,7 @@ public:
     {
         return exchanges_;
     }
+    void set_version(std::uint64_t version);
 
 private:
     std::vector<FaceFluxExchangeDescriptor> exchanges_;
@@ -125,16 +127,50 @@ public:
         const FaceFluxHaloPlan& plan)
         : mpi_(mpi), plan_(plan)
     {
+        prepare();
     }
 
     void exchange(const FaceFluxFieldRegistry& fields) const;
 
 private:
+    struct Pending {
+        const FaceFluxExchangeDescriptor* descriptor = nullptr;
+        std::vector<Real> values;
+    };
+
+    void prepare();
+
     const MpiRuntime& mpi_;
     const FaceFluxHaloPlan& plan_;
+    mutable std::vector<Pending> receives_;
+    mutable std::vector<Pending> sends_;
+#if WCNS_HAS_MPI
+    mutable std::vector<MPI_Request> requests_;
+#endif
 };
 
 [[nodiscard]] InviscidFaceFluxField compute_inviscid_face_fluxes(
+    const StructuredBlock& block,
+    const MetricField& metric,
+    const AlgorithmProfile& profile,
+    const ReconstructionConfig& reconstruction,
+    const RiemannSolver& riemann,
+    const GasModel& gas,
+    const ReferenceScales& reference,
+    const NumericalFloors& floors,
+    const BoundaryDataMap& boundary_data,
+    const InviscidBoundaryOptions& boundary_options,
+    std::uint64_t version,
+    ReconstructionDiagnostics& diagnostics,
+    RiemannDiagnostics* riemann_diagnostics = nullptr,
+    int rk_stage = 0,
+    Real stage_time = 0.0,
+    const FaceRobustnessField* robustness_levels = nullptr,
+    const RobustnessLadder* robustness_ladder = nullptr,
+    const RiemannSolver* robust_riemann = nullptr);
+
+void compute_inviscid_face_fluxes_into(
+    InviscidFaceFluxField& result,
     const StructuredBlock& block,
     const MetricField& metric,
     const AlgorithmProfile& profile,

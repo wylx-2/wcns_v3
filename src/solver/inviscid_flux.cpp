@@ -328,7 +328,7 @@ StencilRow inviscid_residual_stencil(
         }
         return result;
     }
-    return LineOperators::build(profile, count)
+    return cached_line_operators(profile, count)
         .derivative_rows()[static_cast<std::size_t>(normal)];
 }
 
@@ -377,6 +377,18 @@ Field<Real>& InviscidFaceFluxField::field(Axis axis)
 const Field<Real>& InviscidFaceFluxField::field(Axis axis) const
 {
     return const_cast<InviscidFaceFluxField*>(this)->field(axis);
+}
+
+void InviscidFaceFluxField::reset(std::uint64_t version)
+{
+    if (version == 0 || version > maximum_exact_message_version) {
+        throw std::invalid_argument("face-flux reset version is invalid");
+    }
+    version_ = version;
+    const Real nan = std::numeric_limits<Real>::quiet_NaN();
+    i_.fill(nan);
+    j_.fill(nan);
+    k_.fill(nan);
 }
 
 int FaceFluxExchangeDescriptor::message_tag(int tag_base) const
@@ -435,6 +447,14 @@ FaceFluxHaloPlan FaceFluxHaloPlan::build(
     return result;
 }
 
+void FaceFluxHaloPlan::set_version(std::uint64_t version)
+{
+    if (version == 0 || version > maximum_exact_message_version) {
+        throw TopologyError("face-flux plan version must be non-zero");
+    }
+    for (auto& descriptor : exchanges_) descriptor.version = version;
+}
+
 void FaceFluxFieldRegistry::add(BlockId block, InviscidFaceFluxField& field)
 {
     if (block < 0 || !fields_.emplace(block, &field).second) {
@@ -456,18 +476,28 @@ InviscidFaceFluxField& FaceFluxFieldRegistry::field(BlockId block) const
     return *iterator->second;
 }
 
-void FaceFluxHaloExchanger::exchange(const FaceFluxFieldRegistry& fields) const
+void FaceFluxHaloExchanger::prepare()
 {
-    struct Pending {
-        const FaceFluxExchangeDescriptor* descriptor = nullptr;
-        std::vector<Real> values;
-    };
     const RankId rank = mpi_.rank();
-    std::vector<Pending> receives;
-    std::vector<Pending> sends;
     for (const auto& descriptor : plan_.exchanges()) {
         const std::size_t count = 1 + descriptor.pairs.size()
             * static_cast<std::size_t>(euler_components);
+        if (descriptor.receiver_rank == rank && descriptor.donor_rank != rank) {
+            receives_.push_back({&descriptor, std::vector<Real>(count)});
+        } else if (descriptor.donor_rank == rank
+                   && descriptor.receiver_rank != rank) {
+            sends_.push_back({&descriptor, std::vector<Real>(count)});
+        }
+    }
+#if WCNS_HAS_MPI
+    requests_.resize(receives_.size() + sends_.size(), MPI_REQUEST_NULL);
+#endif
+}
+
+void FaceFluxHaloExchanger::exchange(const FaceFluxFieldRegistry& fields) const
+{
+    const RankId rank = mpi_.rank();
+    for (const auto& descriptor : plan_.exchanges()) {
         if (descriptor.receiver_rank == rank && descriptor.donor_rank == rank) {
             auto& receiver = fields.field(descriptor.receiver_block);
             const auto& donor = fields.field(descriptor.donor_block);
@@ -478,50 +508,51 @@ void FaceFluxHaloExchanger::exchange(const FaceFluxFieldRegistry& fields) const
                     transform_inviscid_face_flux_for_receiver(
                         load_flux(donor, descriptor.donor_axis, pair.donor), descriptor));
             }
-        } else if (descriptor.receiver_rank == rank) {
-            auto& receiver = fields.field(descriptor.receiver_block);
-            validate_field(receiver, descriptor);
-            receives.push_back({&descriptor, std::vector<Real>(count)});
-        } else if (descriptor.donor_rank == rank) {
-            const auto& donor = fields.field(descriptor.donor_block);
-            validate_field(donor, descriptor);
-            Pending pending {&descriptor, std::vector<Real>(count)};
-            pending.values[0] = static_cast<Real>(descriptor.version);
-            std::size_t offset = 1;
-            for (const auto& pair : descriptor.pairs) {
-                const auto value = load_flux(donor, descriptor.donor_axis, pair.donor);
-                for (const auto component : value) pending.values[offset++] = component;
-            }
-            sends.push_back(std::move(pending));
+        }
+    }
+    for (const auto& pending : receives_) {
+        validate_field(
+            fields.field(pending.descriptor->receiver_block),
+            *pending.descriptor);
+    }
+    for (auto& pending : sends_) {
+        const auto& descriptor = *pending.descriptor;
+        const auto& donor = fields.field(descriptor.donor_block);
+        validate_field(donor, descriptor);
+        pending.values[0] = static_cast<Real>(descriptor.version);
+        std::size_t offset = 1;
+        for (const auto& pair : descriptor.pairs) {
+            const auto value = load_flux(donor, descriptor.donor_axis, pair.donor);
+            for (const auto component : value) pending.values[offset++] = component;
         }
     }
 
 #if WCNS_HAS_MPI
-    std::vector<MPI_Request> requests(receives.size() + sends.size(), MPI_REQUEST_NULL);
+    std::fill(requests_.begin(), requests_.end(), MPI_REQUEST_NULL);
     std::size_t request = 0;
-    for (auto& pending : receives) {
+    for (auto& pending : receives_) {
         check_mpi(MPI_Irecv(
             pending.values.data(), mpi_count(pending.values.size()), MPI_DOUBLE,
             pending.descriptor->donor_rank, pending.descriptor->message_tag(),
-            mpi_.communicator(), &requests[request++]), "MPI_Irecv face flux");
+            mpi_.communicator(), &requests_[request++]), "MPI_Irecv face flux");
     }
-    for (auto& pending : sends) {
+    for (auto& pending : sends_) {
         check_mpi(MPI_Isend(
             pending.values.data(), mpi_count(pending.values.size()), MPI_DOUBLE,
             pending.descriptor->receiver_rank, pending.descriptor->message_tag(),
-            mpi_.communicator(), &requests[request++]), "MPI_Isend face flux");
+            mpi_.communicator(), &requests_[request++]), "MPI_Isend face flux");
     }
-    if (!requests.empty()) {
+    if (!requests_.empty()) {
         check_mpi(MPI_Waitall(
-            static_cast<int>(requests.size()), requests.data(), MPI_STATUSES_IGNORE),
+            static_cast<int>(requests_.size()), requests_.data(), MPI_STATUSES_IGNORE),
             "MPI_Waitall face flux");
     }
 #else
-    if (!receives.empty() || !sends.empty()) {
+    if (!receives_.empty() || !sends_.empty()) {
         throw MpiError("remote face-flux exchange requires WCNS_ENABLE_MPI");
     }
 #endif
-    for (const auto& pending : receives) {
+    for (const auto& pending : receives_) {
         auto& receiver = fields.field(pending.descriptor->receiver_block);
         if (pending.values.empty()
             || pending.values[0] != static_cast<Real>(pending.descriptor->version)) {
@@ -538,7 +569,8 @@ void FaceFluxHaloExchanger::exchange(const FaceFluxFieldRegistry& fields) const
     }
 }
 
-InviscidFaceFluxField compute_inviscid_face_fluxes(
+void compute_inviscid_face_fluxes_into(
+    InviscidFaceFluxField& result,
     const StructuredBlock& block,
     const MetricField& metric,
     const AlgorithmProfile& profile,
@@ -566,6 +598,7 @@ InviscidFaceFluxField compute_inviscid_face_fluxes(
     if (rk_stage < 0 || rk_stage > 3) {
         throw std::invalid_argument("inviscid flux RK stage must lie in [0,3]");
     }
+    reconstruction.validate();
     const bool robustness_enabled = robustness_levels != nullptr;
     if (robustness_enabled != (robustness_ladder != nullptr)
         || robustness_enabled != (robust_riemann != nullptr)) {
@@ -577,8 +610,16 @@ InviscidFaceFluxField compute_inviscid_face_fluxes(
             || robustness_levels->dimension() != block.cell_dimension())) {
         throw ProfileError("inviscid flux robustness field has a mismatched profile");
     }
-    InviscidFaceFluxField result(
-        block.cell_extent(), block.cell_dimension(), profile.kind(), version);
+    const auto cells = block.cell_extent();
+    if (result.profile() != profile.kind()
+        || result.dimension() != block.cell_dimension()
+        || result.field(Axis::I).interior_extent()
+            != Extent3 {cells.ni + 1, cells.nj, cells.nk}
+        || result.field(Axis::J).interior_extent()
+            != Extent3 {cells.ni, cells.nj + 1, cells.nk}) {
+        throw ProfileError("inviscid flux workspace metadata mismatch");
+    }
+    result.reset(version);
     const auto compute_axis = [&](Axis axis) {
         const auto& faces = metric_faces(metric, axis);
         const auto extent = faces.x.interior_extent();
@@ -608,7 +649,7 @@ InviscidFaceFluxField compute_inviscid_face_fluxes(
                         block.flow.conservative, block.flow.primitive,
                         axis, face, *face_reconstruction, gas, reference,
                         diagnostics, block.cell_dimension(), normal,
-                        diagnostic_location);
+                        diagnostic_location, !robustness_enabled);
                     if (const auto* patch = physical_patch(block, axis, face)) {
                         const auto data_iterator = boundary_data.find(patch->name);
                         if (data_iterator == boundary_data.end()) {
@@ -651,6 +692,35 @@ InviscidFaceFluxField compute_inviscid_face_fluxes(
     compute_axis(Axis::I);
     compute_axis(Axis::J);
     if (block.cell_dimension() == 3) compute_axis(Axis::K);
+}
+
+InviscidFaceFluxField compute_inviscid_face_fluxes(
+    const StructuredBlock& block,
+    const MetricField& metric,
+    const AlgorithmProfile& profile,
+    const ReconstructionConfig& reconstruction,
+    const RiemannSolver& riemann,
+    const GasModel& gas,
+    const ReferenceScales& reference,
+    const NumericalFloors& floors,
+    const BoundaryDataMap& boundary_data,
+    const InviscidBoundaryOptions& boundary_options,
+    std::uint64_t version,
+    ReconstructionDiagnostics& diagnostics,
+    RiemannDiagnostics* riemann_diagnostics,
+    int rk_stage,
+    Real stage_time,
+    const FaceRobustnessField* robustness_levels,
+    const RobustnessLadder* robustness_ladder,
+    const RiemannSolver* robust_riemann)
+{
+    InviscidFaceFluxField result(
+        block.cell_extent(), block.cell_dimension(), profile.kind(), version);
+    compute_inviscid_face_fluxes_into(
+        result, block, metric, profile, reconstruction, riemann, gas, reference,
+        floors, boundary_data, boundary_options, version, diagnostics,
+        riemann_diagnostics, rk_stage, stage_time, robustness_levels,
+        robustness_ladder, robust_riemann);
     return result;
 }
 
@@ -705,19 +775,66 @@ void compute_wcns_inviscid_residual(
             return;
         }
 
+        const int count = cells[static_cast<std::size_t>(axis)];
+        const auto& rows
+            = cached_line_operators(profile, count).derivative_rows();
+        const int boundary_width
+            = profile.kind() == AlgorithmProfileKind::PhengleiWcns ? 1 : 2;
+        constexpr std::array<int, 4> ph_offsets {{-1, 0, 1, 2}};
+        constexpr std::array<Real, 4> ph_coefficients {{
+            1.0 / 24.0, -27.0 / 24.0, 27.0 / 24.0, -1.0 / 24.0}};
+        constexpr std::array<int, 6> scmm_offsets {{-2, -1, 0, 1, 2, 3}};
+        constexpr std::array<Real, 6> scmm_coefficients {{
+            -9.0 / 1920.0, 125.0 / 1920.0, -2250.0 / 1920.0,
+            2250.0 / 1920.0, -125.0 / 1920.0, 9.0 / 1920.0}};
         for (int k = 0; k < cells.nk; ++k) {
             for (int j = 0; j < cells.nj; ++j) {
                 for (int i = 0; i < cells.ni; ++i) {
                     const Index3 cell {i, j, k};
-                    const auto row = inviscid_residual_stencil(
-                        block, profile, mode, axis, cell);
+                    const int normal = cell[static_cast<std::size_t>(axis)];
+                    Index3 lower_face = cell;
+                    lower_face[static_cast<std::size_t>(axis)] = 0;
+                    Index3 upper_face = cell;
+                    upper_face[static_cast<std::size_t>(axis)] = count;
+                    const bool use_centered_connection_stencil
+                        = (normal < boundary_width
+                              && connection_covers(
+                                  block, axis, Side::Lower, lower_face))
+                        || (normal >= count - boundary_width
+                              && connection_covers(
+                                  block, axis, Side::Upper, upper_face));
                     for (int component = 0; component < euler_components; ++component) {
                         Real derivative = 0.0;
-                        for (const auto [face_index, coefficient] : row) {
-                            auto face = cell;
-                            face[static_cast<std::size_t>(axis)] = face_index;
-                            derivative += coefficient
-                                * values(face.i, face.j, face.k, component);
+                        if (use_centered_connection_stencil) {
+                            if (profile.kind()
+                                == AlgorithmProfileKind::PhengleiWcns) {
+                                for (std::size_t entry = 0;
+                                     entry < ph_offsets.size(); ++entry) {
+                                    auto face = cell;
+                                    face[static_cast<std::size_t>(axis)]
+                                        = normal + ph_offsets[entry];
+                                    derivative += ph_coefficients[entry]
+                                        * values(face.i, face.j, face.k, component);
+                                }
+                            } else {
+                                for (std::size_t entry = 0;
+                                     entry < scmm_offsets.size(); ++entry) {
+                                    auto face = cell;
+                                    face[static_cast<std::size_t>(axis)]
+                                        = normal + scmm_offsets[entry];
+                                    derivative += scmm_coefficients[entry]
+                                        * values(face.i, face.j, face.k, component);
+                                }
+                            }
+                        } else {
+                            const auto& row
+                                = rows[static_cast<std::size_t>(normal)];
+                            for (const auto [face_index, coefficient] : row) {
+                                auto face = cell;
+                                face[static_cast<std::size_t>(axis)] = face_index;
+                                derivative += coefficient
+                                    * values(face.i, face.j, face.k, component);
+                            }
                         }
                         const Real jacobian = metric.jacobian()(i, j, k);
                         if (!std::isfinite(derivative) || !std::isfinite(jacobian)

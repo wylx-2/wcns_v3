@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "stage": "T",
+  "source_candidate": "v1.1.0-s-candidate.1",
+  "probe": "wcns_stage_t_allocation_probe",
+  "workload": "one 24x24 2D viscous scmm6_wcns residual, linear5, one rank",
+  "first_residual": {
+    "successful_allocations": 946214,
+    "allocated_bytes": 108367664
+  },
+  "second_residual": {
+    "successful_allocations": 946214,
+    "allocated_bytes": 108367664
+  },
+  "required_reduction_fraction": 0.90,
+  "maximum_candidate_allocations": 94621
+}

@@ -1,7 +1,9 @@
 #include <wcns/parallel/mpi_runtime.hpp>
 
+#include <algorithm>
 #include <array>
 #include <limits>
+#include <utility>
 
 namespace wcns {
 
@@ -206,7 +208,7 @@ std::string MpiRuntime::broadcast_string(
 }
 
 std::vector<Real> MpiRuntime::gather_reals(
-    const std::vector<Real>& local_values,
+    std::vector<Real> local_values,
     RankId root) const
 {
     if (root < 0 || root >= size_) {
@@ -248,7 +250,19 @@ std::vector<Real> MpiRuntime::gather_reals(
                 break;
             }
         }
-        if (valid_total != 0) result.resize(total);
+        if (valid_total != 0) {
+            result = std::move(local_values);
+            result.resize(total);
+            const auto root_offset = static_cast<std::size_t>(
+                displacements[static_cast<std::size_t>(root)]);
+            if (root_offset != 0 && local_count != 0) {
+                std::move_backward(
+                    result.begin(),
+                    result.begin() + local_count,
+                    result.begin() + static_cast<std::ptrdiff_t>(
+                        root_offset + static_cast<std::size_t>(local_count)));
+            }
+        }
     }
     check_mpi(
         MPI_Bcast(
@@ -263,8 +277,10 @@ std::vector<Real> MpiRuntime::gather_reals(
     }
     check_mpi(
         MPI_Gatherv(
-            local_values.empty() ? nullptr : local_values.data(),
-            local_count,
+            rank_ == root
+                ? MPI_IN_PLACE
+                : (local_values.empty() ? nullptr : local_values.data()),
+            rank_ == root ? 0 : local_count,
             MPI_DOUBLE,
             rank_ == root && !result.empty() ? result.data() : nullptr,
             rank_ == root ? counts.data() : nullptr,

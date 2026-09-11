@@ -28,6 +28,7 @@ public:
     {
         return exchanges_;
     }
+    void set_version(std::uint64_t version);
 
 private:
     std::vector<FaceFluxExchangeDescriptor> exchanges_;
@@ -50,13 +51,25 @@ public:
         const GradientOperandFaceHaloPlan& plan)
         : mpi_(mpi), plan_(plan)
     {
+        prepare();
     }
 
     void exchange(const GradientOperandFieldRegistry& fields) const;
 
 private:
+    struct Pending {
+        const FaceFluxExchangeDescriptor* descriptor = nullptr;
+        std::vector<Real> values;
+    };
+    void prepare();
+
     const MpiRuntime& mpi_;
     const GradientOperandFaceHaloPlan& plan_;
+    mutable std::vector<Pending> receives_;
+    mutable std::vector<Pending> sends_;
+#if WCNS_HAS_MPI
+    mutable std::vector<MPI_Request> requests_;
+#endif
 };
 
 struct GradientExchangeDescriptor {
@@ -90,6 +103,7 @@ public:
     {
         return exchanges_;
     }
+    void set_version(std::uint64_t version);
 
 private:
     std::vector<GradientExchangeDescriptor> exchanges_;
@@ -110,13 +124,25 @@ public:
     GradientHaloExchanger(const MpiRuntime& mpi, const GradientHaloPlan& plan)
         : mpi_(mpi), plan_(plan)
     {
+        prepare();
     }
 
     void exchange(const GradientFieldRegistry& fields) const;
 
 private:
+    struct Pending {
+        const GradientExchangeDescriptor* descriptor = nullptr;
+        std::vector<Real> values;
+    };
+    void prepare();
+
     const MpiRuntime& mpi_;
     const GradientHaloPlan& plan_;
+    mutable std::vector<Pending> receives_;
+    mutable std::vector<Pending> sends_;
+#if WCNS_HAS_MPI
+    mutable std::vector<MPI_Request> requests_;
+#endif
 };
 
 } // namespace wcns

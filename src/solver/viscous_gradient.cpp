@@ -11,6 +11,8 @@
 namespace wcns {
 namespace {
 
+constexpr std::uint64_t maximum_exact_message_version = 9007199254740992ULL;
+
 int operand_component(ViscousPrimitive variable, int direction)
 {
     if (direction < 0 || direction >= 3) {
@@ -144,6 +146,18 @@ const Field<Real>& GradientOperandFaceField::field(Axis axis) const
     return const_cast<GradientOperandFaceField*>(this)->field(axis);
 }
 
+void GradientOperandFaceField::reset(std::uint64_t version)
+{
+    if (version == 0 || version > maximum_exact_message_version) {
+        throw std::invalid_argument("gradient operand reset version is invalid");
+    }
+    version_ = version;
+    const Real nan = std::numeric_limits<Real>::quiet_NaN();
+    i_.fill(nan);
+    j_.fill(nan);
+    k_.fill(nan);
+}
+
 PrimitiveGradientField::PrimitiveGradientField(
     Extent3 cells,
     int dimension,
@@ -171,6 +185,15 @@ Real PrimitiveGradientField::operator()(
     Index3 cell, ViscousPrimitive variable, int direction) const
 {
     return values_(cell.i, cell.j, cell.k, operand_component(variable, direction));
+}
+
+void PrimitiveGradientField::reset(std::uint64_t version)
+{
+    if (version == 0 || version > maximum_exact_message_version) {
+        throw std::invalid_argument("primitive gradient reset version is invalid");
+    }
+    version_ = version;
+    values_.fill(std::numeric_limits<Real>::quiet_NaN());
 }
 
 TemperaturePrimitiveState interpolate_temperature_face(
@@ -203,7 +226,8 @@ TemperaturePrimitiveState interpolate_temperature_face(
     return result;
 }
 
-GradientOperandFaceField compute_gradient_face_operands(
+void compute_gradient_face_operands_into(
+    GradientOperandFaceField& result,
     const StructuredBlock& block,
     const MetricField& metric,
     const AlgorithmProfile& profile,
@@ -213,9 +237,16 @@ GradientOperandFaceField compute_gradient_face_operands(
         || metric.dimension() != block.cell_dimension()) {
         throw ProfileError("gradient operands use incompatible metric/profile metadata");
     }
-    GradientOperandFaceField result(
-        block.cell_extent(), block.cell_dimension(), profile.kind(), version);
     const auto cells = block.cell_extent();
+    if (result.profile() != profile.kind()
+        || result.dimension() != block.cell_dimension()
+        || result.field(Axis::I).interior_extent()
+            != Extent3 {cells.ni + 1, cells.nj, cells.nk}
+        || result.field(Axis::J).interior_extent()
+            != Extent3 {cells.ni, cells.nj + 1, cells.nk}) {
+        throw ProfileError("gradient operand workspace metadata mismatch");
+    }
+    result.reset(version);
     const auto compute_axis = [&](Axis axis) {
         auto faces = cells;
         ++faces[static_cast<std::size_t>(axis)];
@@ -248,10 +279,23 @@ GradientOperandFaceField compute_gradient_face_operands(
     compute_axis(Axis::I);
     compute_axis(Axis::J);
     if (block.cell_dimension() == 3) compute_axis(Axis::K);
+}
+
+GradientOperandFaceField compute_gradient_face_operands(
+    const StructuredBlock& block,
+    const MetricField& metric,
+    const AlgorithmProfile& profile,
+    std::uint64_t version)
+{
+    GradientOperandFaceField result(
+        block.cell_extent(), block.cell_dimension(), profile.kind(), version);
+    compute_gradient_face_operands_into(
+        result, block, metric, profile, version);
     return result;
 }
 
-PrimitiveGradientField compute_primitive_gradients(
+void compute_primitive_gradients_into(
+    PrimitiveGradientField& result,
     const StructuredBlock& block,
     const MetricField& metric,
     const GradientOperandFaceField& operands,
@@ -262,9 +306,13 @@ PrimitiveGradientField compute_primitive_gradients(
         || operands.dimension() != block.cell_dimension()) {
         throw ProfileError("primitive gradient inputs use incompatible metadata");
     }
-    PrimitiveGradientField result(
-        block.cell_extent(), block.cell_dimension(), profile.kind(), operands.version());
     const auto cells = block.cell_extent();
+    if (result.profile() != profile.kind()
+        || result.dimension() != block.cell_dimension()
+        || result.values().interior_extent() != cells) {
+        throw ProfileError("primitive gradient workspace metadata mismatch");
+    }
+    result.reset(operands.version());
     for (int k = 0; k < cells.nk; ++k) {
         for (int j = 0; j < cells.nj; ++j) {
             for (int i = 0; i < cells.ni; ++i) {
@@ -299,7 +347,7 @@ PrimitiveGradientField compute_primitive_gradients(
                                 divergence += centered_derivative(
                                     values, axis, cell, component, profile.kind());
                             } else {
-                                const auto operators = LineOperators::build(profile, count);
+                                const auto& operators = cached_line_operators(profile, count);
                                 const auto& row = operators.derivative_rows()[
                                     static_cast<std::size_t>(normal)];
                                 for (const auto [face_index, coefficient] : row) {
@@ -326,6 +374,17 @@ PrimitiveGradientField compute_primitive_gradients(
             }
         }
     }
+}
+
+PrimitiveGradientField compute_primitive_gradients(
+    const StructuredBlock& block,
+    const MetricField& metric,
+    const GradientOperandFaceField& operands,
+    const AlgorithmProfile& profile)
+{
+    PrimitiveGradientField result(
+        block.cell_extent(), block.cell_dimension(), profile.kind(), operands.version());
+    compute_primitive_gradients_into(result, block, metric, operands, profile);
     return result;
 }
 
@@ -380,7 +439,7 @@ PrimitiveGradients interpolate_gradient_face(
                         offsets, coefficients);
                 }
             } else {
-                const auto operators = LineOperators::build(profile, count);
+                const auto& operators = cached_line_operators(profile, count);
                 const auto& row = operators.interpolation_rows()[
                     static_cast<std::size_t>(normal)];
                 for (const auto [center_index, coefficient] : row) {

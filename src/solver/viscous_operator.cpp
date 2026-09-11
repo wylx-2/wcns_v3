@@ -185,6 +185,18 @@ const Field<Real>& ViscousFaceFluxField::field(Axis axis) const
     return const_cast<ViscousFaceFluxField*>(this)->field(axis);
 }
 
+void ViscousFaceFluxField::reset(std::uint64_t version)
+{
+    if (version == 0 || version > maximum_exact_message_version) {
+        throw std::invalid_argument("viscous face-flux reset version is invalid");
+    }
+    version_ = version;
+    const Real nan = std::numeric_limits<Real>::quiet_NaN();
+    i_.fill(nan);
+    j_.fill(nan);
+    k_.fill(nan);
+}
+
 ConservativeState transform_viscous_face_flux_for_receiver(
     const ConservativeState& donor,
     const FaceFluxExchangeDescriptor& descriptor)
@@ -212,6 +224,14 @@ ViscousFaceFluxHaloPlan ViscousFaceFluxHaloPlan::build(
     return result;
 }
 
+void ViscousFaceFluxHaloPlan::set_version(std::uint64_t version)
+{
+    if (version == 0 || version > maximum_exact_message_version) {
+        throw TopologyError("viscous face-flux plan version is invalid");
+    }
+    for (auto& descriptor : exchanges_) descriptor.version = version;
+}
+
 void ViscousFaceFluxFieldRegistry::add(
     BlockId block, ViscousFaceFluxField& field)
 {
@@ -234,19 +254,29 @@ ViscousFaceFluxField& ViscousFaceFluxFieldRegistry::field(BlockId block) const
     return *iterator->second;
 }
 
-void ViscousFaceFluxHaloExchanger::exchange(
-    const ViscousFaceFluxFieldRegistry& fields) const
+void ViscousFaceFluxHaloExchanger::prepare()
 {
-    struct Pending {
-        const FaceFluxExchangeDescriptor* descriptor = nullptr;
-        std::vector<Real> values;
-    };
     const RankId rank = mpi_.rank();
-    std::vector<Pending> receives;
-    std::vector<Pending> sends;
     for (const auto& descriptor : plan_.exchanges()) {
         const std::size_t count = 1 + descriptor.pairs.size()
             * static_cast<std::size_t>(euler_components);
+        if (descriptor.receiver_rank == rank && descriptor.donor_rank != rank) {
+            receives_.push_back({&descriptor, std::vector<Real>(count)});
+        } else if (descriptor.donor_rank == rank
+                   && descriptor.receiver_rank != rank) {
+            sends_.push_back({&descriptor, std::vector<Real>(count)});
+        }
+    }
+#if WCNS_HAS_MPI
+    requests_.resize(receives_.size() + sends_.size(), MPI_REQUEST_NULL);
+#endif
+}
+
+void ViscousFaceFluxHaloExchanger::exchange(
+    const ViscousFaceFluxFieldRegistry& fields) const
+{
+    const RankId rank = mpi_.rank();
+    for (const auto& descriptor : plan_.exchanges()) {
         if (descriptor.receiver_rank == rank && descriptor.donor_rank == rank) {
             auto& receiver = fields.field(descriptor.receiver_block);
             const auto& donor = fields.field(descriptor.donor_block);
@@ -258,53 +288,55 @@ void ViscousFaceFluxHaloExchanger::exchange(
                         load_flux(donor, descriptor.donor_axis, pair.donor),
                         descriptor));
             }
-        } else if (descriptor.receiver_rank == rank) {
-            validate_field(fields.field(descriptor.receiver_block), descriptor);
-            receives.push_back({&descriptor, std::vector<Real>(count)});
-        } else if (descriptor.donor_rank == rank) {
-            const auto& donor = fields.field(descriptor.donor_block);
-            validate_field(donor, descriptor);
-            Pending pending {&descriptor, std::vector<Real>(count)};
-            pending.values[0] = static_cast<Real>(descriptor.version);
-            std::size_t offset = 1;
-            for (const auto& pair : descriptor.pairs) {
-                const auto state = load_flux(
-                    donor, descriptor.donor_axis, pair.donor);
-                for (const Real value : state) pending.values[offset++] = value;
-            }
-            sends.push_back(std::move(pending));
+        }
+    }
+    for (const auto& pending : receives_) {
+        validate_field(
+            fields.field(pending.descriptor->receiver_block),
+            *pending.descriptor);
+    }
+    for (auto& pending : sends_) {
+        const auto& descriptor = *pending.descriptor;
+        const auto& donor = fields.field(descriptor.donor_block);
+        validate_field(donor, descriptor);
+        pending.values[0] = static_cast<Real>(descriptor.version);
+        std::size_t offset = 1;
+        for (const auto& pair : descriptor.pairs) {
+            const auto state = load_flux(
+                donor, descriptor.donor_axis, pair.donor);
+            for (const Real value : state) pending.values[offset++] = value;
         }
     }
 #if WCNS_HAS_MPI
-    std::vector<MPI_Request> requests(receives.size() + sends.size(), MPI_REQUEST_NULL);
+    std::fill(requests_.begin(), requests_.end(), MPI_REQUEST_NULL);
     std::size_t request = 0;
-    for (auto& pending : receives) {
+    for (auto& pending : receives_) {
         check_mpi(MPI_Irecv(
             pending.values.data(), mpi_count(pending.values.size()), MPI_DOUBLE,
             pending.descriptor->donor_rank,
             pending.descriptor->message_tag(viscous_flux_tag_base),
-            mpi_.communicator(), &requests[request++]),
+            mpi_.communicator(), &requests_[request++]),
             "MPI_Irecv viscous face flux");
     }
-    for (auto& pending : sends) {
+    for (auto& pending : sends_) {
         check_mpi(MPI_Isend(
             pending.values.data(), mpi_count(pending.values.size()), MPI_DOUBLE,
             pending.descriptor->receiver_rank,
             pending.descriptor->message_tag(viscous_flux_tag_base),
-            mpi_.communicator(), &requests[request++]),
+            mpi_.communicator(), &requests_[request++]),
             "MPI_Isend viscous face flux");
     }
-    if (!requests.empty()) {
+    if (!requests_.empty()) {
         check_mpi(MPI_Waitall(
-            static_cast<int>(requests.size()), requests.data(), MPI_STATUSES_IGNORE),
+            static_cast<int>(requests_.size()), requests_.data(), MPI_STATUSES_IGNORE),
             "MPI_Waitall viscous face flux");
     }
 #else
-    if (!receives.empty() || !sends.empty()) {
+    if (!receives_.empty() || !sends_.empty()) {
         throw MpiError("remote viscous face-flux exchange requires MPI");
     }
 #endif
-    for (const auto& pending : receives) {
+    for (const auto& pending : receives_) {
         if (pending.values[0] != static_cast<Real>(pending.descriptor->version)) {
             throw MpiError("viscous face-flux message version mismatch");
         }
@@ -320,7 +352,8 @@ void ViscousFaceFluxHaloExchanger::exchange(
     }
 }
 
-ViscousFaceFluxField compute_viscous_face_fluxes(
+void compute_viscous_face_fluxes_into(
+    ViscousFaceFluxField& result,
     const StructuredBlock& block,
     const MetricField& metric,
     const PrimitiveGradientField& gradients,
@@ -338,8 +371,16 @@ ViscousFaceFluxField compute_viscous_face_fluxes(
         || gradients.version() != version) {
         throw ProfileError("viscous face flux inputs have incompatible metadata");
     }
-    ViscousFaceFluxField result(
-        block.cell_extent(), block.cell_dimension(), profile.kind(), version);
+    const auto cells = block.cell_extent();
+    if (result.profile() != profile.kind()
+        || result.dimension() != block.cell_dimension()
+        || result.field(Axis::I).interior_extent()
+            != Extent3 {cells.ni + 1, cells.nj, cells.nk}
+        || result.field(Axis::J).interior_extent()
+            != Extent3 {cells.ni, cells.nj + 1, cells.nk}) {
+        throw ProfileError("viscous flux workspace metadata mismatch");
+    }
+    result.reset(version);
     const auto compute_axis = [&](Axis axis) {
         const auto& faces = face_metrics(metric, axis);
         const auto extent = faces.x.interior_extent();
@@ -386,6 +427,25 @@ ViscousFaceFluxField compute_viscous_face_fluxes(
     compute_axis(Axis::I);
     compute_axis(Axis::J);
     if (block.cell_dimension() == 3) compute_axis(Axis::K);
+}
+
+ViscousFaceFluxField compute_viscous_face_fluxes(
+    const StructuredBlock& block,
+    const MetricField& metric,
+    const PrimitiveGradientField& gradients,
+    const AlgorithmProfile& profile,
+    const TransportModel& transport,
+    const BoundaryDataMap& boundary_data,
+    const GasModel& gas,
+    const ReferenceScales& reference,
+    const NumericalFloors& floors,
+    std::uint64_t version)
+{
+    ViscousFaceFluxField result(
+        block.cell_extent(), block.cell_dimension(), profile.kind(), version);
+    compute_viscous_face_fluxes_into(
+        result, block, metric, gradients, profile, transport, boundary_data,
+        gas, reference, floors, version);
     return result;
 }
 
@@ -405,7 +465,7 @@ void add_wcns_viscous_residual(
     const auto cells = block.cell_extent();
     const auto accumulate_axis = [&](Axis axis) {
         const int count = cells[static_cast<std::size_t>(axis)];
-        const auto operators = LineOperators::build(profile, count);
+        const auto& operators = cached_line_operators(profile, count);
         const auto& values = flux.field(axis);
         for (int k = 0; k < cells.nk; ++k) {
             for (int j = 0; j < cells.nj; ++j) {

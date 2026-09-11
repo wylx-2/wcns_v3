@@ -230,18 +230,35 @@ TecplotFile read_tecplot(const std::string& path)
             * tecplot_extent(line, "J=", true)
             * tecplot_extent(line, "K=", false);
         zone.rows.reserve(count);
-        for (std::size_t row = 0; row < count; ++row) {
-            if (!std::getline(input, line)) {
-                throw std::runtime_error("Tecplot zone data are truncated");
+        if (line.find("DATAPACKING=BLOCK") != std::string::npos) {
+            std::vector<double> packed(count * variables.size());
+            for (auto& value : packed) {
+                if (!(input >> value)) {
+                    throw std::runtime_error("Tecplot block data are truncated");
+                }
             }
-            std::istringstream values(line);
-            std::vector<double> record;
-            double value = 0.0;
-            while (values >> value) record.push_back(value);
-            if (record.size() != variables.size()) {
-                throw std::runtime_error("Tecplot row has the wrong column count");
+            std::getline(input, line);
+            for (std::size_t row = 0; row < count; ++row) {
+                std::vector<double> record(variables.size());
+                for (std::size_t column = 0; column < variables.size(); ++column) {
+                    record[column] = packed[column * count + row];
+                }
+                zone.rows.push_back(std::move(record));
             }
-            zone.rows.push_back(std::move(record));
+        } else {
+            for (std::size_t row = 0; row < count; ++row) {
+                if (!std::getline(input, line)) {
+                    throw std::runtime_error("Tecplot zone data are truncated");
+                }
+                std::istringstream values(line);
+                std::vector<double> record;
+                double value = 0.0;
+                while (values >> value) record.push_back(value);
+                if (record.size() != variables.size()) {
+                    throw std::runtime_error("Tecplot row has the wrong column count");
+                }
+                zone.rows.push_back(std::move(record));
+            }
         }
         if (!result.emplace(names.front(), std::move(zone)).second) {
             throw std::runtime_error("duplicate Tecplot zone name");

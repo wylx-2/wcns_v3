@@ -34,6 +34,17 @@ struct OriginalFieldSnapshot {
     const QuantityContext& context,
     RankId root = 0);
 
+[[nodiscard]] std::vector<Real> gather_original_zone_quantity(
+    const MpiRuntime& mpi,
+    const LocalBlockSet& local_blocks,
+    const BlockMetricMap& metrics,
+    const StructuredPartitionPlan& partition,
+    const PartitionZone& zone,
+    const FieldQuantityRegistry& registry,
+    const std::string& quantity,
+    const QuantityContext& context,
+    RankId root = 0);
+
 class ProductionFieldWriter {
 public:
     ProductionFieldWriter(
@@ -51,11 +62,9 @@ public:
 
 private:
     void write_cgns(
-        const OriginalFieldSnapshot& snapshot,
         const SimulationState& state,
         const std::string& path) const;
     void write_tecplot(
-        const OriginalFieldSnapshot& snapshot,
         const SimulationState& state,
         const std::string& path) const;
 
