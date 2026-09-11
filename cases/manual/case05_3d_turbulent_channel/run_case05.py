@@ -61,7 +61,7 @@ def require_file(path: Path, label: str) -> Path:
 
 def execute(
     command: list[str], log_path: Path, acceptable_returncodes: tuple[int, ...] = (0,),
-) -> None:
+) -> str:
     print("running:", subprocess.list2cmdline(command), flush=True)
     completed = subprocess.run(
         command, cwd=CASE_DIR, text=True,
@@ -73,6 +73,7 @@ def execute(
     if completed.returncode not in acceptable_returncodes:
         raise RuntimeError(
             f"command failed with exit code {completed.returncode}; see {log_path}")
+    return completed.stdout
 
 
 def launch_prefix(mpi_exec: str | None, ranks: int) -> list[str]:
@@ -111,18 +112,27 @@ def main() -> int:
         if mpi_exec is None:
             raise FileNotFoundError(f"MPI launcher was not found: {args.mpi_exec}")
     prefix = launch_prefix(mpi_exec, args.ranks)
-    execute(
+    dry_run_output = execute(
         prefix + [str(run), "--config", CONFIG, "--dry-run"],
         CASE_DIR / f"logs/dry-run-r{args.ranks}.log",
     )
+    for expected in (
+        "bulk_velocity=1",
+        "body_acceleration=0.0041720265499730312,0,0",
+        "derived Re=2786.7561827698491 Ma=0.10000000000000001",
+        "output(directory=results/lowmach-feasibility-r4",
+    ):
+        if expected not in dry_run_output:
+            raise RuntimeError(
+                f"low-Mach dry-run summary lacks expected text: {expected}")
     if args.dry_run_only:
         return 0
 
-    output = CASE_DIR / f"results/feasibility-r{args.ranks}"
-    configured_output = CASE_DIR / "results/feasibility-r4"
+    output = CASE_DIR / f"results/lowmach-feasibility-r{args.ranks}"
+    configured_output = CASE_DIR / "results/lowmach-feasibility-r4"
     if args.ranks != 4:
         raise RuntimeError(
-            "the frozen feasibility config writes results/feasibility-r4; "
+            "the frozen feasibility config writes results/lowmach-feasibility-r4; "
             "use --ranks 4 for recorded acceptance, or copy the config and change "
             "output.directory before testing another rank count")
     if output.exists() or configured_output.exists():

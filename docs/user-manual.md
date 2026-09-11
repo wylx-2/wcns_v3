@@ -635,7 +635,7 @@ initial.z0 = 0.0
 initial.period_x = 6.283185307179586
 initial.period_z = 3.141592653589793
 initial.re_tau = 180.0
-initial.bulk_velocity = 15.481978793165828
+initial.bulk_velocity = 1.0
 initial.bulk_velocity_plus = 15.481978793165828
 initial.perturbation_amplitude = 0.05
 initial.rho = 1.0
@@ -648,8 +648,10 @@ initial.temperature = 1.0
 `perturbation_amplitude` 只允许 `[0,0.5]`。修改壁律或参考尺度时必须重新计算
 `bulk_velocity_plus`、体系 Re 和驱动体积力。完整公式、稀疏网格限制和可执行示例见
 [`case05`](../cases/manual/case05_3d_turbulent_channel/README.md)。
-该 case 以 `U_ref=u_tau` 缩放，所以无量纲 `bulk_velocity=U_b^+`；若用其他速度尺度，
-必须相应修改这个值，不能照搬。
+case05 以初始体积平均速度 `U_ref=U_b,0` 缩放，所以无量纲
+`bulk_velocity=1`，而 `bulk_velocity_plus=U_b,0/u_tau` 仍为 15.4819787932。
+因此参考 Reynolds 数是 `Re_b^(h)=U_b^+*Re_tau`，体积力是
+`a_x*h/U_b,0^2=1/(U_b^+)^2`。若使用其他速度尺度，必须联动修改这些值，不能照搬。
 
 #### `linear_conduction`
 
