@@ -44,7 +44,7 @@ public:
         ViscousWcnsConfig config = {});
 
     void compute_residuals(Real stage_time, int rk_stage = 0);
-    void advance(Real time_step, Real initial_time);
+    [[nodiscard]] Real advance(Real time_step, Real initial_time);
     [[nodiscard]] Real global_time_step(Real cfl);
     [[nodiscard]] Real global_residual_l2() const;
     [[nodiscard]] const ReconstructionDiagnostics& reconstruction_diagnostics() const noexcept
@@ -58,8 +58,14 @@ public:
     [[nodiscard]] std::size_t global_reconstruction_fallback_count() const;
     [[nodiscard]] std::size_t global_riemann_face_count() const;
     [[nodiscard]] std::size_t global_riemann_fallback_count() const;
+    [[nodiscard]] RobustnessDiagnostics global_robustness_diagnostics() const;
 
 private:
+    void compute_residuals_impl(
+        Real stage_time,
+        int rk_stage,
+        const BlockFaceRobustnessMap* robustness_levels);
+
     const MpiRuntime& mpi_;
     LocalBlockSet& local_blocks_;
     const StructuredMesh& global_mesh_;
@@ -75,9 +81,12 @@ private:
     SourceTermRegistry source_registry_;
     TransportModel transport_;
     RiemannSolver riemann_ {};
+    RiemannSolver robust_riemann_ {};
+    RobustnessLadder robustness_ladder_ {};
     std::uint64_t version_ = 0;
     ReconstructionDiagnostics reconstruction_diagnostics_ {};
     RiemannDiagnostics riemann_diagnostics_ {};
+    RobustnessDiagnostics robustness_diagnostics_ {};
 };
 
 } // namespace wcns

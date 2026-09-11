@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("re20", "re40", "re100", "re200", "mach5-euler")]
+    [ValidateSet("re20", "re40", "re100", "re200", "mach5-euler", "mach5-robust")]
     [string]$Case,
     [string]$BuildDirectory = "build-rc-serial",
     [int]$Ranks = 1,
@@ -17,6 +17,7 @@ $Configurations = @{
     "re100" = "cylinder_re100.wcns"
     "re200" = "cylinder_re200.wcns"
     "mach5-euler" = "cylinder_mach5_euler.wcns"
+    "mach5-robust" = "cylinder_mach5_robust.wcns"
 }
 $Configuration = (Resolve-Path (
     Join-Path $PSScriptRoot "..\configs\$($Configurations[$Case])"

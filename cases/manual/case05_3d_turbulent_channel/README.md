@@ -1,4 +1,4 @@
-# case05：\(Re_\tau=180\) 三维周期湍流槽道（Linux 迁移前可行性卡口）
+# case05：\(Re_\tau=180\)、\(Ma_{b,0}=0.1\) 三维周期湍流槽道
 
 本目录配置一个由定常体积力驱动的三维可压缩周期槽道：
 
@@ -7,9 +7,9 @@
 (N_x,N_y,N_z)=(36,48,36),\qquad Re_\tau=180.
 \]
 
-当前阶段只回答“该算例能否被读入、分区、并行推进五步并生成完整输出”。
-它**不是已达统计定常的湍流计算，也不构成 DNS 精度验收**。在 Linux
-服务器长算之前，必须先通过本次人工审阅。
+当前参考配置以初始体积平均流向速度 \(U_{b,0}\) 为速度尺度，构造真正的低体积平均
+Mach 数槽道。五步卡口只回答“该算例能否被读入、分区、并行推进并生成完整输出”；
+它**不是已达统计定常的湍流计算，也不构成 DNS 精度验收**。
 
 ## 1. 目录内容
 
@@ -20,94 +20,91 @@
 | `validate_case05.py` | 检查统计列、五步终止、壁面统计正性与初始 \(Re_\tau\) |
 | `grids/*.cgns` | 2×2 原生 zone 的 x/z 双周期、y 向壁面加密 CGNS 网格 |
 | `logs/` | 网格生成、dry-run 和真实短算的标准输出 |
-| `results/feasibility-r4/` | 初/终场、终止检查点、history、statistics 和 manifest |
+| `results/lowmach-feasibility-r4/` | 低马赫初/终场、终止检查点、history、statistics 和 manifest |
 | `validation/` | 终场有限性及槽道统计检查结果 |
 
 ## 2. 物理量、无量纲化与 \(Re_\tau\)
 
-按本次订正，取槽道半高 \(h\)、摩擦速度 \(u_\tau\) 和参考密度作基本尺度：
+速度尺度改为初始速度型的连续体积平均值 \(U_{b,0}\)：
 
 \[
-L_{ref}=h=1,\qquad U_{ref}=u_\tau=1,\qquad
+L_{ref}=h=1,\qquad U_{ref}=U_{b,0}=1,\qquad
 \rho_{ref}=1,\qquad T_{ref}=71.42857142857143.
 \]
 
-摩擦速度、摩擦雷诺数和速度壁面单位定义为
+摩擦速度、摩擦 Reynolds 数和壁面单位仍定义为
 
 \[
 u_\tau=\sqrt{\frac{|\bar\tau_w|}{\rho_w}},\qquad
-Re_\tau=\frac{\rho_w u_\tau h}{\mu_w},\qquad
+Re_\tau=\frac{\rho_wu_\tau h}{\mu_w},\qquad
 U_b^+=\frac{U_b}{u_\tau}.
 \]
 
-因为速度尺度已经是 \(u_\tau\)，程序从参考量导出的 Reynolds 数就是目标摩擦
-Reynolds 数：
+当前 Reichardt 类初始速度型的连续积分给出
+\(U_b^+=15.481978793165828\)。因此在新的无量纲体系中
 
 \[
-Re_{ref}=\frac{\rho_{ref}u_\tau h}{\mu_{ref}}=Re_\tau=180,
-\qquad \mu_{ref}=\frac1{180}=0.005555555555555556.
+U_{b,0}^*=1,\qquad
+u_{\tau,0}^*=\frac{1}{U_b^+}=0.0645912265712073.
 \]
 
-初始速度型积分仍给出 \(U_b^+=U_b/u_\tau=15.481978793165828\)，所以配置中的
-无量纲体积平均速度是 \(U_b^+\)，不再是 1。以半高和体积平均速度定义的另一个 Reynolds
-数可以从它导出：
+为保持 \(Re_\tau=180\)，以半高和体积平均速度定义的参考 Reynolds 数必须是
 
 \[
-Re_b^{(h)}=\frac{\rho_bU_bh}{\mu_b}
-\simeq U_b^+Re_\tau=2786.756182769849.
+Re_b^{(h)}=U_b^+Re_\tau=2786.756182769849,
+\qquad
+\mu_{ref}=\frac{\rho_{ref}U_{b,0}h}{Re_b^{(h)}}
+=0.0003588401476178181.
 \]
 
-请注意不同文献可能以全高 \(2h\) 定义体系雷诺数；那个数是本文的两倍，
-即 5573.512365539698。配置和程序全程使用半高定义，不应在中途换约定。
-
-平均壁面距离和速度的黏性无量纲量为
+若文献用全高 \(2h\) 定义体系 Reynolds 数，则对应值为 5573.512365539698；
+本配置和程序日志使用半高定义。平均壁面距离及速度的黏性无量纲量为
 
 \[
-y_w=h-|y|,\qquad y^+=\frac{\rho_wu_\tau y_w}{\mu_w}
-\simeq Re_\tau\frac{y_w}{h},\qquad u^+=\frac{\bar u}{u_\tau}.
+y_w=h-|y|,\qquad
+y^+=\frac{\rho_wu_\tau y_w}{\mu_w}
+\simeq Re_\tau\frac{y_w}{h},\qquad
+u^+=\frac{\bar u}{u_\tau}.
 \]
 
-这里最后一个等号只在初始常密度、常黏度设定下成立。后续长算分析应使用
-程序实测的 \(\rho_w,\mu_w,u_\tau\)，不应永远把 180 代入横坐标。
+最后一个近似只适用于初始常密度、常黏度状态；长算后处理应使用瞬时或时间平均的
+\(\rho_w,\mu_w,u_\tau\)。
 
-本次订正要求程序日志中的参考马赫数为 0.1。配置取
+气体参数取
 
 \[
-R=1,\qquad \gamma=1.4,\qquad
-T_{ref}=71.42857142857143,\qquad U_{ref}=u_\tau=1,
+R=1,\qquad \gamma=1.4,
+\qquad T_{ref}=71.42857142857143,
 \]
 
-使
+从而
 
 \[
-c_{ref}=\sqrt{\gamma RT_{ref}}=10,\qquad
-Ma_{ref}=\frac{U_{ref}}{c_{ref}}=0.1.
+c_{ref}=\sqrt{\gamma RT_{ref}}=10U_{b,0},\qquad
+Ma_{b,0}=\frac{U_{b,0}}{c_{ref}}=0.1.
 \]
 
-启动日志因此应打印 `Re=180 Ma=0.1`。压力以 \(\rho_{ref}u_\tau^2\) 无量纲化，
-无量纲初始 \(\rho=T=1\) 对应
+程序从五个参考量导出的启动信息应是
+`Re=2786.7561827698491 Ma=0.1`。这里的 Mach 基准就是初始体积平均速度，
+不再需要乘 \(U_b^+\)。压力以 \(\rho_{ref}U_{b,0}^2\) 无量纲化；初始
+\(\rho=T=1\) 对应
 
 \[
-p=\frac{\rho T}{\gamma Ma_{ref}^2}=71.42857142857143.
+p=\frac{\rho T}{\gamma Ma_{b,0}^2}=71.42857142857143.
 \]
 
-**必须区分参考马赫数与体积平均马赫数。**因 \(U_b/U_{ref}=U_b^+\)，当前设定导致
-
-\[
-Ma_b=\frac{U_b}{c_{ref}}=U_b^+Ma_{ref}=1.548197879316583,
-\]
-
-所以它不是通常意义上“体积平均 Ma=0.1”的低速经典槽道。实测五步终场最大局部
-Mach 约为 1.914。如果物理目标其实是 \(Ma_b=0.1\)，在保持 \(U_{ref}=u_\tau,R=1\) 时应改为
-\(Ma_{ref}=0.1/U_b^+=0.0064591226571\)、\(T_{ref}\simeq17120.83338\)，或重新改回以 \(U_b\)
-为速度尺度。本次按批示保留 \(U_{ref}=u_\tau,Ma_{ref}=0.1\) 的组合，不自行替换物理目标。
+五步卡口的终场最大局部 Mach 为 0.123597353，证明初场及短时推进保持低马赫。
+当前求解器没有低 Mach 预处理，仍直接使用可压缩 HLLC；因此声学 CFL 会限制显式步长，
+而低 Mach 耗散误差需要在网格与算法研究中另行评估。
 
 ## 3. 定常体积力
 
 无量纲质量力加速度设为
 
 \[
-a_x^*=\frac{a_xh}{u_\tau^2}=1.
+a_x^*=\frac{a_xh}{U_{b,0}^2}
+=\left(\frac{u_\tau}{U_{b,0}}\right)^2
+=\frac{1}{(U_b^+)^2}=0.004172026549973031.
 \]
 
 因为 \(h=1\)，它与理想充分发展槽道的平均压力梯度平衡
@@ -206,8 +203,9 @@ u_m^+(s)=f(Re_\tau s)-\frac{C}{8}s^8,qquad
 \bar u_m=U_b\frac{u_m^+}{U_b^+}.
 \]
 
-`bulk_velocity_plus=15.481978793165828` 是对这个修正型的连续半槽积分值。离散网格初始
-体平均速度为 15.4871222867，与连续目标 15.4819787932 的差别是稀疏网格离散积分误差。
+`bulk_velocity_plus=15.481978793165828` 是该修正型的连续半槽积分值；
+`bulk_velocity=1` 把速度型按初始体积平均速度归一化。稀疏网格上的离散初始截面平均速度为
+1.00033222456，与连续目标 1 的差别是离散积分误差。
 
 记 \(\theta_x=2\pi x/L_x\)、\(\theta_z=2\pi z/L_z\)、
 \(A=0.05U_b(1-\hat y^2)^2\)，则扰动为
@@ -270,13 +268,15 @@ run.max_wall_time = 0
 服务器长算前至少要复制配置到新文件、使用新输出目录，并同时改大：
 
 ```text
-run.max_steps = 5000000
+run.max_steps = 6000000
 run.t_end = 500
 run.max_wall_time = <略小于作业墙钟上限的秒数>
 ```
 
-这三个数字只是配置示例，不是已证明足以统计收敛的终值。非定常计算的物理目标是
-`t_end`；`max_steps` 是异常保护；`max_wall_time>0` 会在墙钟到限前写 checkpoint 并安全返回 2。
+新体系中 `t_end` 的单位是 \(h/U_{b,0}\)。`t_end=500` 相当于约 79.6 个长度为
+\(2\pi h\) 的流向计算域穿越时间，但是否足以完成过渡和统计收敛仍须由时序判断。
+非定常计算的数值目标是 `t_end`；`max_steps` 是异常保护；`max_wall_time>0` 会在墙钟
+到限前写 checkpoint 并安全返回 2。
 长算不能改成 `steady`：槽道湍流瞬时场本身不会收敛到定常解。
 
 ### 7.4 流场、history、statistics 和 checkpoint 间隔
@@ -333,9 +333,9 @@ output.statistics.yz_planes.target_x_coordinates = 0.0,3.141592653589793
 x 向质量流量，不再是旧 x-z 壁平行积分指标。无量纲输出时，后者的量纲尺度是
 \(\rho_{ref}U_{ref}L_{ref}^2\)。
 
-当前短测初始两截面质量流量分别为 97.31403751990630 和
-97.31403751990624，周期初场一致到浮点精度。五步后分别为 97.31386368944678 和
-97.31386329908302；小差异来自非定常瞬时场在不同 x 截面的局部演化。
+当前短测初始两截面质量流量分别为 6.285633046007235 和
+6.285633046007226，周期初场一致到浮点精度。五步后分别为 6.285632018544822 和
+6.285632018207584；小差异来自非定常瞬时场在不同 x 截面的局部演化。
 
 ### 8.2 两面壁摩擦
 
@@ -382,7 +382,7 @@ python cases\manual\case05_3d_turbulent_channel\run_case05.py --clean --ranks 4
 若还要复核报告中的终场最大局部 Mach，在根目录执行：
 
 ```powershell
-build-rc-mpi\wcns_validate_release_case.exe nonzero cases\manual\case05_3d_turbulent_channel\results\feasibility-r4\case05-channel-retau180-feasibility.field.step00000005.time4p727996516eM04.cgns Mach 0
+build-rc-mpi\wcns_validate_release_case.exe nonzero cases\manual\case05_3d_turbulent_channel\results\lowmach-feasibility-r4\case05-channel-retau180-mab0p1-feasibility.field.step00000005.time5p983889017eM04.cgns Mach 0
 ```
 
 这里 `nonzero ... Mach 0` 会遍历 CGNS 中的 `Mach` 场并打印 `max_abs`；阈值 0 仅要求该场
@@ -404,32 +404,16 @@ python cases\manual\case05_3d_turbulent_channel\run_case05.py --dry-run-only --r
 Windows 找不到 `mpiexec` 时，用 `--mpi-exec` 指定启动器。已归档配置的输出目录固定含 `r4`，
 因而录制验收只允许 `--ranks 4`；其他 rank 数需复制配置并使用新目录。
 
-## 10. Linux 迁移预检流程（本阶段不执行长算）
+## 10. Linux 迁移预检流程
 
-审阅通过后，在 Linux 服务器上首先只做构建、单元测试和同样的 5 步卡口：
+本目录的 [Linux 操作手册](LINUX_SERVER_GUIDE.md) 给出两条受支持路径：把新的最小源码包
+作为独立 revision 并存部署，或在已有完整 Git 克隆中更新到包含本次低马赫配置的提交。
+不得直接覆盖旧运行目录，也不得把旧高体积平均 Mach 算例的 checkpoint 用于本算例。
 
-```bash
-git clone https://github.com/wylx-2/wcns_v3.git
-cd wcns_v3/wcns
-git checkout stage/release
-cmake -S . -B build-linux-mpi -DCMAKE_BUILD_TYPE=Release -DWCNS_ENABLE_MPI=ON
-cmake --build build-linux-mpi --parallel 8
-ctest --test-dir build-linux-mpi --output-on-failure
-python3 cases/manual/case05_3d_turbulent_channel/run_case05.py \
-  --clean --ranks 4 \
-  --run build-linux-mpi/wcns_run \
-  --generator build-linux-mpi/wcns_generate_release_cgns \
-  --validator build-linux-mpi/wcns_validate_release_case \
-  --mpi-exec mpiexec
-```
-
-注意 `run_case05.py` 会先把传入路径解析成绝对路径，上述命令应在 `wcns` 根目录
-执行。若集群使用 Slurm，请将 MPI 启动器换成管理员支持的 `srun`/`mpiexec`，并先用
-一个短作业确认 MPI 与编译器 ABI、CGNS 读写、节点间共享文件系统、栈大小和返回码行为。
-不要把 Windows 下的 `.exe`、CMake cache 或构建目录复制到 Linux；只迁移 Git 追踪的源码与算例资产。
-
-短卡口通过后再从本配置复制出专用长算配置，改变输出目录、时间上限、步数上限、
-墙钟上限和输出间隔，但先不改物理、网格、算法和扰动，以便进行跨平台对照。
+服务器更新后必须重新配置/编译到新的构建目录，运行 4-rank 五步卡口，并确认日志显示
+`Re=2786.7561827698491 Ma=0.1`。短卡口通过后再对计划使用的 rank 数执行长算配置
+`--dry-run`。只有上述两级检查均通过，才可用新的 `case.name` 与
+`results/lowmach-longrun-segment01` 启动正式作业。
 
 ## 11. 当前实际可行性结果
 
@@ -438,21 +422,23 @@ python3 cases/manual/case05_3d_turbulent_channel/run_case05.py \
 | 项目 | 结果 |
 |---|---:|
 | 终止原因 | `maximum_steps`（预期的安全短测停止） |
-| 终止步数/时间 | 5 / 0.0004727996515916612 |
-| 每步 dt | 约 0.00009456 |
+| 参考 \(Re_b^{(h)}\) / \(Ma_{b,0}\) | 2786.756182769849 / 0.1 |
+| 终止步数/时间 | 5 / 0.0005983889016706649 |
+| 每步 dt | 约 0.000119678 |
 | 重构/Riemann 回退 | 0 / 0（所有五步） |
-| 终场最小 \(\rho\) | 0.9969360990527756 |
-| 终场最小 \(p\) | 71.12238987088477 |
-| 终场最小 \(T\) | 0.9987736015763192 |
-| 终场最大局部 Mach | 1.913982395650608 |
-| 初始/终止实测 \(Re_\tau\) | 177.9758103 / 178.7424517 |
-| 初始/终止平均 \(|\tau_w|\) | 0.9776354646 / 0.9856895927 |
-| 初始 y-z 截面流量（0/1） | 97.31403751990630 / 97.31403751990624 |
-| 终止 y-z 截面流量（0/1） | 97.31386368944678 / 97.31386329908302 |
+| 终场最小 \(\rho\) | 0.9997496009954910 |
+| 终场最小 \(p\) | 71.40353281853001 |
+| 终场最小 \(T\) | 0.9998998333823077 |
+| 终场最大局部 Mach | 0.1235973529524591 |
+| 初始/终止实测 \(Re_\tau\) | 177.9758103 / 178.0403808 |
+| 初始/终止平均 \(|\tau_w|\) | 0.0040787211 / 0.0040816806 |
+| 初始 y-z 截面流量（0/1） | 6.285633046007235 / 6.285633046007226 |
+| 终止 y-z 截面流量（0/1） | 6.285632018544822 / 6.285632018207584 |
 | 初始/终止总质量 | 39.4784176043553 / 39.4784176043563 |
 
 初始离散实测 \(Re_\tau\) 比设计值低约 1.12%，来自稀疏壁法向网格上的单边导数离散。
-下/上壁初值分别为 0.9776354646456509 和 0.9776354646456257，对称性达到浮点精度。
+下/上壁初值分别为 0.004078721114696877 和 0.004078721114696770，
+对称性达到浮点精度。
 
 这些数据支持如下结论：CGNS 周期多块网格、三维槽道初场、两面等温壁、常体积力、
 粘性 WCNS、4-rank 通信、两个 y-z 截面流量/平均速度统计、壁摩擦统计、CGNS 场/检查点输出在短时推进中可用。
@@ -490,7 +476,7 @@ python3 cases/manual/case05_3d_turbulent_channel/run_case05.py \
 请在批准 Linux 迁移/长算前至少检查：
 
 - 物理域、网格数、4 个 zone、x/z 周期和 y 双等温壁是否与要求一致；
-- \(Re_\tau\)--\(Re_b^{(h)}\)--\(U_b^+\)--常体积力推导是否接受；
+- 以 \(U_{b,0}\) 为参考速度的 \(Re_\tau\)--\(Re_b^{(h)}\)--\(U_b^+\)--常体积力推导是否接受；
 - 重新设计的低模态、壁面衰减扰动是否符合预期；
 - 是否接受当前为定体积力而非恒流量闭环驱动；
 - 是否接受 y-z 采样面按目标正 x 侧最近单元中心选取；

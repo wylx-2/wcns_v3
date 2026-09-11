@@ -59,9 +59,17 @@ mpiexec -n 4 build-mpi\wcns_run.exe --config examples\freestream.wcns
 | `algorithm.reconstruction` | `weno_js`、`weno_z`、`mdcd_linear`、`mdcd_hybrid` |
 | `algorithm.reconstruction_variables` | `conservative`、`primitive`、`characteristic` |
 | `algorithm.riemann` | `rusanov`、`hllc`、`roe` |
+| `robustness.enabled` | 默认 `false`；开启 SSPRK 候选物理容许性检查和局部逐面降阶 |
+| `robustness.max_local_recomputations` | 每个 RK 阶段最大局部重算轮数，默认 `3` |
+| `robustness.max_step_retries` | 最大整步缩步重试数，默认 `4` |
+| `robustness.time_step_reduction` | 缩步因子，必须在 `(0,1)`，默认 `0.5` |
+| `robustness.minimum_time_step` | 允许的最小时间步，默认 `1e-12` |
 
 低 Mach 预处理尚未实现，配置中不存在可误开启的不完整预处理键。无粘界面通量只走所选
-Riemann 求解器；发生非法中间状态时按冻结的确定性回退链处理并计数。
+Riemann 求解器；发生非法中间状态时按冻结的确定性回退链处理并计数。稳健化开启后按
+“原方案、同重构 primitive、linear5/primitive、zero_order/conservative+Rusanov”的有效去重
+梯子升级真实残差直接支持及一层转置支持保护面；候选始终在独立缓冲区验证，失败整步不推进时间。详细数学定义见
+[`../算法补充.md`](../算法补充.md) 11.2.3。
 
 ### 2.2 气体和参考量
 
@@ -214,8 +222,9 @@ FlowSolution；Tecplot ASCII 按原 zone 写 cell-center ordered zone。支持�
 ### 5.2 残差历史、统计和 manifest
 
 `output.history.format = txt | tecplot`。历史列固定，包含 step/time/dt/CFL/wall time、总残差、
-五分量 `L2/Linf`、冻结参考值、归一化值、连续通过次数、重构/Riemann 回退、是否进行残差
-检查和停止原因。固定 schema 不接受 `output.history.quantities`；TXT 直接写停止原因字符串，
+五分量 `L2/Linf`、冻结参考值、归一化值、连续通过次数、重构/Riemann 回退、稳健化各级
+owner 面数、troubled-cell/局部重算/整步 retry、proposed/accepted dt、候选最小 `rho/p/T/e`、
+是否进行残差检查和停止原因。固定 schema 不接受 `output.history.quantities`；TXT 直接写停止原因字符串，
 Tecplot 写数值 `stop_reason_code` 并在 `AUXDATA STOP_REASON_CODES` 中给出映射。
 
 `output.statistics.format = txt | tecplot`。当前内建可选量为 `total_mass`、

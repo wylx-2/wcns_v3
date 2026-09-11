@@ -1,14 +1,14 @@
 {
   "status": "short_feasibility_passed_not_turbulence_accepted",
-  "statistics_file": "results/feasibility-r4/case05-channel-retau180-feasibility.statistics.r4.txt",
-  "initial_re_tau": 177.97581030723987,
-  "final_re_tau": 178.74245165516868,
-  "initial_wall_shear": 0.9776354646456383,
-  "final_wall_shear": 0.9856895926796474,
-  "initial_yz_mass_flow_plane0": 97.3140375199063,
-  "initial_yz_mass_flow_plane1": 97.31403751990624,
-  "final_yz_mass_flow_plane0": 97.31386368944678,
-  "final_yz_mass_flow_plane1": 97.31386329908302,
+  "statistics_file": "results/lowmach-feasibility-r4/case05-channel-retau180-mab0p1-feasibility.statistics.r4.txt",
+  "initial_re_tau": 177.97581030723984,
+  "final_re_tau": 178.04038076215522,
+  "initial_wall_shear": 0.004078721114696823,
+  "final_wall_shear": 0.004081680570613545,
+  "initial_yz_mass_flow_plane0": 6.285633046007235,
+  "initial_yz_mass_flow_plane1": 6.285633046007226,
+  "final_yz_mass_flow_plane0": 6.285632018544822,
+  "final_yz_mass_flow_plane1": 6.285632018207584,
   "final_step": 5,
-  "final_time": 0.00047279965159166115
+  "final_time": 0.0005983889016706649
 }

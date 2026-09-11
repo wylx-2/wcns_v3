@@ -235,6 +235,9 @@ const std::set<std::string>& fixed_keys()
         "algorithm.reconstruction_variables", "algorithm.riemann",
         "algorithm.flux_difference",
         "algorithm.mdcd.disp", "algorithm.mdcd.diss",
+        "robustness.enabled", "robustness.max_local_recomputations",
+        "robustness.max_step_retries", "robustness.time_step_reduction",
+        "robustness.minimum_time_step",
         "gas.gamma", "gas.molar_mass", "gas.specific_gas_constant",
         "reference.velocity", "reference.density", "reference.temperature",
         "reference.length", "reference.viscosity",
@@ -1027,6 +1030,34 @@ CaseConfig CaseConfig::from_text(const std::string& text)
         entries, "algorithm.mdcd.diss",
         result.reconstruction.nonlinear.mdcd_dissipation);
     result.riemann.scheme = require(entries, "algorithm.riemann");
+    result.robustness.enabled = optional_bool(
+        entries, "robustness.enabled", result.robustness.enabled);
+    if (const auto iterator = entries.find("robustness.max_local_recomputations");
+        iterator != entries.end()) {
+        const auto value = parse_integer(iterator->second, iterator->first);
+        if (value < std::numeric_limits<int>::min()
+            || value > std::numeric_limits<int>::max()) {
+            throw CaseConfigurationError(
+                "robustness max_local_recomputations exceeds int range");
+        }
+        result.robustness.max_local_recomputations = static_cast<int>(value);
+    }
+    if (const auto iterator = entries.find("robustness.max_step_retries");
+        iterator != entries.end()) {
+        const auto value = parse_integer(iterator->second, iterator->first);
+        if (value < std::numeric_limits<int>::min()
+            || value > std::numeric_limits<int>::max()) {
+            throw CaseConfigurationError(
+                "robustness max_step_retries exceeds int range");
+        }
+        result.robustness.max_step_retries = static_cast<int>(value);
+    }
+    result.robustness.time_step_reduction = optional_real(
+        entries, "robustness.time_step_reduction",
+        result.robustness.time_step_reduction);
+    result.robustness.minimum_time_step = optional_real(
+        entries, "robustness.minimum_time_step",
+        result.robustness.minimum_time_step);
 
     result.gas.gamma = parse_real(require(entries, "gas.gamma"), "gas.gamma");
     if (const auto iterator = entries.find("gas.molar_mass"); iterator != entries.end()) {
@@ -1377,6 +1408,7 @@ InviscidWcnsConfig CaseConfig::make_inviscid_config() const
     result.riemann = riemann;
     result.flux_difference = flux_difference;
     result.source_terms = source_terms;
+    result.robustness = robustness;
     return result;
 }
 
@@ -1396,6 +1428,7 @@ std::string CaseConfig::summary() const
            << ",mesh=" << mesh_path << ",profile=" << make_profile().name()
            << ",flux_difference=" << flux_difference_mode_name(flux_difference)
            << "," << reconstruction.summary() << ',' << riemann.summary()
+           << ',' << robustness.summary()
            << ',' << gas_model.summary() << ',' << reference_scales.summary()
            << ',' << partition.summary() << ',' << initial.summary()
            << ",boundary.default=" << boundary_type_name(default_boundary);
@@ -1426,7 +1459,8 @@ std::string CaseConfig::restart_signature() const
            << make_profile().restart_signature() << ";flux_difference="
            << flux_difference_mode_name(flux_difference) << ";reconstruction="
            << reconstruction.restart_signature() << ";riemann="
-           << riemann.restart_signature() << ";gas="
+           << riemann.restart_signature() << ";robustness="
+           << robustness.restart_signature() << ";gas="
            << make_gas_model().restart_signature() << ";reference="
            << make_reference_scales(make_gas_model()).restart_signature()
            << ";boundary.default=" << boundary_type_name(default_boundary);

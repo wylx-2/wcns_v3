@@ -166,6 +166,10 @@ ViscousWcnsSolver::ViscousWcnsSolver(
     riemann_ = RiemannSolver(
         config_.inviscid.riemann.scheme, riemann_registry,
         config_.inviscid.riemann.parameters);
+    robust_riemann_ = RiemannSolver(
+        "rusanov", riemann_registry, config_.inviscid.riemann.parameters);
+    robustness_ladder_ = RobustnessLadder::build(
+        config_.inviscid.reconstruction, config_.inviscid.riemann);
     floors_.validate();
     if (!same_floors(config_.inviscid.reconstruction.floors, floors_)) {
         throw std::invalid_argument(
@@ -187,6 +191,14 @@ ViscousWcnsSolver::ViscousWcnsSolver(
 }
 
 void ViscousWcnsSolver::compute_residuals(Real stage_time, int rk_stage)
+{
+    compute_residuals_impl(stage_time, rk_stage, nullptr);
+}
+
+void ViscousWcnsSolver::compute_residuals_impl(
+    Real stage_time,
+    int rk_stage,
+    const BlockFaceRobustnessMap* robustness_levels)
 {
     if (!std::isfinite(stage_time)) {
         throw std::invalid_argument("viscous WCNS stage time must be finite");
@@ -234,7 +246,11 @@ void ViscousWcnsSolver::compute_residuals(Real stage_time, int rk_stage)
                 config_.inviscid.reconstruction, riemann_, gas_, reference_, floors_,
                 data, config_.inviscid.boundary, version_,
                 reconstruction_diagnostics_, &riemann_diagnostics_, rk_stage,
-                stage_time)));
+                stage_time,
+                robustness_levels == nullptr
+                    ? nullptr : &robustness_levels->at(block.id()),
+                robustness_levels == nullptr ? nullptr : &robustness_ladder_,
+                robustness_levels == nullptr ? nullptr : &robust_riemann_)));
         if (!inserted_inviscid) throw std::logic_error("duplicate inviscid flux block");
         inviscid_registry.add(block.id(), inviscid->second);
 
@@ -300,18 +316,36 @@ void ViscousWcnsSolver::compute_residuals(Real stage_time, int rk_stage)
     }
 }
 
-void ViscousWcnsSolver::advance(Real time_step, Real initial_time)
+Real ViscousWcnsSolver::advance(Real time_step, Real initial_time)
 {
     std::vector<StructuredBlock*> blocks;
     for (auto& block : local_blocks_.blocks()) blocks.push_back(&block);
-    int rk_stage = 0;
-    advance_ssprk3(blocks, time_step, initial_time,
-        [this, &rk_stage](Real stage_time) {
-            compute_residuals(stage_time, ++rk_stage);
-        });
+    Real accepted_time_step = time_step;
+    if (!config_.inviscid.robustness.enabled) {
+        robustness_diagnostics_ = {};
+        robustness_diagnostics_.proposed_time_step = time_step;
+        robustness_diagnostics_.accepted_time_step = time_step;
+        int rk_stage = 0;
+        advance_ssprk3(blocks, time_step, initial_time,
+            [this, &rk_stage](Real stage_time) {
+                compute_residuals(stage_time, ++rk_stage);
+            });
+    } else {
+        accepted_time_step = advance_ssprk3_with_robustness(
+            mpi_, blocks, global_mesh_, profile_,
+            config_.inviscid.flux_difference, gas_, reference_, floors_,
+            config_.inviscid.robustness, robustness_ladder_, time_step,
+            initial_time,
+            [this](Real stage_time, int rk_stage,
+                   const BlockFaceRobustnessMap& levels) {
+                compute_residuals_impl(stage_time, rk_stage, &levels);
+            },
+            robustness_diagnostics_);
+    }
     for (auto& block : local_blocks_.blocks()) {
         update_temperature_primitive_interior(block, gas_, reference_, floors_);
     }
+    return accepted_time_step;
 }
 
 std::size_t ViscousWcnsSolver::global_reconstruction_fallback_count() const
@@ -332,6 +366,30 @@ std::size_t ViscousWcnsSolver::global_riemann_face_count() const
 {
     return global_diagnostic_count(
         mpi_, riemann_diagnostics_.total_faces, "viscous Riemann face count");
+}
+
+RobustnessDiagnostics ViscousWcnsSolver::global_robustness_diagnostics() const
+{
+    RobustnessDiagnostics result = robustness_diagnostics_;
+    for (std::size_t level = 0; level < result.face_levels.size(); ++level) {
+        result.face_levels[level] = global_diagnostic_count(
+            mpi_, robustness_diagnostics_.face_levels[level],
+            "viscous robustness face-level count");
+    }
+    result.troubled_cells = global_diagnostic_count(
+        mpi_, robustness_diagnostics_.troubled_cells,
+        "viscous robustness troubled-cell count");
+    result.local_recomputations = static_cast<std::size_t>(mpi_.max(
+        static_cast<Real>(robustness_diagnostics_.local_recomputations)));
+    result.step_retries = static_cast<std::size_t>(mpi_.max(
+        static_cast<Real>(robustness_diagnostics_.step_retries)));
+    result.minimum_density = mpi_.min(robustness_diagnostics_.minimum_density);
+    result.minimum_pressure = mpi_.min(robustness_diagnostics_.minimum_pressure);
+    result.minimum_temperature = mpi_.min(
+        robustness_diagnostics_.minimum_temperature);
+    result.minimum_internal_energy = mpi_.min(
+        robustness_diagnostics_.minimum_internal_energy);
+    return result;
 }
 
 Real ViscousWcnsSolver::global_time_step(Real cfl)

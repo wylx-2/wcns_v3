@@ -1,5 +1,7 @@
 #include <wcns/solver/inviscid_flux.hpp>
 
+#include <wcns/solver/robustness.hpp>
+
 #include <wcns/mesh/linear_operators.hpp>
 
 #include <algorithm>
@@ -244,29 +246,6 @@ bool non_owned_connection_face(
     return false;
 }
 
-Real centered_derivative(
-    const Field<Real>& flux,
-    Axis axis,
-    Index3 cell,
-    int component,
-    AlgorithmProfileKind profile)
-{
-    const auto value = [&](int face_offset) {
-        auto index = cell;
-        index[static_cast<std::size_t>(axis)] += face_offset;
-        const Real result = flux(index.i, index.j, index.k, component);
-        if (!std::isfinite(result)) {
-            throw PhysicsError("face-flux halo contains a non-finite value");
-        }
-        return result;
-    };
-    if (profile == AlgorithmProfileKind::PhengleiWcns) {
-        return (value(-1) - 27.0 * value(0) + 27.0 * value(1) - value(2)) / 24.0;
-    }
-    return (-9.0 * value(-2) + 125.0 * value(-1) - 2250.0 * value(0)
-        + 2250.0 * value(1) - 125.0 * value(2) + 9.0 * value(3)) / 1920.0;
-}
-
 #if WCNS_HAS_MPI
 int mpi_count(std::size_t count)
 {
@@ -287,6 +266,70 @@ const char* flux_difference_mode_name(FluxDifferenceMode mode)
         return "conservative_two_point";
     }
     throw std::invalid_argument("unknown flux-difference mode");
+}
+
+bool is_non_owned_connection_face(
+    const StructuredBlock& block,
+    Axis axis,
+    Index3 face)
+{
+    return non_owned_connection_face(block, axis, face);
+}
+
+StencilRow inviscid_residual_stencil(
+    const StructuredBlock& block,
+    const AlgorithmProfile& profile,
+    FluxDifferenceMode mode,
+    Axis axis,
+    Index3 cell)
+{
+    ProfileFactory::validate_bundle(profile.components());
+    const auto cells = block.cell_extent();
+    if (static_cast<int>(axis) >= block.cell_dimension()
+        || cell.i < 0 || cell.i >= cells.ni
+        || cell.j < 0 || cell.j >= cells.nj
+        || cell.k < 0 || cell.k >= cells.nk) {
+        throw std::out_of_range("inviscid residual stencil cell/axis is invalid");
+    }
+    const int normal = cell[static_cast<std::size_t>(axis)];
+    if (mode == FluxDifferenceMode::ConservativeTwoPoint) {
+        return {{normal, -1.0}, {normal + 1, 1.0}};
+    }
+    static_cast<void>(flux_difference_mode_name(mode));
+    const int count = cells[static_cast<std::size_t>(axis)];
+    Index3 lower_face = cell;
+    lower_face[static_cast<std::size_t>(axis)] = 0;
+    Index3 upper_face = cell;
+    upper_face[static_cast<std::size_t>(axis)] = count;
+    const bool lower_connection
+        = connection_covers(block, axis, Side::Lower, lower_face);
+    const bool upper_connection
+        = connection_covers(block, axis, Side::Upper, upper_face);
+    const int boundary_width
+        = profile.kind() == AlgorithmProfileKind::PhengleiWcns ? 1 : 2;
+    if ((lower_connection && normal < boundary_width)
+        || (upper_connection && normal >= count - boundary_width)) {
+        StencilRow result;
+        if (profile.kind() == AlgorithmProfileKind::PhengleiWcns) {
+            constexpr std::array<int, 4> offsets {{-1, 0, 1, 2}};
+            constexpr std::array<Real, 4> coefficients {{
+                1.0 / 24.0, -27.0 / 24.0, 27.0 / 24.0, -1.0 / 24.0}};
+            for (std::size_t index = 0; index < offsets.size(); ++index) {
+                result.emplace_back(normal + offsets[index], coefficients[index]);
+            }
+        } else {
+            constexpr std::array<int, 6> offsets {{-2, -1, 0, 1, 2, 3}};
+            constexpr std::array<Real, 6> coefficients {{
+                -9.0 / 1920.0, 125.0 / 1920.0, -2250.0 / 1920.0,
+                2250.0 / 1920.0, -125.0 / 1920.0, 9.0 / 1920.0}};
+            for (std::size_t index = 0; index < offsets.size(); ++index) {
+                result.emplace_back(normal + offsets[index], coefficients[index]);
+            }
+        }
+        return result;
+    }
+    return LineOperators::build(profile, count)
+        .derivative_rows()[static_cast<std::size_t>(normal)];
 }
 
 ConservativeState transform_inviscid_face_flux_for_receiver(
@@ -510,7 +553,10 @@ InviscidFaceFluxField compute_inviscid_face_fluxes(
     ReconstructionDiagnostics& diagnostics,
     RiemannDiagnostics* riemann_diagnostics,
     int rk_stage,
-    Real stage_time)
+    Real stage_time,
+    const FaceRobustnessField* robustness_levels,
+    const RobustnessLadder* robustness_ladder,
+    const RiemannSolver* robust_riemann)
 {
     ProfileFactory::validate_bundle(profile.components());
     if (metric.profile() != profile.kind()
@@ -519,6 +565,17 @@ InviscidFaceFluxField compute_inviscid_face_fluxes(
     }
     if (rk_stage < 0 || rk_stage > 3) {
         throw std::invalid_argument("inviscid flux RK stage must lie in [0,3]");
+    }
+    const bool robustness_enabled = robustness_levels != nullptr;
+    if (robustness_enabled != (robustness_ladder != nullptr)
+        || robustness_enabled != (robust_riemann != nullptr)) {
+        throw std::invalid_argument(
+            "inviscid flux robustness inputs must be supplied together");
+    }
+    if (robustness_enabled
+        && (robustness_levels->profile() != profile.kind()
+            || robustness_levels->dimension() != block.cell_dimension())) {
+        throw ProfileError("inviscid flux robustness field has a mismatched profile");
     }
     InviscidFaceFluxField result(
         block.cell_extent(), block.cell_dimension(), profile.kind(), version);
@@ -535,11 +592,21 @@ InviscidFaceFluxField compute_inviscid_face_fluxes(
                     if (non_owned_connection_face(block, axis, face)) continue;
                     const FaceDiagnosticLocation diagnostic_location {
                         block.id(), block.owner_rank(), axis, face, version, rk_stage};
+                    const int robustness_level = robustness_enabled
+                        ? robustness_levels->level(axis, face) : 0;
+                    const auto* face_reconstruction = &reconstruction;
+                    const auto* face_riemann = &riemann;
+                    if (robustness_enabled) {
+                        const auto& strategy
+                            = robustness_ladder->strategy(robustness_level);
+                        face_reconstruction = &strategy.reconstruction;
+                        if (strategy.force_rusanov) face_riemann = robust_riemann;
+                    }
                     Real area = 0.0;
                     const auto normal = unit_normal(faces, face, area);
                     auto states = reconstruct_thermodynamic_face(
                         block.flow.conservative, block.flow.primitive,
-                        axis, face, reconstruction, gas, reference,
+                        axis, face, *face_reconstruction, gas, reference,
                         diagnostics, block.cell_dimension(), normal,
                         diagnostic_location);
                     if (const auto* patch = physical_patch(block, axis, face)) {
@@ -567,7 +634,8 @@ InviscidFaceFluxField compute_inviscid_face_fluxes(
                         }
                     }
                     const auto numerical
-                        = riemann.solve(states.left, states.right, normal, gas, floors);
+                        = face_riemann->solve(
+                            states.left, states.right, normal, gas, floors);
                     if (riemann_diagnostics != nullptr) {
                         riemann_diagnostics->record(numerical, diagnostic_location);
                     }
@@ -602,7 +670,6 @@ void compute_wcns_inviscid_residual(
     const auto cells = block.cell_extent();
     static_cast<void>(flux_difference_mode_name(mode));
     const auto accumulate_axis = [&](Axis axis) {
-        const int count = cells[static_cast<std::size_t>(axis)];
         const auto& values = flux.field(axis);
         if (mode == FluxDifferenceMode::ConservativeTwoPoint) {
             for (int k = 0; k < cells.nk; ++k) {
@@ -638,37 +705,19 @@ void compute_wcns_inviscid_residual(
             return;
         }
 
-        const auto operators = LineOperators::build(profile, count);
         for (int k = 0; k < cells.nk; ++k) {
             for (int j = 0; j < cells.nj; ++j) {
                 for (int i = 0; i < cells.ni; ++i) {
                     const Index3 cell {i, j, k};
-                    const int normal = cell[static_cast<std::size_t>(axis)];
-                    Index3 lower_face = cell;
-                    lower_face[static_cast<std::size_t>(axis)] = 0;
-                    Index3 upper_face = cell;
-                    upper_face[static_cast<std::size_t>(axis)] = count;
-                    const bool lower_connection
-                        = connection_covers(block, axis, Side::Lower, lower_face);
-                    const bool upper_connection
-                        = connection_covers(block, axis, Side::Upper, upper_face);
+                    const auto row = inviscid_residual_stencil(
+                        block, profile, mode, axis, cell);
                     for (int component = 0; component < euler_components; ++component) {
                         Real derivative = 0.0;
-                        const int boundary_width
-                            = profile.kind() == AlgorithmProfileKind::PhengleiWcns ? 1 : 2;
-                        if ((lower_connection && normal < boundary_width)
-                            || (upper_connection && normal >= count - boundary_width)) {
-                            derivative = centered_derivative(
-                                values, axis, cell, component, profile.kind());
-                        } else {
-                            const auto& row = operators.derivative_rows()[
-                                static_cast<std::size_t>(normal)];
-                            for (const auto [face_index, coefficient] : row) {
-                                auto face = cell;
-                                face[static_cast<std::size_t>(axis)] = face_index;
-                                derivative += coefficient
-                                    * values(face.i, face.j, face.k, component);
-                            }
+                        for (const auto [face_index, coefficient] : row) {
+                            auto face = cell;
+                            face[static_cast<std::size_t>(axis)] = face_index;
+                            derivative += coefficient
+                                * values(face.i, face.j, face.k, component);
                         }
                         const Real jacobian = metric.jacobian()(i, j, k);
                         if (!std::isfinite(derivative) || !std::isfinite(jacobian)

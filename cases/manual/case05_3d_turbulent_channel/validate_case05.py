@@ -53,6 +53,17 @@ def main() -> int:
         raise RuntimeError(
             f"initial measured Re_tau is inconsistent with the target: "
             f"{initial['channel_re_tau']}")
+    for plane in (0, 1):
+        mean_name = f"yz_mean_u_plane{plane}"
+        if not 0.99 <= initial[mean_name] <= 1.01:
+            raise RuntimeError(
+                f"initial y-z mean velocity is not scaled by U_b,0: "
+                f"{mean_name}={initial[mean_name]}")
+        flow_name = f"yz_mass_flow_x_plane{plane}"
+        if abs(initial[flow_name] - 2.0 * math.pi) > 0.01:
+            raise RuntimeError(
+                f"initial y-z mass flow is inconsistent with unit bulk velocity: "
+                f"{flow_name}={initial[flow_name]}")
     for record in (initial, final):
         for name in (
             "yz_mean_u_plane0", "yz_mass_flow_x_plane0",

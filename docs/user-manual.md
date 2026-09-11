@@ -400,6 +400,35 @@ restart signature，修改后不能直接续算旧检查点。
 
 `linear5` 主要供线性回退、光滑基线和算法测试使用；普通有激波计算不把它或 `zero_order` 当作高分辨率首选方案。
 
+### 8.2.1 SSPRK 事后稳健化（v1.1）
+
+```text
+robustness.enabled = true
+robustness.max_local_recomputations = 3
+robustness.max_step_retries = 4
+robustness.time_step_reduction = 0.5
+robustness.minimum_time_step = 1e-12
+```
+
+该功能默认关闭；关闭时继续使用 v1.0 的直接 SSPRK3 提交路径。开启后，每个 RK 子步先在独立
+缓冲区形成候选态，检查五个守恒分量有限，并检查 `rho/p/T` 不低于统一 `NumericalFloors`、
+比内能为正。候选不合法时不会夹断状态，也不会覆盖当前正式状态，而是把失败单元标记为
+troubled cell。
+
+程序先找出真实残差中能影响该单元的直接面通量，再增加一层转置离散支持保护：凡残差会
+读取这些直接面的真实单元，其完整面支持也并入本轮请求。对守恒两点差分，直接支持是相邻的
+`i`、`i+1` 两面，保护层自然形成一个单元宽的局部带；对 profile 差分则直接读取与残差计算
+相同的 `LineOperators` 行。连接附近还包含 PH 的
+`i-1...i+2` 或 SCMM6 的 `i-2...i+3` 连接 halo 支持。多块/MPI 情况下 receiver 把请求反向
+传播给共享面的唯一 owner，owner 对所有请求取最大级别并计算一份权威通量，再沿正常方向
+发布。完整原理、系数公式、伪代码与终止性说明见 [`../算法补充.md`](../算法补充.md) 11.2.3。
+
+有效降阶序列为“用户方案 → 同重构 primitive → `linear5/primitive` →
+`zero_order/conservative + Rusanov`”，相邻重复组合自动删除；每轮每面最多升一级，同一 RK
+阶段只升不降。超过局部重算上限后拒绝整步，从未修改的 `U^n` 恢复，并按
+`dt <- time_step_reduction * dt` 重试；只有接受的时间步才增加 step/time 和产生正常输出。
+五个配置键都会进入 restart signature，修改后不能直接续算旧检查点。
+
 MDCD 的两个线性谱控制参数已经暴露：
 
 ```text
@@ -606,7 +635,7 @@ initial.z0 = 0.0
 initial.period_x = 6.283185307179586
 initial.period_z = 3.141592653589793
 initial.re_tau = 180.0
-initial.bulk_velocity = 15.481978793165828
+initial.bulk_velocity = 1.0
 initial.bulk_velocity_plus = 15.481978793165828
 initial.perturbation_amplitude = 0.05
 initial.rho = 1.0
@@ -619,8 +648,10 @@ initial.temperature = 1.0
 `perturbation_amplitude` 只允许 `[0,0.5]`。修改壁律或参考尺度时必须重新计算
 `bulk_velocity_plus`、体系 Re 和驱动体积力。完整公式、稀疏网格限制和可执行示例见
 [`case05`](../cases/manual/case05_3d_turbulent_channel/README.md)。
-该 case 以 `U_ref=u_tau` 缩放，所以无量纲 `bulk_velocity=U_b^+`；若用其他速度尺度，
-必须相应修改这个值，不能照搬。
+case05 以初始体积平均速度 `U_ref=U_b,0` 缩放，所以无量纲
+`bulk_velocity=1`，而 `bulk_velocity_plus=U_b,0/u_tau` 仍为 15.4819787932。
+因此参考 Reynolds 数是 `Re_b^(h)=U_b^+*Re_tau`，体积力是
+`a_x*h/U_b,0^2=1/(U_b^+)^2`。若使用其他速度尺度，必须联动修改这些值，不能照搬。
 
 #### `linear_conduction`
 
@@ -833,7 +864,7 @@ output.history.write_final = true
 ```
 
 禁止设置 `output.history.quantities`；历史 schema 固定。文件名为`<case>.history.r<ranks>.txt|dat`。TXT 首行以 `#` 开头，依次包含：step、time、dt、CFL、
-wall time、总 L2、五分量 L2、参考 L2、归一化 L2、五分量 Linf、参考 Linf、归一化 Linf、连续通过次数、重构回退数、Riemann 回退数、本步是否检查残差、停止原因。初始行 `dt=0`；重启后的首行也不要当成本步时间步长。
+wall time、总 L2、五分量 L2、参考 L2、归一化 L2、五分量 Linf、参考 Linf、归一化 Linf、连续通过次数、重构回退数、Riemann 回退数、稳健化 level 0--3 owner 面数、troubled-cell 数、局部重算数、整步 retry 数、proposed/accepted dt、候选最小 `rho/p/T/e`、本步是否检查残差、停止原因。初始行 `dt=0`；重启后的首行也不要当成本步时间步长。稳健化关闭时级别计数和重试计数为零，尚无候选最小值时写 `nan`。
 
 ### 9.3 全场统计
 
@@ -899,7 +930,7 @@ my_case.checkpoint.latest.cgns
 
 ### 9.5 manifest 与临时文件
 
-正常进入最终化后，rank 0 写 `<case>.manifest.r<ranks>.txt`，其中包含程序版本、Git 提交、编译器、Release/Debug、MPI 数、配置/分区摘要、网格/重启签名、最终状态、停止原因和成功提交的文件列表。审查结果时先看 manifest，再看 history。
+正常进入最终化后，rank 0 写 `<case>.manifest.r<ranks>.txt`，其中包含程序版本、Git 提交、编译器、Release/Debug、MPI 数、配置/分区摘要、网格/重启签名、最终状态、停止原因、末个接受步的稳健化级别/重试/最小状态诊断和成功提交的文件列表。审查结果时先看 manifest，再看 history。
 
 输出先写 `.tmp`，关闭成功后改名。启动阶段异常可能没有 manifest；I/O 中断可能留下 `.tmp`，它只是诊断残留，不能当成有效结果。
 

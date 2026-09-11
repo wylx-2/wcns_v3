@@ -11,7 +11,7 @@
 
 包中没有其他算例、完整回归测试、历史计算结果、Windows 构建目录或通用开发文档。因此，
 服务器上的验收方式是“从源码编译 + 4-rank 五步卡口 + 目标 rank dry-run + 正式长算”，
-不是运行完整 CTest 矩阵。完整的 82 项回归已经在打包前的 Git 版本上通过。
+不是运行完整 CTest 矩阵。完整的 87 项 MPI Release 回归已经在打包前通过。
 
 本例网格为 36×48×36，计算域为
 
@@ -19,29 +19,30 @@
 [0,2\pi]\times[-1,1]\times[0,\pi],
 \]
 
-x/z 周期，y 两面为等温无滑移壁，流向由定常体积力驱动。它用于验证服务器迁移、
-并行运行、重启和统计链路；该网格不足以声明得到定量 DNS 结果。
+x/z 周期，y 两面为等温无滑移壁，流向由定常体积力驱动。参考速度是初始体积平均速度
+\(U_{b,0}\)，初始体积平均 Mach 数为 0.1。它用于验证服务器迁移、并行运行、重启和统计
+链路；该网格不足以声明得到定量 DNS 结果。
 
-### 必须理解的马赫数说明
+### 本次低马赫参考量变更
 
 当前配置按已审核约定取
 
 \[
-U_{ref}=u_\tau=1,\quad L_{ref}=h=1,\quad
+U_{ref}=U_{b,0}=1,\quad L_{ref}=h=1,\quad
 \rho_{ref}=1,\quad T_{ref}=71.42857142857143,\quad
-\mu_{ref}=1/180.
+\mu_{ref}=1/(180U_b^+)=0.0003588401476178181.
 \]
 
-在 \(\gamma=1.4,R=1\) 下，程序导出 \(Re_{ref}=180\)、\(Ma_{ref}=0.1\)。
-但初始 \(U_b^+=15.4819787932\)，所以体积平均马赫数约为
+其中 \(U_b^+=15.4819787932\)，所以
 
 \[
-Ma_b=U_b^+Ma_{ref}=1.5482.
+Re_b^{(h)}=U_b^+Re_\tau=2786.756182769849,
+\qquad Ma_{b,0}=0.1.
 \]
 
-不要把日志中的 **Ma=0.1** 解释成体积平均 Mach=0.1。打包配置保持已审核尺度；
-若以后要改成真正的低体积平均马赫数，应建立新算例并重新做数值稳定性与物理验收，
-不能在重启段中途改变参考量。
+程序启动日志必须显示 `Re=2786.7561827698491 Ma=0.1`。旧包采用
+\(U_{ref}=u_\tau\)，其日志虽同样显示 `Ma=0.1`，实际体积平均 Mach 约为 1.548；
+旧包、旧配置和旧 checkpoint 都不能作为本次低马赫算例的续算起点。
 
 ## 2. 包内目录及各文件用途
 
@@ -77,8 +78,9 @@ wcns-case05-linux-<revision>/
   此文件并把版本写进每次运行的 manifest。
 - **PACKAGE_CONTENTS.sha256**：包内所有有效载荷文件的校验值，不包含该清单自身。
 - **channel_retau180_feasibility.wcns**：固定 4-rank、5 步迁移卡口，不能当作长算配置。
-- **channel_retau180_longrun.wcns**：长算第 01 段模板，默认 \(t_{end}=500\)，最多
-  6,000,000 步，程序墙钟 23 h。按本地短测步长估算约需 529 万步，600 万是硬保护余量。
+- **channel_retau180_longrun.wcns**：低马赫长算第 01 段模板，默认 \(t_{end}=500\)，最多
+  6,000,000 步，程序墙钟 23 h。按本地五步卡口的初始步长粗估约需 418 万步；实际步长
+  会随流场变化，600 万只是硬保护余量，正式提交前必须用服务器实测复核。
 - **run_case05.py**：生成网格、执行 dry-run、推进五步并校验短算结果。
 - **validate_case05.py**：检查统计列、壁摩擦、实测 \(Re_\tau\) 和两个 y-z 截面流量。
 
@@ -101,6 +103,46 @@ scp .\dist\wcns-case05-linux-<revision>.tar.gz.sha256 user@login.example:/home/u
 
 如果单位使用 WinSCP、SFTP 网关或对象存储，也必须同时传输校验文件。不要传输
 build-rc-mpi、.exe、CMakeCache.txt 或 Windows 生成的结果目录。
+
+### 3.1 已有旧 Case05 服务器目录的升级方法
+
+旧目录可能已经包含高体积平均 Mach 配置、构建缓存和计算结果。按以下顺序处理：
+
+1. 如果旧作业仍在运行，先用调度器正常取消，使程序在完整时间步边界写 checkpoint；
+   记录作业号、停止原因和旧 revision。不要使用 `kill -9`。
+2. 将旧目录改成只读归档用途，保留其日志、manifest、statistics、field 和 checkpoint；
+   不要在其中直接覆盖配置，也不要删除旧结果来腾出同名目录。
+3. 把新的 `wcns-case05-linux-<new-revision>.tar.gz` 和校验文件上传到原 packages 目录，
+   校验后解压为新的并列目录。新包名中的 revision 必须不同于旧包。
+4. 在新目录中使用全新的 `build-linux-mpi`。CMake cache、目标文件和可执行程序都不能从
+   旧目录复制，因为参考量已进入 restart signature，源代码版本和 CGNS/MPI ABI 也可能变化。
+5. 在新目录重新执行 4-rank 五步卡口。新日志必须同时满足：
+
+~~~text
+case=case05-channel-retau180-mab0p1-feasibility
+derived Re=2786.7561827698491 Ma=0.1
+WCNS run stopped: reason=maximum_steps step=5
+~~~
+
+6. 新结果必须写入 `results/lowmach-*`。任何 `results/feasibility-r4`、
+   `results/longrun-segment*` 或旧 case 名均属于旧基准，不能与新结果拼接。
+7. **不得在新配置中设置旧 checkpoint 的 `restart.path`。**改变 `reference.viscosity`、
+   `initial.bulk_velocity` 和 `source.body.ax` 既改变无量纲状态定义，也改变物理问题；
+   本次必须从新的 `turbulent_channel` 初场冷启动。
+
+如果服务器上保存的是完整 Git 克隆而不是最小包，推荐保留原 checkout，并建立新 worktree：
+
+~~~bash
+cd /path/to/existing/wcns_v3
+git status --short
+git fetch origin
+git worktree add ../wcns-case05-lowmach <new-commit-or-tag>
+cd ../wcns-case05-lowmach
+~~~
+
+`git status --short` 非空时不得强制 reset；先归档或人工处理服务器本地改动。若不熟悉
+worktree，直接重新 clone 到新目录更安全。无论哪种路径，都必须从零配置构建目录并执行
+相同的卡口，不能只复制两份 `.wcns` 文件后继续使用旧二进制。
 
 ## 4. 第二步：登录服务器并检查硬件、空间和软件
 
@@ -258,7 +300,7 @@ python3 cases/manual/case05_3d_turbulent_channel/run_case05.py \
 成功末尾应出现：
 
 ~~~text
-derived Re=180 Ma=0.1
+derived Re=2786.7561827698491 Ma=0.1
 WCNS run stopped: reason=maximum_steps step=5
 case05 short feasibility validation completed; no turbulence acceptance claimed
 ~~~
@@ -275,7 +317,7 @@ tail -n 20 $CASE/logs/run-feasibility-r4.log
 cat $CASE/validation/final-field-finite.txt
 cat $CASE/validation/statistics-check.json
 grep -E '^(git_commit|mpi_ranks|step|time|stop_reason)=' \
-  $CASE/results/feasibility-r4/*.manifest.r4.txt
+  $CASE/results/lowmach-feasibility-r4/*.manifest.r4.txt
 ~~~
 
 manifest 中的 **git_commit** 必须等于 WCNS_SOURCE_REVISION。短测仅验证工程可运行性，
@@ -319,11 +361,11 @@ cases/manual/case05_3d_turbulent_channel/channel_retau180_longrun.wcns
 |---|---:|---|
 | gas.gamma | 1.4 | 比热比 |
 | gas.specific_gas_constant | 1.0 | 当前无量纲气体常数 |
-| reference.velocity | 1 | \(U_{ref}=u_\tau\) |
+| reference.velocity | 1 | \(U_{ref}=U_{b,0}\) |
 | reference.density | 1 | \(\rho_{ref}\) |
-| reference.temperature | 71.428571... | 使参考声速为 10 |
+| reference.temperature | 71.428571... | 使参考声速为 \(10U_{b,0}\)，即 \(Ma_{b,0}=0.1\) |
 | reference.length | 1 | \(L_{ref}=h\) |
-| reference.viscosity | 1/180 | 使 \(Re_{ref}=180\) |
+| reference.viscosity | 0.0003588401476 | 使 \(Re_b^{(h)}=2786.75618\) 与 \(Re_\tau=180\) 同时成立 |
 
 这些量决定 Re、Ma、压力尺度、时间尺度和黏性，长算中途绝对不能修改。
 
@@ -346,7 +388,8 @@ rank 过多通常会因通信成本变慢。
 
 - y0/y1、x0/z0 和 period_x/period_z 必须和网格范围一致；
 - re_tau=180 是目标摩擦 Reynolds 数；
-- bulk_velocity_plus 和 bulk_velocity 均为 15.4819787932，因为速度尺度是 \(u_\tau\)；
+- bulk_velocity=1，因为速度尺度是初始体积平均速度；
+- bulk_velocity_plus=15.4819787932，定义 \(U_{b,0}/u_{\tau,0}\)；
 - perturbation_amplitude=0.05 控制初始扰动；
 - rho=1、temperature=1 是无量纲初始热力学状态。
 
@@ -355,10 +398,10 @@ rank 过多通常会因通信成本变慢。
 ### 8.6 边界和体积力
 
 bottom/top 都是无滑移等温壁，壁速为零、壁温为 1；x/z 周期关系存储在 CGNS 网格中。
-source.models=body_force 且 source.body.ax=1，代表
+source.models=body_force 且 source.body.ax=0.004172026549973031，代表
 
 \[
-a_x^*=a_xh/u_\tau^2=1.
+a_x^*=a_xh/U_{b,0}^2=1/(U_b^+)^2.
 \]
 
 体积力同时进入 x 动量和总能量。当前没有恒流量闭环控制器；流量会随瞬时流场变化。
@@ -370,8 +413,8 @@ a_x^*=a_xh/u_\tau^2=1.
 | run.mode | unsteady | 非定常，残差只监测、不触发收敛 |
 | run.viscous | true | 开启层流黏性通量 |
 | run.cfl | 0.15 | 已过短测的保守值；提高前必须做独立稳定性试验 |
-| run.max_steps | 6,000,000 | 硬步数上限；高于按短测步长估算的约 529 万步 |
-| run.t_end | 500 | 目标物理时间，单位 \(h/u_\tau\) |
+| run.max_steps | 6,000,000 | 硬步数上限；本地初始步长粗估约需 418 万步，服务器必须复核 |
+| run.t_end | 500 | 目标物理时间，单位 \(h/U_{b,0}\)，约 79.6 个流向域穿越时间 |
 | run.max_wall_time | 82,800 s | 23 h 后安全写 checkpoint，适配示例 24 h 作业 |
 
 若调度墙钟不是 24 h，应令程序 max_wall_time 比调度器上限至少提前 10--60 min。例如：
@@ -428,7 +471,7 @@ echo $?
 grep -E 'derived Re=|partition_plan|WCNS dry-run' longrun-dry-run-r$RANKS.log
 ~~~
 
-应看到 Re=180、Ma=0.1、完整 partition_plan 和 dry-run completed。若提示块过窄、空闲 rank、
+应看到 Re=2786.7561827698491、Ma=0.1、完整 partition_plan 和 dry-run completed。若提示块过窄、空闲 rank、
 负 Jacobian、周期连接或 MPI digest 不一致，不得开始长算。
 
 ## 10. 第八步：在已分配资源中启动正式长算
@@ -540,9 +583,9 @@ test $RC -eq 0 -o $RC -eq 2
 
 ~~~bash
 tail -f job-logs/segment01-*.log
-tail -n 20 results/longrun-segment01/*.history.r*.txt
-tail -n 20 results/longrun-segment01/*.statistics.r*.txt
-du -sh results/longrun-segment01
+tail -n 20 results/lowmach-longrun-segment01/*.history.r*.txt
+tail -n 20 results/lowmach-longrun-segment01/*.statistics.r*.txt
+du -sh results/lowmach-longrun-segment01
 df -h .
 ~~~
 
@@ -565,10 +608,10 @@ df -h .
 
 ~~~bash
 cd cases/manual/case05_3d_turbulent_channel
-MANIFEST=$(ls -1t results/longrun-segment01/*.manifest.r*.txt | head -n 1)
+MANIFEST=$(ls -1t results/lowmach-longrun-segment01/*.manifest.r*.txt | head -n 1)
 grep -E '^(git_commit|mpi_ranks|step|time|time_step|wall_time|stop_reason)=' $MANIFEST
 grep -Ei 'nan|inf|numerical_failure|error' job-logs/segment01-*.log || true
-ls -lh results/longrun-segment01
+ls -lh results/lowmach-longrun-segment01
 ~~~
 
 输出文件：
@@ -583,7 +626,7 @@ ls -lh results/longrun-segment01
 可独立检查最终场：
 
 ~~~bash
-FINAL=$(ls -1t results/longrun-segment01/*.field.*.cgns | head -n 1)
+FINAL=$(ls -1t results/lowmach-longrun-segment01/*.field.*.cgns | head -n 1)
 $ROOT/build-linux-mpi/wcns_validate_release_case finite $FINAL
 $ROOT/build-linux-mpi/wcns_validate_release_case nonzero $FINAL Mach 0
 ~~~
@@ -603,9 +646,9 @@ cp channel_retau180_longrun.wcns channel_retau180_longrun_segment02.wcns
 3. 编辑 segment02 文件，只修改下列运行/输出项：
 
 ~~~text
-case.name = case05-channel-retau180-longrun-segment02
-output.directory = results/longrun-segment02
-restart.path = results/longrun-segment01/case05-channel-retau180-longrun-segment01.checkpoint.latest.cgns
+case.name = case05-channel-retau180-mab0p1-longrun-segment02
+output.directory = results/lowmach-longrun-segment02
+restart.path = results/lowmach-longrun-segment01/case05-channel-retau180-mab0p1-longrun-segment01.checkpoint.latest.cgns
 ~~~
 
 4. t_end 是从初始时刻计数的最终绝对时间，必须大于 checkpoint 内的 time；

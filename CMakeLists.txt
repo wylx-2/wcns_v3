@@ -168,6 +168,7 @@ add_library(wcns_solver STATIC
     src/solver/inviscid_wcns_solver.cpp
     src/solver/physical_boundary.cpp
     src/solver/riemann_solver.cpp
+    src/solver/robustness.cpp
     src/solver/source_operator.cpp
     src/solver/spatial_operator.cpp
     src/solver/time_integrator.cpp

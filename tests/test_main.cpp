@@ -59,6 +59,7 @@ void test_viscous_gradient_periodic_transform();
 void test_viscous_manufactured_convergence();
 void test_wall_dirichlet_derivative();
 void test_viscous_boundary_trace();
+void test_robustness();
 void test_case_config();
 void test_simulation_driver();
 void test_stop_controller();
@@ -135,6 +136,7 @@ int main()
         test_viscous_manufactured_convergence();
         test_wall_dirichlet_derivative();
         test_viscous_boundary_trace();
+        test_robustness();
         test_case_config();
         test_simulation_driver();
         test_stop_controller();

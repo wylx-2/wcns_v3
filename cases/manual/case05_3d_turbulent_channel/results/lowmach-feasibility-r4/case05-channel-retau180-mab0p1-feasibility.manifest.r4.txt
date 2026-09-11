@@ -1,0 +1,37 @@
+manifest_version=1
+program_version=1.0.0
+git_commit=265c2119fadc
+compiler=8.1.0
+build_type=Release
+case=case05-channel-retau180-mab0p1-feasibility
+mpi_ranks=4
+config_digest=9567808275827495583
+partition_digest=18097543907168435306
+mesh_signature=3774650337625959993
+restart_signature=schema=1;profile=algorithm_profile_v1;name=phenglei_wcns;flux_difference=profile;reconstruction=reconstruction_v2;reconstruction=mdcd_hybrid;variables=primitive;epsilon=9.9999999999999995e-07;js_power=2;z_power=2;mdcd_dispersion=0.046378299999999997;mdcd_dissipation=0.01;mdcd_sensor_epsilon=5.6249999999999998e-05;mdcd_sensor_threshold=0.40000000000000002;mdcd_weight_bias=20;mdcd_weight_epsilon=9.9999999999999993e-41;riemann=riemann_config_v1;riemann_solver=hllc;roe_entropy_fix=0.10000000000000001;riemann_denominator_tolerance=9.9999999999999998e-13;robustness=robustness_v1;robustness(enabled=false,max_local_recomputations=3,max_step_retries=4,time_step_reduction=0.5,minimum_time_step=9.9999999999999998e-13);gas=gas_model=calorically_perfect gamma=1.3999999999999999 molar_mass=8.3140000000000001 specific_gas_constant=1;reference=U_ref=1 rho_ref=1 T_ref=71.428571428571431 L_ref=1 mu_ref=0.00035884014761781812 Re=2786.7561827698491 Ma=0.10000000000000001 dynamic_pressure_ref=1 time_ref=1;boundary.default=no_slip_isothermal_wall;boundary.bottom=no_slip_isothermal_wall;boundary.top=no_slip_isothermal_wall;boundary_data.bottom=wall_velocity_x=0,wall_velocity_y=0,wall_velocity_z=0,wall_temperature=1;boundary_data.top=wall_velocity_x=0,wall_velocity_y=0,wall_velocity_z=0,wall_temperature=1;source=source_terms_v3;enable_source_terms=true;models=body_force;uniform=0,0,0,0,0;body_acceleration=0.0041720265499730312,0,0;pressure_gradient=0,0,0;manufactured_amplitude=0,0,0,0,0;viscous=true
+step=5
+time=0.00059838890167066494
+time_step=0.00011967773412322178
+wall_time=30.043382999999999
+stop_reason=maximum_steps
+config_summary=case(schema=1,name=case05-channel-retau180-mab0p1-feasibility,mesh=grids/channel_36x48x36_beta1p75.cgns,profile=phenglei_wcns,flux_difference=profile,reconstruction=mdcd_hybrid;variables=primitive;epsilon=9.9999999999999995e-07;js_power=2;z_power=2;mdcd_dispersion=0.046378299999999997;mdcd_dissipation=0.01;mdcd_sensor_epsilon=5.6249999999999998e-05;mdcd_sensor_threshold=0.40000000000000002;mdcd_weight_bias=20;mdcd_weight_epsilon=9.9999999999999993e-41,riemann_solver=hllc;roe_entropy_fix=0.10000000000000001;riemann_denominator_tolerance=9.9999999999999998e-13,robustness(enabled=false,max_local_recomputations=3,max_step_retries=4,time_step_reduction=0.5,minimum_time_step=9.9999999999999998e-13),gas_model=calorically_perfect gamma=1.3999999999999999 molar_mass=8.3140000000000001 specific_gas_constant=1,U_ref=1 rho_ref=1 T_ref=71.428571428571431 L_ref=1 mu_ref=0.00035884014761781812 Re=2786.7561827698491 Ma=0.10000000000000001 dynamic_pressure_ref=1 time_ref=1,partition(mode=auto_split,allow_idle=false,max_load_ratio=1.2,min_cells=8),initial(type=turbulent_channel,bulk_velocity=1,bulk_velocity_plus=15.481978793165828,period_x=6.2831853071795862,period_z=3.1415926535897931,perturbation_amplitude=0.050000000000000003,re_tau=180,rho=1,temperature=1,x0=0,y0=-1,y1=1,z0=0),boundary.default=no_slip_isothermal_wall,boundary.bottom=no_slip_isothermal_wall,boundary.top=no_slip_isothermal_wall,boundary_data.bottom(wall_velocity_x=0,wall_velocity_y=0,wall_velocity_z=0,wall_temperature=1),boundary_data.top(wall_velocity_x=0,wall_velocity_y=0,wall_velocity_z=0,wall_temperature=1),enable_source_terms=true;models=body_force;uniform=0,0,0,0,0;body_acceleration=0.0041720265499730312,0,0;pressure_gradient=0,0,0;manufactured_amplitude=0,0,0,0,0,run(mode=unsteady,viscous=true,cfl=0.14999999999999999,max_steps=5,t_end=0.01,max_wall_time=0,steady(min_steps=1,check_interval=1,consecutive=1,reference_floor=1.0000000000000001e-30,l2_abs=9.9999999999999998e-13,l2_rel=1e-08,linf_enabled=true,linf_abs=9.9999999999999994e-12,linf_rel=1e-08)),output(directory=results/lowmach-feasibility-r4,allow_existing=false,dimensional=false,field(enabled=true,format=cgns,schedule(every_steps=0,every_time=0,explicit_times=,initial=true,final=true),quantities=rho:u:v:w:p:T:rho_u:rho_v:rho_w:rho_E:mach:viscosity:jacobian),history(enabled=true,format=txt,schedule(every_steps=1,every_time=0,explicit_times=,initial=true,final=true),quantities=),statistics(enabled=true,format=txt,schedule(every_steps=1,every_time=0,explicit_times=,initial=true,final=true),quantities=total_mass:total_momentum_x:total_momentum_y:total_momentum_z:total_energy:yz_mean_u_plane0:yz_mass_flow_x_plane0:yz_mean_u_plane1:yz_mass_flow_x_plane1:channel_wall_shear_lower:channel_wall_shear_upper:channel_wall_shear_mean:channel_friction_velocity:channel_re_tau),xz_planes(enabled=false,cell_j_indices=),yz_planes(enabled=true,target_x_coordinates=0:3.1415926535897931),channel_walls(enabled=true,lower_patch=bottom,upper_patch=top,half_height=1),checkpoint(enabled=true,schedule(every_steps=0,every_time=5,explicit_times=,initial=false,final=true))),restart.path=<none>,digest=0x84c7aeef37bd929f)
+partition_summary=partition_plan(maximum_feasible=96;leaf=0,zone=0,range=[0,0,0:18,48,18),owner=0,generation=0;leaf=1,zone=1,range=[0,0,0:18,48,18),owner=1,generation=0;leaf=2,zone=2,range=[0,0,0:18,48,18),owner=2,generation=0;leaf=3,zone=3,range=[0,0,0:18,48,18),owner=3,generation=0)
+robustness_level0_faces=0
+robustness_level1_faces=0
+robustness_level2_faces=0
+robustness_level3_faces=0
+robustness_troubled_cells=0
+robustness_local_recomputations=0
+robustness_step_retries=0
+robustness_proposed_dt=0.00011967773412322178
+robustness_accepted_dt=0.00011967773412322178
+robustness_minimum_rho=inf
+robustness_minimum_p=inf
+robustness_minimum_T=inf
+robustness_minimum_e=inf
+file=results/lowmach-feasibility-r4/case05-channel-retau180-mab0p1-feasibility.field.step00000000.time0p000000000eP00.cgns
+file=results/lowmach-feasibility-r4/case05-channel-retau180-mab0p1-feasibility.field.step00000005.time5p983889017eM04.cgns
+file=results/lowmach-feasibility-r4/case05-channel-retau180-mab0p1-feasibility.checkpoint.step00000005.time5p983889017eM04.cgns
+file=results/lowmach-feasibility-r4/case05-channel-retau180-mab0p1-feasibility.checkpoint.latest.cgns
+file=results/lowmach-feasibility-r4/case05-channel-retau180-mab0p1-feasibility.history.r4.txt
+file=results/lowmach-feasibility-r4/case05-channel-retau180-mab0p1-feasibility.statistics.r4.txt
