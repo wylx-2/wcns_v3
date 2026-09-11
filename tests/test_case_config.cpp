@@ -292,6 +292,64 @@ void test_case_config()
             wcns::CaseConfig::from_text(invalid_height));
     }
     {
+        auto boundary = valid_config();
+        const auto viscous = boundary.find("run.viscous = false");
+        boundary.replace(
+            viscous, std::string("run.viscous = false").size(),
+            "run.viscous = true");
+        boundary += R"(
+output.boundary.enabled = true
+output.boundary.format = tecplot
+output.boundary.every_steps = 2
+output.boundary.patches = wall
+output.boundary.quantities = p_w,T_w,mu_w,Cp,Cf,q_wall,pressure_traction_x,viscous_traction_x,traction_x
+output.boundary.reference_pressure = 0.02
+output.boundary.reference_density = 1
+output.boundary.reference_velocity_x = 1
+output.boundary.reference_velocity_y = 0
+output.boundary.reference_velocity_z = 0
+output.boundary.reference_area = 1
+output.boundary.reference_length = 1
+output.boundary.drag_direction_x = 1
+output.boundary.drag_direction_y = 0
+output.boundary.drag_direction_z = 0
+output.boundary.lift_direction_x = 0
+output.boundary.lift_direction_y = 1
+output.boundary.lift_direction_z = 0
+output.boundary.tangent_direction_x = 1
+output.boundary.tangent_direction_y = 0
+output.boundary.tangent_direction_z = 0
+)";
+        const auto config = wcns::CaseConfig::from_text(boundary);
+        WCNS_REQUIRE(config.output.boundary.enabled);
+        WCNS_REQUIRE(config.output.boundary.patches
+            == std::vector<std::string>({"wall"}));
+        WCNS_REQUIRE_NEAR(
+            config.output.boundary.reference_pressure, 0.02, 1.0e-15);
+        WCNS_REQUIRE(config.output.boundary.summary().find("A_ref=1")
+            != std::string::npos);
+        WCNS_REQUIRE(config.restart_signature().find("output.boundary")
+            == std::string::npos);
+
+        auto inviscid = boundary;
+        const auto enabled_viscous = inviscid.find("run.viscous = true");
+        inviscid.replace(
+            enabled_viscous, std::string("run.viscous = true").size(),
+            "run.viscous = false");
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(inviscid));
+
+        auto duplicate = boundary;
+        const auto patches = duplicate.find("output.boundary.patches = wall");
+        duplicate.replace(
+            patches, std::string("output.boundary.patches = wall").size(),
+            "output.boundary.patches = wall,wall");
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(duplicate));
+    }
+    {
         auto reordered = valid_config();
         reordered = "# ignored\n" + reordered;
         const auto first = wcns::CaseConfig::from_text(valid_config());
