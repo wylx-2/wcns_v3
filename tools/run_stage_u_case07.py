@@ -64,6 +64,10 @@ def key_value_file(path: Path) -> dict[str, str]:
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, value = line.split("=", 1)
+        if key == "file":
+            # The manifest intentionally contains one file= entry per
+            # committed artifact; only scalar provenance keys are parsed here.
+            continue
         if key in result:
             raise RuntimeError(f"duplicate key in {path}: {key}")
         result[key] = value
