@@ -340,9 +340,10 @@ Real selected_quantity(const Sample& sample, const std::string& name)
 Real quantity_scale(const std::string& name, const QuantityContext& context)
 {
     if (!context.dimensional || name == "Cp" || name == "Cf") return 1.0;
-    if (name == "T_w") return context.reference.temperature();
-    if (name == "mu_w") return context.reference.viscosity();
-    return context.reference.dynamic_pressure();
+    const auto scales = boundary_output_scales(context, 2);
+    if (name == "T_w") return scales.temperature;
+    if (name == "mu_w") return scales.viscosity;
+    return scales.pressure;
 }
 
 void write_metadata(
@@ -407,26 +408,18 @@ std::vector<Real> load_row(
     const Real force_denominator = qref * boundary.reference_area;
     const Real moment_denominator
         = force_denominator * boundary.reference_length;
-    const Real length = quantities.reference.length();
     const int dimension = samples.front().dimension;
-    const Real force_scale = config.output.dimensional
-        ? quantities.reference.dynamic_pressure()
-            * std::pow(length, static_cast<Real>(dimension - 1))
-        : 1.0;
-    const Real moment_scale = config.output.dimensional
-        ? quantities.reference.dynamic_pressure()
-            * std::pow(length, static_cast<Real>(dimension))
-        : 1.0;
+    const auto scales = boundary_output_scales(quantities, dimension);
     std::vector<Real> result {
         static_cast<Real>(state.step), state.time,
     };
     for (const auto& group : {
              loads.pressure_force, loads.viscous_force, total_force}) {
-        append_vector(result, multiply(group, force_scale));
+        append_vector(result, multiply(group, scales.force));
     }
     for (const auto& group : {
              loads.pressure_moment, loads.viscous_moment, total_moment}) {
-        append_vector(result, multiply(group, moment_scale));
+        append_vector(result, multiply(group, scales.moment));
     }
     for (const auto& force : {
              loads.pressure_force, loads.viscous_force, total_force}) {
@@ -454,6 +447,28 @@ const char* const load_columns[] = {
 };
 
 } // namespace
+
+BoundaryOutputScales boundary_output_scales(
+    const QuantityContext& context,
+    int dimension)
+{
+    if (dimension != 2 && dimension != 3) {
+        throw std::invalid_argument(
+            "boundary output scales require dimension 2 or 3");
+    }
+    if (!context.dimensional) return {};
+    const Real length = context.reference.length();
+    const Real pressure = context.reference.dynamic_pressure();
+    BoundaryOutputScales result;
+    result.coordinate = length;
+    result.area = std::pow(length, static_cast<Real>(dimension - 1));
+    result.pressure = pressure;
+    result.temperature = context.reference.temperature();
+    result.viscosity = context.reference.viscosity();
+    result.force = pressure * result.area;
+    result.moment = result.force * length;
+    return result;
+}
 
 BoundaryFacePhysics evaluate_boundary_face_physics(
     Real pressure,
@@ -587,7 +602,6 @@ std::vector<std::string> BoundaryOutputWriter::write(
 
     const bool needs_viscous = requests_viscous_quantity(config_.output.boundary);
     std::vector<Real> local_payload;
-    std::vector<bool> local_patch_seen(config_.output.boundary.patches.size(), false);
     std::size_t ordinal = 0;
     for (const auto& block : local_blocks_.blocks()) {
         const auto leaf_iterator = leaves.find(block.id());
@@ -609,7 +623,6 @@ std::vector<std::string> BoundaryOutputWriter::write(
             if (selected == config_.output.boundary.patches.end()) continue;
             const auto patch_index = static_cast<std::size_t>(
                 selected - config_.output.boundary.patches.begin());
-            local_patch_seen[patch_index] = true;
             if (needs_viscous && !no_slip_wall(patch.type)) {
                 throw PhysicsConfigurationError(
                     "viscous boundary quantities require a no-slip wall patch: "
@@ -801,20 +814,17 @@ std::vector<std::string> BoundaryOutputWriter::write(
         }
         output << '\n';
     }
-    const Real length_scale = quantities_.dimensional
-        ? quantities_.reference.length() : 1.0;
-    const Real area_scale = quantities_.dimensional
-        ? std::pow(length_scale, static_cast<Real>(samples.front().dimension - 1))
-        : 1.0;
+    const auto scales = boundary_output_scales(
+        quantities_, samples.front().dimension);
     for (const auto& sample : samples) {
         output << sample.patch << ' ' << sample.zone << ' '
                << sample.global.i << ' ' << sample.global.j << ' '
                << sample.global.k << ' ' << static_cast<int>(sample.axis) << ' '
                << static_cast<int>(sample.side) << ' '
-               << sample.center[0] * length_scale << ' '
-               << sample.center[1] * length_scale << ' '
-               << sample.center[2] * length_scale << ' '
-               << sample.area * area_scale << ' '
+               << sample.center[0] * scales.coordinate << ' '
+               << sample.center[1] * scales.coordinate << ' '
+               << sample.center[2] * scales.coordinate << ' '
+               << sample.area * scales.area << ' '
                << sample.normal[0] << ' ' << sample.normal[1] << ' '
                << sample.normal[2];
         for (const auto& name : config_.output.boundary.quantities) {

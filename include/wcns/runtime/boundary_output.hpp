@@ -23,6 +23,20 @@ struct BoundaryFacePhysics {
     std::array<Real, 3> total_traction {};
 };
 
+struct BoundaryOutputScales {
+    Real coordinate = 1.0;
+    Real area = 1.0;
+    Real pressure = 1.0;
+    Real temperature = 1.0;
+    Real viscosity = 1.0;
+    Real force = 1.0;
+    Real moment = 1.0;
+};
+
+[[nodiscard]] BoundaryOutputScales boundary_output_scales(
+    const QuantityContext& context,
+    int dimension);
+
 // stress_normal is tau*n before the equation-level 1/Re factor.  The
 // temperature gradient uses the same outward normal supplied here.
 [[nodiscard]] BoundaryFacePhysics evaluate_boundary_face_physics(

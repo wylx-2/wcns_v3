@@ -33,6 +33,7 @@ add_executable(wcns_unit_tests
     test_structured_partition.cpp
     test_flow_initializer.cpp
     test_output_manager.cpp
+    test_boundary_output.cpp
     test_quantity_registry.cpp
 )
 
@@ -71,8 +72,18 @@ if(WCNS_ENABLE_CGNS)
         @ONLY
     )
     configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/boundary_partition_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/boundary_partition_case.wcns
+        @ONLY
+    )
+    configure_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/data/cylinder_o_case.wcns.in
         ${CMAKE_CURRENT_BINARY_DIR}/cylinder_o_case.wcns
+        @ONLY
+    )
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/case07_boundary_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/case07_boundary_case.wcns
         @ONLY
     )
     configure_file(
@@ -279,6 +290,58 @@ if(WCNS_ENABLE_CGNS)
         PROPERTIES FIXTURES_REQUIRED cylinder_o_mesh
     )
     add_test(
+        NAME wcns.run.boundary_partition.serial
+        COMMAND wcns_run
+            --config ${CMAKE_CURRENT_BINARY_DIR}/boundary_partition_case.wcns
+    )
+    set_tests_properties(
+        wcns.run.boundary_partition.serial
+        PROPERTIES
+            FIXTURES_REQUIRED cgns_files
+            FIXTURES_SETUP boundary_partition_1
+            RESOURCE_LOCK boundary_partition_output
+    )
+    add_test(
+        NAME wcns.run.cylinder_o.boundary.serial
+        COMMAND wcns_run
+            --config ${CMAKE_CURRENT_BINARY_DIR}/cylinder_o_case.wcns
+    )
+    set_tests_properties(
+        wcns.run.cylinder_o.boundary.serial
+        PROPERTIES
+            FIXTURES_REQUIRED cylinder_o_mesh
+            FIXTURES_SETUP cylinder_boundary_output
+    )
+    add_test(
+        NAME wcns.check.cylinder_o.boundary.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/check_boundary_output.py
+            ${CMAKE_CURRENT_BINARY_DIR}/cylinder-o-grid-smoke
+    )
+    set_tests_properties(
+        wcns.check.cylinder_o.boundary.serial
+        PROPERTIES FIXTURES_REQUIRED cylinder_boundary_output
+    )
+    add_test(
+        NAME wcns.run.case07.boundary.serial
+        COMMAND wcns_run
+            --config ${CMAKE_CURRENT_BINARY_DIR}/case07_boundary_case.wcns
+    )
+    set_tests_properties(
+        wcns.run.case07.boundary.serial
+        PROPERTIES FIXTURES_SETUP case07_boundary_output
+    )
+    add_test(
+        NAME wcns.check.case07.boundary.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/check_boundary_output.py
+            ${CMAKE_CURRENT_BINARY_DIR}/case07-boundary-smoke
+    )
+    set_tests_properties(
+        wcns.check.case07.boundary.serial
+        PROPERTIES FIXTURES_REQUIRED case07_boundary_output
+    )
+    add_test(
         NAME wcns.run.xz_plane_statistics.smoke.serial
         COMMAND wcns_run
             --config ${CMAKE_CURRENT_BINARY_DIR}/xz_plane_statistics_case.wcns
@@ -322,9 +385,35 @@ if(WCNS_ENABLE_CGNS)
         )
         set_tests_properties(
             wcns.run.${viscous_case}.serial
-            PROPERTIES FIXTURES_REQUIRED cgns_files
+            PROPERTIES
+                FIXTURES_REQUIRED cgns_files
+                FIXTURES_SETUP ${viscous_case}_boundary_serial
         )
     endforeach()
+    add_test(
+        NAME wcns.check.couette_boundary.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/check_viscous_boundary_output.py
+            couette
+            ${CMAKE_CURRENT_BINARY_DIR}/couette-analytic
+            1
+    )
+    set_tests_properties(
+        wcns.check.couette_boundary.serial
+        PROPERTIES FIXTURES_REQUIRED couette_analytic_boundary_serial
+    )
+    add_test(
+        NAME wcns.check.conduction_boundary.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/check_viscous_boundary_output.py
+            conduction
+            ${CMAKE_CURRENT_BINARY_DIR}/linear-conduction-analytic
+            1
+    )
+    set_tests_properties(
+        wcns.check.conduction_boundary.serial
+        PROPERTIES FIXTURES_REQUIRED linear_conduction_analytic_boundary_serial
+    )
     add_test(
         NAME wcns.release_matrix.smoke.serial
         COMMAND ${Python3_EXECUTABLE}
@@ -750,6 +839,78 @@ if(WCNS_ENABLE_CGNS)
 
     if(WCNS_ENABLE_MPI)
         add_test(
+            NAME wcns.run.boundary_partition.2
+            COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
+                $<TARGET_FILE:wcns_run>
+                --config ${CMAKE_CURRENT_BINARY_DIR}/boundary_partition_case.wcns
+        )
+        set_tests_properties(
+            wcns.run.boundary_partition.2
+            PROPERTIES
+                FIXTURES_REQUIRED boundary_partition_1
+                FIXTURES_SETUP boundary_partition_2
+                RESOURCE_LOCK boundary_partition_output
+        )
+        add_test(
+            NAME wcns.run.boundary_partition.4
+            COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 4
+                $<TARGET_FILE:wcns_run>
+                --config ${CMAKE_CURRENT_BINARY_DIR}/boundary_partition_case.wcns
+        )
+        set_tests_properties(
+            wcns.run.boundary_partition.4
+            PROPERTIES
+                FIXTURES_REQUIRED boundary_partition_2
+                FIXTURES_SETUP boundary_partition_4
+                RESOURCE_LOCK boundary_partition_output
+        )
+        add_test(
+            NAME wcns.check.boundary_partition.mpi_equivalence
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/check_boundary_rank_equivalence.py
+                ${CMAKE_CURRENT_BINARY_DIR}/boundary-partition-equivalence
+        )
+        set_tests_properties(
+            wcns.check.boundary_partition.mpi_equivalence
+            PROPERTIES FIXTURES_REQUIRED boundary_partition_4
+        )
+        add_test(
+            NAME wcns.run.cylinder_o.boundary.2
+            COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
+                $<TARGET_FILE:wcns_run>
+                --config ${CMAKE_CURRENT_BINARY_DIR}/cylinder_o_case.wcns
+        )
+        set_tests_properties(
+            wcns.run.cylinder_o.boundary.2
+            PROPERTIES
+                FIXTURES_REQUIRED cylinder_boundary_output
+                FIXTURES_SETUP cylinder_boundary_output_2
+                RESOURCE_LOCK cylinder_boundary_output
+        )
+        add_test(
+            NAME wcns.run.cylinder_o.boundary.4
+            COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 4
+                $<TARGET_FILE:wcns_run>
+                --config ${CMAKE_CURRENT_BINARY_DIR}/cylinder_o_case.wcns
+        )
+        set_tests_properties(
+            wcns.run.cylinder_o.boundary.4
+            PROPERTIES
+                FIXTURES_REQUIRED cylinder_boundary_output_2
+                FIXTURES_SETUP cylinder_boundary_output_4
+                RESOURCE_LOCK cylinder_boundary_output
+        )
+        add_test(
+            NAME wcns.check.cylinder_o.boundary.mpi_equivalence
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/check_boundary_rank_equivalence.py
+                ${CMAKE_CURRENT_BINARY_DIR}/cylinder-o-grid-smoke
+        )
+        set_tests_properties(
+            wcns.check.cylinder_o.boundary.mpi_equivalence
+            PROPERTIES FIXTURES_REQUIRED cylinder_boundary_output_4
+        )
+        add_test(
             NAME wcns.run.xz_plane_statistics.smoke.2
             COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
                 $<TARGET_FILE:wcns_run>
@@ -812,9 +973,35 @@ if(WCNS_ENABLE_CGNS)
             )
             set_tests_properties(
                 wcns.run.${viscous_case}.2
-                PROPERTIES FIXTURES_REQUIRED cgns_files
+                PROPERTIES
+                    FIXTURES_REQUIRED cgns_files
+                    FIXTURES_SETUP ${viscous_case}_boundary_2
             )
         endforeach()
+        add_test(
+            NAME wcns.check.couette_boundary.2
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/check_viscous_boundary_output.py
+                couette
+                ${CMAKE_CURRENT_BINARY_DIR}/couette-analytic
+                2
+        )
+        set_tests_properties(
+            wcns.check.couette_boundary.2
+            PROPERTIES FIXTURES_REQUIRED couette_analytic_boundary_2
+        )
+        add_test(
+            NAME wcns.check.conduction_boundary.2
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/check_viscous_boundary_output.py
+                conduction
+                ${CMAKE_CURRENT_BINARY_DIR}/linear-conduction-analytic
+                2
+        )
+        set_tests_properties(
+            wcns.check.conduction_boundary.2
+            PROPERTIES FIXTURES_REQUIRED linear_conduction_analytic_boundary_2
+        )
         add_test(
             NAME wcns.release_matrix.smoke.mpi
             COMMAND ${Python3_EXECUTABLE}
