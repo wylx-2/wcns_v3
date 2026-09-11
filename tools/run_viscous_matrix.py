@@ -29,7 +29,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--riemann", default="hllc")
     parser.add_argument("--reference-viscosity", type=float, default=0.1)
     parser.add_argument(
-        "--transport-model", choices=("constant", "sutherland"),
+        "--transport-model",
+        choices=("constant", "sutherland"),
         default="constant",
     )
     parser.add_argument("--prandtl", type=float, default=0.72)
@@ -67,10 +68,17 @@ def main() -> int:
         raise RuntimeError("viscous grid parameters must be positive")
     if args.cells_i % args.zones_i != 0:
         raise RuntimeError("viscous cells_i must be divisible by zones_i")
-    if min(
-        args.reference_viscosity, args.cfl, args.profile_l2,
-        args.prandtl, args.viscosity_ratio, args.sutherland_temperature_ratio,
-    ) <= 0.0:
+    if (
+        min(
+            args.reference_viscosity,
+            args.cfl,
+            args.profile_l2,
+            args.prandtl,
+            args.viscosity_ratio,
+            args.sutherland_temperature_ratio,
+        )
+        <= 0.0
+    ):
         raise RuntimeError("viscous physical and numerical parameters must be positive")
 
     clean_work_directory(args.work_dir)
@@ -80,9 +88,15 @@ def main() -> int:
     records.append(
         run(
             [
-                str(args.generator), "rectangle", str(mesh),
-                str(args.cells_i), str(args.cells_j), str(args.zones_i),
-                "1.0", "1.0", "true",
+                str(args.generator),
+                "rectangle",
+                str(mesh),
+                str(args.cells_i),
+                str(args.cells_j),
+                str(args.zones_i),
+                "1.0",
+                "1.0",
+                "true",
             ],
             root / "generate.log",
         )
@@ -170,8 +184,12 @@ def main() -> int:
         records.append(
             run(
                 [
-                    str(args.validator), "viscous-profile", str(fields[rank_count]),
-                    args.case, str(reynolds), str(args.profile_l2),
+                    str(args.validator),
+                    "viscous-profile",
+                    str(fields[rank_count]),
+                    args.case,
+                    str(reynolds),
+                    str(args.profile_l2),
                     str(args.pressure_tolerance),
                 ],
                 root / f"analytic-r{rank_count}.log",
@@ -181,8 +199,11 @@ def main() -> int:
         records.append(
             run(
                 [
-                    str(args.validator), "compare", str(fields[ranks[0]]),
-                    str(fields[rank_count]), "2e-10",
+                    str(args.validator),
+                    "compare",
+                    str(fields[ranks[0]]),
+                    str(fields[rank_count]),
+                    "2e-10",
                 ],
                 root / f"compare-r{ranks[0]}-r{rank_count}.log",
             )
@@ -200,8 +221,7 @@ def main() -> int:
         "prandtl": args.prandtl,
         "viscosity_ratio": args.viscosity_ratio,
         "sutherland_temperature_ratio": (
-            args.sutherland_temperature_ratio
-            if args.transport_model == "sutherland" else None
+            args.sutherland_temperature_ratio if args.transport_model == "sutherland" else None
         ),
         "temperature_curvature": substitutions["TEMPERATURE_CURVATURE"],
         "ranks": ranks,

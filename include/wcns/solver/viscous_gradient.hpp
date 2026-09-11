@@ -7,16 +7,14 @@
 
 namespace wcns {
 
-inline constexpr int gradient_operand_components
-    = viscous_primitive_components * 3;
+inline constexpr int gradient_operand_components = viscous_primitive_components * 3;
 
 class GradientOperandFaceField {
 public:
-    GradientOperandFaceField(
-        Extent3 cell_extent,
-        int dimension,
-        AlgorithmProfileKind profile,
-        std::uint64_t version);
+    GradientOperandFaceField(Extent3 cell_extent,
+                             int dimension,
+                             AlgorithmProfileKind profile,
+                             std::uint64_t version);
 
     [[nodiscard]] AlgorithmProfileKind profile() const noexcept { return profile_; }
     [[nodiscard]] std::uint64_t version() const noexcept { return version_; }
@@ -38,11 +36,10 @@ private:
 
 class PrimitiveGradientField {
 public:
-    PrimitiveGradientField(
-        Extent3 cell_extent,
-        int dimension,
-        AlgorithmProfileKind profile,
-        std::uint64_t version);
+    PrimitiveGradientField(Extent3 cell_extent,
+                           int dimension,
+                           AlgorithmProfileKind profile,
+                           std::uint64_t version);
 
     [[nodiscard]] AlgorithmProfileKind profile() const noexcept { return profile_; }
     [[nodiscard]] std::uint64_t version() const noexcept { return version_; }
@@ -51,10 +48,9 @@ public:
     [[nodiscard]] Field<Real>& values() noexcept { return values_; }
     [[nodiscard]] const Field<Real>& values() const noexcept { return values_; }
 
-    [[nodiscard]] Real& operator()(
-        Index3 cell, ViscousPrimitive variable, int cartesian_direction);
-    [[nodiscard]] Real operator()(
-        Index3 cell, ViscousPrimitive variable, int cartesian_direction) const;
+    [[nodiscard]] Real& operator()(Index3 cell, ViscousPrimitive variable, int cartesian_direction);
+    [[nodiscard]] Real
+    operator()(Index3 cell, ViscousPrimitive variable, int cartesian_direction) const;
     void reset(std::uint64_t version);
 
 private:
@@ -66,49 +62,43 @@ private:
 };
 
 [[nodiscard]] TemperaturePrimitiveState interpolate_temperature_face(
-    const StructuredBlock& block,
-    const AlgorithmProfile& profile,
-    Axis axis,
-    Index3 face);
+    const StructuredBlock& block, const AlgorithmProfile& profile, Axis axis, Index3 face);
 
-[[nodiscard]] GradientOperandFaceField compute_gradient_face_operands(
-    const StructuredBlock& block,
-    const MetricField& metric,
-    const AlgorithmProfile& profile,
-    std::uint64_t version);
+[[nodiscard]] GradientOperandFaceField
+compute_gradient_face_operands(const StructuredBlock& block,
+                               const MetricField& metric,
+                               const AlgorithmProfile& profile,
+                               std::uint64_t version);
 
-void compute_gradient_face_operands_into(
-    GradientOperandFaceField& result,
-    const StructuredBlock& block,
-    const MetricField& metric,
-    const AlgorithmProfile& profile,
-    std::uint64_t version);
+void compute_gradient_face_operands_into(GradientOperandFaceField& result,
+                                         const StructuredBlock& block,
+                                         const MetricField& metric,
+                                         const AlgorithmProfile& profile,
+                                         std::uint64_t version);
 
-[[nodiscard]] PrimitiveGradientField compute_primitive_gradients(
-    const StructuredBlock& block,
-    const MetricField& metric,
-    const GradientOperandFaceField& operands,
-    const AlgorithmProfile& profile);
+[[nodiscard]] PrimitiveGradientField
+compute_primitive_gradients(const StructuredBlock& block,
+                            const MetricField& metric,
+                            const GradientOperandFaceField& operands,
+                            const AlgorithmProfile& profile);
 
-void compute_primitive_gradients_into(
-    PrimitiveGradientField& result,
-    const StructuredBlock& block,
-    const MetricField& metric,
-    const GradientOperandFaceField& operands,
-    const AlgorithmProfile& profile);
+void compute_primitive_gradients_into(PrimitiveGradientField& result,
+                                      const StructuredBlock& block,
+                                      const MetricField& metric,
+                                      const GradientOperandFaceField& operands,
+                                      const AlgorithmProfile& profile);
 
-[[nodiscard]] PrimitiveGradients interpolate_gradient_face(
-    const StructuredBlock& block,
-    const PrimitiveGradientField& gradients,
-    const AlgorithmProfile& profile,
-    Axis axis,
-    Index3 face);
+[[nodiscard]] PrimitiveGradients interpolate_gradient_face(const StructuredBlock& block,
+                                                           const PrimitiveGradientField& gradients,
+                                                           const AlgorithmProfile& profile,
+                                                           Axis axis,
+                                                           Index3 face);
 
-[[nodiscard]] ViscousFaceTrace interpolate_viscous_face_trace(
-    const StructuredBlock& block,
-    const PrimitiveGradientField& gradients,
-    const AlgorithmProfile& profile,
-    Axis axis,
-    Index3 face);
+[[nodiscard]] ViscousFaceTrace
+interpolate_viscous_face_trace(const StructuredBlock& block,
+                               const PrimitiveGradientField& gradients,
+                               const AlgorithmProfile& profile,
+                               Axis axis,
+                               Index3 face);
 
 } // namespace wcns

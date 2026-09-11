@@ -16,10 +16,7 @@ void test_structured_partition()
     config.max_load_ratio = 1.2;
     config.min_cells_per_active_direction = 8;
 
-    const auto plan = StructuredPartitionPlan::build(
-        {{7, "single", 2, {64, 32, 1}}},
-        8,
-        config);
+    const auto plan = StructuredPartitionPlan::build({{7, "single", 2, {64, 32, 1}}}, 8, config);
     WCNS_REQUIRE(plan.leaves().size() >= 8);
     WCNS_REQUIRE(plan.maximum_feasible_leaf_count() == 32);
     WCNS_REQUIRE(plan.digest() != 0);
@@ -37,36 +34,24 @@ void test_structured_partition()
     WCNS_REQUIRE(covered == static_cast<std::size_t>(64 * 32));
     WCNS_REQUIRE(owners.size() == 8);
 
-    const auto repeated = StructuredPartitionPlan::build(
-        {{7, "single", 2, {64, 32, 1}}},
-        8,
-        config);
+    const auto repeated
+        = StructuredPartitionPlan::build({{7, "single", 2, {64, 32, 1}}}, 8, config);
     WCNS_REQUIRE(repeated.summary() == plan.summary());
     WCNS_REQUIRE(repeated.digest() == plan.digest());
 
     WCNS_REQUIRE_THROWS(
         CaseConfigurationError,
-        StructuredPartitionPlan::build(
-            {{0, "too-small", 2, {12, 8, 1}}},
-            2,
-            config));
+        StructuredPartitionPlan::build({{0, "too-small", 2, {12, 8, 1}}}, 2, config));
 
     config.allow_idle_ranks = true;
-    const auto idle = StructuredPartitionPlan::build(
-        {{0, "too-small", 2, {12, 8, 1}}},
-        2,
-        config);
+    const auto idle = StructuredPartitionPlan::build({{0, "too-small", 2, {12, 8, 1}}}, 2, config);
     WCNS_REQUIRE(idle.leaves().size() == 1);
     WCNS_REQUIRE(idle.distribution().rank_loads().at(1) == 0);
 
     config.mode = PartitionMode::ZonesOnly;
     config.allow_idle_ranks = false;
-    WCNS_REQUIRE_THROWS(
-        CaseConfigurationError,
-        StructuredPartitionPlan::build(
-            {{0, "left", 2, {16, 16, 1}}},
-            2,
-            config));
+    WCNS_REQUIRE_THROWS(CaseConfigurationError,
+                        StructuredPartitionPlan::build({{0, "left", 2, {16, 16, 1}}}, 2, config));
 
     const auto native_zones = StructuredPartitionPlan::build(
         {
@@ -76,9 +61,7 @@ void test_structured_partition()
         2,
         config);
     WCNS_REQUIRE(native_zones.leaves().size() == 2);
-    WCNS_REQUIRE(
-        *std::max_element(
-            native_zones.distribution().rank_loads().begin(),
-            native_zones.distribution().rank_loads().end())
-        == 256);
+    WCNS_REQUIRE(*std::max_element(native_zones.distribution().rank_loads().begin(),
+                                   native_zones.distribution().rank_loads().end())
+                 == 256);
 }

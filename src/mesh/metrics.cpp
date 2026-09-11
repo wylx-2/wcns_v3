@@ -89,8 +89,7 @@ Vector3 area_vector(const FaceMetric& metric, int i, int j, int k)
 Vector3 quadrilateral_area_vector(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3)
 {
     // Polygon area vector for the directed order p0 -> p1 -> p2 -> p3.
-    return 0.5
-        * (cross(p0, p1) + cross(p1, p2) + cross(p2, p3) + cross(p3, p0));
+    return 0.5 * (cross(p0, p1) + cross(p1, p2) + cross(p2, p3) + cross(p3, p0));
 }
 
 void store_cell_center(StructuredBlock& block, int i, int j, int k, Vector3 center)
@@ -112,12 +111,7 @@ void compute_2d_metrics(StructuredBlock& block)
             const auto lower = node(block, i, j, 0);
             const auto upper = node(block, i, j + 1, 0);
             const auto tangent = upper - lower;
-            store_face(
-                block.face_metrics.i_faces,
-                i,
-                j,
-                0,
-                {tangent.y, -tangent.x, 0.0});
+            store_face(block.face_metrics.i_faces, i, j, 0, {tangent.y, -tangent.x, 0.0});
         }
     }
 
@@ -126,12 +120,7 @@ void compute_2d_metrics(StructuredBlock& block)
             const auto left = node(block, i, j, 0);
             const auto right = node(block, i + 1, j, 0);
             const auto tangent = right - left;
-            store_face(
-                block.face_metrics.j_faces,
-                i,
-                j,
-                0,
-                {-tangent.y, tangent.x, 0.0});
+            store_face(block.face_metrics.j_faces, i, j, 0, {-tangent.y, tangent.x, 0.0});
         }
     }
 
@@ -143,9 +132,8 @@ void compute_2d_metrics(StructuredBlock& block)
             const auto p01 = node(block, i, j + 1, 0);
             store_cell_center(block, i, j, 0, average({p00, p10, p11, p01}));
             const Real area = 0.5
-                * (p00.x * p10.y - p00.y * p10.x + p10.x * p11.y
-                    - p10.y * p11.x + p11.x * p01.y - p11.y * p01.x
-                    + p01.x * p00.y - p01.y * p00.x);
+                * (p00.x * p10.y - p00.y * p10.x + p10.x * p11.y - p10.y * p11.x + p11.x * p01.y
+                   - p11.y * p01.x + p01.x * p00.y - p01.y * p00.x);
             if (!(area > 0.0)) {
                 throw GeometryError("2D structured cell has non-positive signed area");
             }
@@ -167,11 +155,7 @@ void compute_3d_metrics(StructuredBlock& block)
                 const auto p2 = node(block, i, j + 1, k + 1);
                 const auto p3 = node(block, i, j, k + 1);
                 store_face(
-                    block.face_metrics.i_faces,
-                    i,
-                    j,
-                    k,
-                    quadrilateral_area_vector(p0, p1, p2, p3));
+                    block.face_metrics.i_faces, i, j, k, quadrilateral_area_vector(p0, p1, p2, p3));
             }
         }
     }
@@ -184,11 +168,7 @@ void compute_3d_metrics(StructuredBlock& block)
                 const auto p2 = node(block, i + 1, j, k + 1);
                 const auto p3 = node(block, i + 1, j, k);
                 store_face(
-                    block.face_metrics.j_faces,
-                    i,
-                    j,
-                    k,
-                    quadrilateral_area_vector(p0, p1, p2, p3));
+                    block.face_metrics.j_faces, i, j, k, quadrilateral_area_vector(p0, p1, p2, p3));
             }
         }
     }
@@ -201,11 +181,7 @@ void compute_3d_metrics(StructuredBlock& block)
                 const auto p2 = node(block, i + 1, j + 1, k);
                 const auto p3 = node(block, i, j + 1, k);
                 store_face(
-                    block.face_metrics.k_faces,
-                    i,
-                    j,
-                    k,
-                    quadrilateral_area_vector(p0, p1, p2, p3));
+                    block.face_metrics.k_faces, i, j, k, quadrilateral_area_vector(p0, p1, p2, p3));
             }
         }
     }
@@ -222,11 +198,7 @@ void compute_3d_metrics(StructuredBlock& block)
                 const auto p111 = node(block, i + 1, j + 1, k + 1);
                 const auto p011 = node(block, i, j + 1, k + 1);
                 store_cell_center(
-                    block,
-                    i,
-                    j,
-                    k,
-                    average({p000, p100, p110, p010, p001, p101, p111, p011}));
+                    block, i, j, k, average({p000, p100, p110, p010, p001, p101, p111, p011}));
 
                 const auto ci_lower = average({p000, p010, p011, p001});
                 const auto ci_upper = average({p100, p110, p111, p101});
@@ -237,11 +209,11 @@ void compute_3d_metrics(StructuredBlock& block)
 
                 const Real volume = (1.0 / 3.0)
                     * (dot(ci_upper, area_vector(block.face_metrics.i_faces, i + 1, j, k))
-                        - dot(ci_lower, area_vector(block.face_metrics.i_faces, i, j, k))
-                        + dot(cj_upper, area_vector(block.face_metrics.j_faces, i, j + 1, k))
-                        - dot(cj_lower, area_vector(block.face_metrics.j_faces, i, j, k))
-                        + dot(ck_upper, area_vector(block.face_metrics.k_faces, i, j, k + 1))
-                        - dot(ck_lower, area_vector(block.face_metrics.k_faces, i, j, k)));
+                       - dot(ci_lower, area_vector(block.face_metrics.i_faces, i, j, k))
+                       + dot(cj_upper, area_vector(block.face_metrics.j_faces, i, j + 1, k))
+                       - dot(cj_lower, area_vector(block.face_metrics.j_faces, i, j, k))
+                       + dot(ck_upper, area_vector(block.face_metrics.k_faces, i, j, k + 1))
+                       - dot(ck_lower, area_vector(block.face_metrics.k_faces, i, j, k)));
                 if (!(volume > 0.0)) {
                     throw GeometryError("3D structured cell has non-positive volume");
                 }
@@ -266,4 +238,3 @@ void compute_metrics(StructuredBlock& block)
 }
 
 } // namespace wcns
-

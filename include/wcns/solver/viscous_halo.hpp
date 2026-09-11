@@ -13,16 +13,12 @@ namespace wcns {
 using GradientOperandState = std::array<Real, gradient_operand_components>;
 
 [[nodiscard]] GradientOperandState transform_gradient_operand_for_receiver(
-    const GradientOperandState& donor,
-    const FaceFluxExchangeDescriptor& descriptor,
-    int dimension);
+    const GradientOperandState& donor, const FaceFluxExchangeDescriptor& descriptor, int dimension);
 
 class GradientOperandFaceHaloPlan {
 public:
-    [[nodiscard]] static GradientOperandFaceHaloPlan build(
-        const StructuredMesh& mesh,
-        const AlgorithmProfile& profile,
-        std::uint64_t version);
+    [[nodiscard]] static GradientOperandFaceHaloPlan
+    build(const StructuredMesh& mesh, const AlgorithmProfile& profile, std::uint64_t version);
 
     [[nodiscard]] const std::vector<FaceFluxExchangeDescriptor>& exchanges() const noexcept
     {
@@ -46,10 +42,9 @@ private:
 
 class GradientOperandFaceHaloExchanger {
 public:
-    GradientOperandFaceHaloExchanger(
-        const MpiRuntime& mpi,
-        const GradientOperandFaceHaloPlan& plan)
-        : mpi_(mpi), plan_(plan)
+    GradientOperandFaceHaloExchanger(const MpiRuntime& mpi, const GradientOperandFaceHaloPlan& plan)
+        : mpi_(mpi)
+        , plan_(plan)
     {
         prepare();
     }
@@ -87,17 +82,16 @@ struct GradientExchangeDescriptor {
     [[nodiscard]] int message_tag(int tag_base = 20480) const;
 };
 
-[[nodiscard]] PrimitiveGradients transform_primitive_gradients_for_receiver(
-    const PrimitiveGradients& donor,
-    const GradientExchangeDescriptor& descriptor);
+[[nodiscard]] PrimitiveGradients
+transform_primitive_gradients_for_receiver(const PrimitiveGradients& donor,
+                                           const GradientExchangeDescriptor& descriptor);
 
 class GradientHaloPlan {
 public:
-    [[nodiscard]] static GradientHaloPlan build(
-        const StructuredMesh& mesh,
-        const DistributedTopology& topology,
-        const AlgorithmProfile& profile,
-        std::uint64_t version);
+    [[nodiscard]] static GradientHaloPlan build(const StructuredMesh& mesh,
+                                                const DistributedTopology& topology,
+                                                const AlgorithmProfile& profile,
+                                                std::uint64_t version);
 
     [[nodiscard]] const std::vector<GradientExchangeDescriptor>& exchanges() const noexcept
     {
@@ -122,7 +116,8 @@ private:
 class GradientHaloExchanger {
 public:
     GradientHaloExchanger(const MpiRuntime& mpi, const GradientHaloPlan& plan)
-        : mpi_(mpi), plan_(plan)
+        : mpi_(mpi)
+        , plan_(plan)
     {
         prepare();
     }

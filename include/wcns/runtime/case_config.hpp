@@ -44,9 +44,7 @@ struct InitialConditionConfig {
     std::unordered_map<std::string, Real> parameters;
 
     void validate(int dimension = 3) const;
-    [[nodiscard]] Real parameter(
-        const std::string& name,
-        Real default_value) const;
+    [[nodiscard]] Real parameter(const std::string& name, Real default_value) const;
     [[nodiscard]] std::string summary() const;
 };
 
@@ -136,25 +134,21 @@ struct BoundaryOutputConfig {
     std::vector<std::string> quantities;
     Real reference_pressure = std::numeric_limits<Real>::quiet_NaN();
     Real reference_density = std::numeric_limits<Real>::quiet_NaN();
-    std::array<Real, 3> reference_velocity {{
-        std::numeric_limits<Real>::quiet_NaN(),
-        std::numeric_limits<Real>::quiet_NaN(),
-        std::numeric_limits<Real>::quiet_NaN()}};
+    std::array<Real, 3> reference_velocity {{std::numeric_limits<Real>::quiet_NaN(),
+                                             std::numeric_limits<Real>::quiet_NaN(),
+                                             std::numeric_limits<Real>::quiet_NaN()}};
     Real reference_area = std::numeric_limits<Real>::quiet_NaN();
     Real reference_length = std::numeric_limits<Real>::quiet_NaN();
     std::array<Real, 3> moment_center {{0.0, 0.0, 0.0}};
-    std::array<Real, 3> drag_direction {{
-        std::numeric_limits<Real>::quiet_NaN(),
-        std::numeric_limits<Real>::quiet_NaN(),
-        std::numeric_limits<Real>::quiet_NaN()}};
-    std::array<Real, 3> lift_direction {{
-        std::numeric_limits<Real>::quiet_NaN(),
-        std::numeric_limits<Real>::quiet_NaN(),
-        std::numeric_limits<Real>::quiet_NaN()}};
-    std::array<Real, 3> tangent_direction {{
-        std::numeric_limits<Real>::quiet_NaN(),
-        std::numeric_limits<Real>::quiet_NaN(),
-        std::numeric_limits<Real>::quiet_NaN()}};
+    std::array<Real, 3> drag_direction {{std::numeric_limits<Real>::quiet_NaN(),
+                                         std::numeric_limits<Real>::quiet_NaN(),
+                                         std::numeric_limits<Real>::quiet_NaN()}};
+    std::array<Real, 3> lift_direction {{std::numeric_limits<Real>::quiet_NaN(),
+                                         std::numeric_limits<Real>::quiet_NaN(),
+                                         std::numeric_limits<Real>::quiet_NaN()}};
+    std::array<Real, 3> tangent_direction {{std::numeric_limits<Real>::quiet_NaN(),
+                                            std::numeric_limits<Real>::quiet_NaN(),
+                                            std::numeric_limits<Real>::quiet_NaN()}};
 
     void validate(bool viscous) const;
     [[nodiscard]] std::string summary() const;
@@ -255,8 +249,7 @@ struct CaseConfig {
 
     void validate() const;
     [[nodiscard]] GasModel make_gas_model() const;
-    [[nodiscard]] ReferenceScales make_reference_scales(
-        const GasModel& gas_model) const;
+    [[nodiscard]] ReferenceScales make_reference_scales(const GasModel& gas_model) const;
     [[nodiscard]] AlgorithmProfile make_profile() const;
     [[nodiscard]] InviscidWcnsConfig make_inviscid_config() const;
     [[nodiscard]] TransportConfig make_transport_config() const;

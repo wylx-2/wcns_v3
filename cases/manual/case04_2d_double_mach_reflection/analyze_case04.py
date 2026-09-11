@@ -28,7 +28,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weno-statistics", type=Path)
     parser.add_argument("--mdcd-statistics", type=Path)
     parser.add_argument(
-        "--output-directory", type=Path,
+        "--output-directory",
+        type=Path,
         default=CASE_DIR / "comparison",
     )
     return parser.parse_args()
@@ -92,7 +93,8 @@ def coordinate_axis(values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     lower = np.maximum(insertion - 1, 0)
     indices = np.where(
         np.abs(values - axis[lower]) <= np.abs(values - axis[upper]),
-        lower, upper,
+        lower,
+        upper,
     )
     if np.max(np.abs(values - axis[indices])) > tolerance:
         raise RuntimeError("Tecplot coordinate clustering exceeded tolerance")
@@ -122,7 +124,8 @@ def structured(data: dict[str, np.ndarray]) -> tuple[np.ndarray, np.ndarray, dic
 
 
 def field_statistics(
-    reference: np.ndarray, value: np.ndarray,
+    reference: np.ndarray,
+    value: np.ndarray,
 ) -> dict[str, float]:
     difference = value - reference
     reference_l2 = float(np.sqrt(np.mean(reference * reference)))
@@ -137,8 +140,8 @@ def field_statistics(
         "difference_l2": float(np.sqrt(np.mean(difference * difference))),
         "difference_linf": float(np.max(np.abs(difference))),
         "difference_relative_l2": float(
-            np.sqrt(np.mean(difference * difference))
-            / max(reference_l2, np.finfo(float).tiny)),
+            np.sqrt(np.mean(difference * difference)) / max(reference_l2, np.finfo(float).tiny)
+        ),
     }
 
 
@@ -158,13 +161,16 @@ def read_table(path: Path) -> dict[str, np.ndarray]:
 
 
 def history_figure(
-    weno: dict[str, np.ndarray], mdcd: dict[str, np.ndarray], output: Path,
+    weno: dict[str, np.ndarray],
+    mdcd: dict[str, np.ndarray],
+    output: Path,
 ) -> dict[str, dict[str, float | int]]:
     figure, axis = plt.subplots(figsize=(10, 5), constrained_layout=True)
     tiny = np.finfo(float).tiny
     axis.semilogy(weno["time"], np.maximum(weno["total_l2"], tiny), label="WENO5")
     axis.semilogy(
-        mdcd["time"], np.maximum(mdcd["total_l2"], tiny),
+        mdcd["time"],
+        np.maximum(mdcd["total_l2"], tiny),
         label="MDCD-HYBRID",
     )
     axis.set_xlabel("time")
@@ -183,12 +189,9 @@ def history_figure(
             "minimum_dt_excluding_initial": float(table["dt"][1:].min()),
             "maximum_dt": float(table["dt"].max()),
             "final_total_l2": float(table["total_l2"][-1]),
-            "maximum_reconstruction_fallbacks_per_residual": int(
-                reconstruction.max()),
-            "rows_with_reconstruction_fallbacks": int(
-                np.count_nonzero(reconstruction)),
-            "sum_of_reported_reconstruction_fallbacks": int(
-                reconstruction.sum()),
+            "maximum_reconstruction_fallbacks_per_residual": int(reconstruction.max()),
+            "rows_with_reconstruction_fallbacks": int(np.count_nonzero(reconstruction)),
+            "sum_of_reported_reconstruction_fallbacks": int(reconstruction.sum()),
             "maximum_riemann_fallbacks_per_residual": int(riemann.max()),
         }
 
@@ -196,10 +199,15 @@ def history_figure(
 
 
 def statistics_figure(
-    weno: dict[str, np.ndarray], mdcd: dict[str, np.ndarray], output: Path,
+    weno: dict[str, np.ndarray],
+    mdcd: dict[str, np.ndarray],
+    output: Path,
 ) -> dict[str, dict[str, float]]:
     quantities = (
-        "total_mass", "total_momentum_x", "total_momentum_y", "total_energy",
+        "total_mass",
+        "total_momentum_x",
+        "total_momentum_y",
+        "total_energy",
     )
     figure, axes = plt.subplots(2, 2, figsize=(12, 7), constrained_layout=True)
     summary: dict[str, dict[str, float]] = {}
@@ -217,8 +225,7 @@ def statistics_figure(
             "mdcd_final": mdcd_final,
             "mdcd_minus_weno5": mdcd_final - weno_final,
             "relative_difference_to_weno5": (
-                (mdcd_final - weno_final)
-                / max(abs(weno_final), np.finfo(float).tiny)
+                (mdcd_final - weno_final) / max(abs(weno_final), np.finfo(float).tiny)
             ),
         }
     figure.savefig(output, dpi=180)
@@ -227,7 +234,9 @@ def statistics_figure(
 
 
 def density_gradient(
-    density: np.ndarray, x: np.ndarray, y: np.ndarray,
+    density: np.ndarray,
+    x: np.ndarray,
+    y: np.ndarray,
 ) -> np.ndarray:
     dy, dx = np.gradient(density, y, x)
     return np.sqrt(dx * dx + dy * dy)
@@ -249,16 +258,25 @@ def density_figure(
         (axes[1], mdcd, "SCMM6 + Roe + MDCD-HYBRID"),
     ):
         image = axis.imshow(
-            field, origin="lower", extent=(x[0], x[-1], y[0], y[-1]),
-            aspect="equal", cmap="turbo", vmin=minimum, vmax=maximum,
+            field,
+            origin="lower",
+            extent=(x[0], x[-1], y[0], y[-1]),
+            aspect="equal",
+            cmap="turbo",
+            vmin=minimum,
+            vmax=maximum,
             interpolation="nearest",
         )
         axis.set_title(title)
         axis.set_ylabel("y")
         figure.colorbar(image, ax=axis, label="density")
     image = axes[2].imshow(
-        difference, origin="lower", extent=(x[0], x[-1], y[0], y[-1]),
-        aspect="equal", cmap="magma", interpolation="nearest",
+        difference,
+        origin="lower",
+        extent=(x[0], x[-1], y[0], y[-1]),
+        aspect="equal",
+        cmap="magma",
+        interpolation="nearest",
     )
     axes[2].set_title("Absolute density difference |MDCD-HYBRID - WENO5|")
     axes[2].set_xlabel("x")
@@ -279,13 +297,19 @@ def schlieren_figure(
     scale = max(float(np.percentile(field, 99.8)) for field in gradients)
     figure, axes = plt.subplots(2, 1, figsize=(14, 5.8), constrained_layout=True)
     for axis, gradient, title in zip(
-        axes, gradients,
+        axes,
+        gradients,
         ("WENO5 density-gradient indicator", "MDCD-HYBRID density-gradient indicator"),
     ):
         normalized = np.log1p(gradient) / np.log1p(scale)
         image = axis.imshow(
-            normalized, origin="lower", extent=(x[0], x[-1], y[0], y[-1]),
-            aspect="equal", cmap="gray_r", vmin=0.0, vmax=1.0,
+            normalized,
+            origin="lower",
+            extent=(x[0], x[-1], y[0], y[-1]),
+            aspect="equal",
+            cmap="gray_r",
+            vmin=0.0,
+            vmax=1.0,
             interpolation="nearest",
         )
         axis.set_title(title)
@@ -319,17 +343,23 @@ def section_figure(
         axis.set_ylabel("density")
         axis.grid(alpha=0.25)
         axis.legend()
-        summaries.append({
-            "target_y": target,
-            "sample_y": actual_y,
-            "difference_l2": float(np.sqrt(np.mean(difference * difference))),
-            "difference_linf": float(np.max(np.abs(difference))),
-        })
+        summaries.append(
+            {
+                "target_y": target,
+                "sample_y": actual_y,
+                "difference_l2": float(np.sqrt(np.mean(difference * difference))),
+                "difference_linf": float(np.max(np.abs(difference))),
+            }
+        )
         rows.extend(
-            [actual_y, float(x_value), float(weno_value), float(mdcd_value),
-             float(mdcd_value - weno_value)]
-            for x_value, weno_value, mdcd_value
-            in zip(x, weno[index], mdcd[index])
+            [
+                actual_y,
+                float(x_value),
+                float(weno_value),
+                float(mdcd_value),
+                float(mdcd_value - weno_value),
+            ]
+            for x_value, weno_value, mdcd_value in zip(x, weno[index], mdcd[index])
         )
     axes[-1].set_xlabel("x")
     figure.savefig(output, dpi=180)
@@ -353,26 +383,34 @@ def main() -> int:
     if set(weno) != set(mdcd):
         raise RuntimeError("the two Tecplot files contain different fields")
 
-    statistics = {
-        name: field_statistics(weno[name], mdcd[name])
-        for name in common
-    }
+    statistics = {name: field_statistics(weno[name], mdcd[name]) for name in common}
     density_figure(
-        weno_x, weno_y, weno["rho"], mdcd["rho"],
+        weno_x,
+        weno_y,
+        weno["rho"],
+        mdcd["rho"],
         output / "density-comparison.png",
     )
     gradient_maxima = schlieren_figure(
-        weno_x, weno_y, weno["rho"], mdcd["rho"],
+        weno_x,
+        weno_y,
+        weno["rho"],
+        mdcd["rho"],
         output / "density-gradient-comparison.png",
     )
     sections = section_figure(
-        weno_x, weno_y, weno["rho"], mdcd["rho"],
+        weno_x,
+        weno_y,
+        weno["rho"],
+        mdcd["rho"],
         output / "density-sections.png",
         output / "density-sections.csv",
     )
     optional_paths = (
-        args.weno_history, args.mdcd_history,
-        args.weno_statistics, args.mdcd_statistics,
+        args.weno_history,
+        args.mdcd_history,
+        args.weno_statistics,
+        args.mdcd_statistics,
     )
     if any(path is not None for path in optional_paths) and not all(
         path is not None for path in optional_paths
@@ -405,7 +443,8 @@ def main() -> int:
         "integral_statistics": integral_summary,
     }
     (output / "comparison-summary.json").write_text(
-        json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
+    )
     print(json.dumps(summary, indent=2))
     return 0
 

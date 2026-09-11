@@ -27,29 +27,37 @@ def default_executable(name: str) -> Path:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--run", type=Path, default=default_executable("wcns_run"),
+        "--run",
+        type=Path,
+        default=default_executable("wcns_run"),
         help="path to the production solver",
     )
     parser.add_argument(
-        "--generator", type=Path,
+        "--generator",
+        type=Path,
         default=default_executable("wcns_generate_release_cgns"),
         help="path to the release CGNS generator",
     )
     parser.add_argument(
-        "--mpi-exec", type=Path, default=Path("mpiexec"),
+        "--mpi-exec",
+        type=Path,
+        default=Path("mpiexec"),
         help="MPI launcher; use an absolute path if it is not on PATH",
     )
     parser.add_argument("--ranks", type=int, default=4)
     parser.add_argument(
-        "--generate-only", action="store_true",
+        "--generate-only",
+        action="store_true",
         help="only create the 960x240 CGNS mesh",
     )
     parser.add_argument(
-        "--dry-run-only", action="store_true",
+        "--dry-run-only",
+        action="store_true",
         help="generate the mesh and execute configuration/assembly validation only",
     )
     parser.add_argument(
-        "--clean", action="store_true",
+        "--clean",
+        action="store_true",
         help="remove this case's generated grid, logs and results before running",
     )
     return parser.parse_args()
@@ -85,9 +93,7 @@ def execute(command: list[str], log_name: str) -> None:
     log_path.write_text(completed.stdout, encoding="utf-8")
     print(completed.stdout, end="")
     if completed.returncode != 0:
-        raise RuntimeError(
-            f"command failed with exit code {completed.returncode}; see {log_path}"
-        )
+        raise RuntimeError(f"command failed with exit code {completed.returncode}; see {log_path}")
 
 
 def main() -> int:
@@ -105,8 +111,15 @@ def main() -> int:
     if not grid.exists():
         execute(
             [
-                str(generator), "rectangle", "grids/double_mach_960x240.cgns",
-                "960", "240", "4", "4.0", "1.0", "false",
+                str(generator),
+                "rectangle",
+                "grids/double_mach_960x240.cgns",
+                "960",
+                "240",
+                "4",
+                "4.0",
+                "1.0",
+                "false",
             ],
             "generate-grid.log",
         )
@@ -129,8 +142,12 @@ def main() -> int:
         raise FileNotFoundError(f"MPI launcher was not found: {args.mpi_exec}")
     execute(
         [
-            mpi_exec, "-n", str(args.ranks), str(run),
-            "--config", "double_mach_960x240.wcns",
+            mpi_exec,
+            "-n",
+            str(args.ranks),
+            str(run),
+            "--config",
+            "double_mach_960x240.wcns",
         ],
         f"run-r{args.ranks}.log",
     )

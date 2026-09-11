@@ -61,9 +61,8 @@ void test_stage_j_source_models()
     auto invalid = config;
     invalid.body_acceleration[2] = 1.0;
     const auto invalid_registry = SourceTermRegistry::create_stage_j(invalid);
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument,
-        invalid_registry.evaluate(state, {{0.0, 0.0, 0.0}}, 0.0, 2));
+    WCNS_REQUIRE_THROWS(std::invalid_argument,
+                        invalid_registry.evaluate(state, {{0.0, 0.0, 0.0}}, 0.0, 2));
 }
 
 // 验收源项只累加到真实单元 dU/dt、关闭路径逐位不变且全局积分仅在诊断时乘 J。
@@ -81,8 +80,7 @@ void test_source_operator_balance()
     for (int j = 0; j < cells.nj; ++j) {
         for (int i = 0; i < cells.ni; ++i) {
             for (int component = 0; component < euler_components; ++component) {
-                WCNS_REQUIRE(block.flow.residual(i, j, 0, component)
-                    == before(i, j, 0, component));
+                WCNS_REQUIRE(block.flow.residual(i, j, 0, component) == before(i, j, 0, component));
             }
         }
     }
@@ -122,7 +120,6 @@ void test_timed_ssprk3_sources()
     WCNS_REQUIRE_NEAR(times[1], 2.1, 1.0e-15);
     WCNS_REQUIRE_NEAR(times[2], 2.05, 1.0e-15);
     for (int component = 0; component < euler_components; ++component) {
-        WCNS_REQUIRE_NEAR(
-            block.flow.conservative(0, 0, 0, component), 1.2, 2.0e-15);
+        WCNS_REQUIRE_NEAR(block.flow.conservative(0, 0, 0, component), 1.2, 2.0e-15);
     }
 }

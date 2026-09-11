@@ -12,9 +12,12 @@ def main() -> int:
     path = Path(sys.argv[1])
     lines = path.read_text(encoding="utf-8").splitlines()
     expected = [
-        "step", "time",
-        "xz_mean_u_j0", "xz_mass_flow_x_j0",
-        "xz_mean_u_j7", "xz_mass_flow_x_j7",
+        "step",
+        "time",
+        "xz_mean_u_j0",
+        "xz_mass_flow_x_j0",
+        "xz_mean_u_j7",
+        "xz_mass_flow_x_j7",
     ]
     if not lines or lines[0].removeprefix("# ").split() != expected:
         raise RuntimeError("x-z plane statistic header is incorrect")
@@ -26,8 +29,7 @@ def main() -> int:
             raise RuntimeError("x-z plane statistic row is malformed")
         for value in values[2:]:
             if abs(value - 0.2) > 2.0e-12:
-                raise RuntimeError(
-                    f"uniform x-z plane statistic is {value}, expected 0.2")
+                raise RuntimeError(f"uniform x-z plane statistic is {value}, expected 0.2")
     print(f"validated x-z plane statistics: {path}")
     return 0
 

@@ -9,39 +9,52 @@
 namespace {
 
 struct PeriodicFace {
-    const char *name;
-    const char *donor_name;
+    const char* name;
+    const char* donor_name;
     cgsize_t range[6];
     cgsize_t donor_range[6];
     int transform[3];
     float translation[3];
 };
 
-[[noreturn]] void fail(const std::string &message) {
+[[noreturn]] void fail(const std::string& message)
+{
     std::cerr << message << std::endl;
     std::exit(EXIT_FAILURE);
 }
 
-template <typename Fn>
-void cg_check(Fn fn, const char *step) {
+template <typename Fn> void cg_check(Fn fn, const char* step)
+{
     if (fn != CG_OK) {
         std::cerr << "CGNS error while " << step << std::endl;
         cg_error_exit();
     }
 }
 
-cgsize_t node_index(cgsize_t i, cgsize_t j, cgsize_t k, cgsize_t ni, cgsize_t nj) {
+cgsize_t node_index(cgsize_t i, cgsize_t j, cgsize_t k, cgsize_t ni, cgsize_t nj)
+{
     return (k * nj + j) * ni + i;
 }
 
-PeriodicFace make_periodic_face(const char *name,
-                                const char *donor_name,
-                                cgsize_t i0, cgsize_t j0, cgsize_t k0,
-                                cgsize_t i1, cgsize_t j1, cgsize_t k1,
-                                cgsize_t di0, cgsize_t dj0, cgsize_t dk0,
-                                cgsize_t di1, cgsize_t dj1, cgsize_t dk1,
-                                float tx, float ty, float tz) {
-    PeriodicFace face{};
+PeriodicFace make_periodic_face(const char* name,
+                                const char* donor_name,
+                                cgsize_t i0,
+                                cgsize_t j0,
+                                cgsize_t k0,
+                                cgsize_t i1,
+                                cgsize_t j1,
+                                cgsize_t k1,
+                                cgsize_t di0,
+                                cgsize_t dj0,
+                                cgsize_t dk0,
+                                cgsize_t di1,
+                                cgsize_t dj1,
+                                cgsize_t dk1,
+                                float tx,
+                                float ty,
+                                float tz)
+{
+    PeriodicFace face {};
     face.name = name;
     face.donor_name = donor_name;
     face.range[0] = i0;
@@ -65,9 +78,10 @@ PeriodicFace make_periodic_face(const char *name,
     return face;
 }
 
-}  // namespace
+} // namespace
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv)
+{
     std::string output_name = "Isentropic_curl.cgns";
     if (argc > 1) {
         output_name = argv[1];
@@ -123,55 +137,143 @@ int main(int argc, char **argv) {
     cg_check(cg_zone_write(file, base, "IsentropicCurlZone", size, CGNS_ENUMV(Structured), &zone),
              "writing structured zone");
 
-    cg_check(cg_coord_write(file, base, zone, CGNS_ENUMV(RealDouble), "CoordinateX", x.data(), &coord),
-             "writing CoordinateX");
-    cg_check(cg_coord_write(file, base, zone, CGNS_ENUMV(RealDouble), "CoordinateY", y.data(), &coord),
-             "writing CoordinateY");
-    cg_check(cg_coord_write(file, base, zone, CGNS_ENUMV(RealDouble), "CoordinateZ", z.data(), &coord),
-             "writing CoordinateZ");
+    cg_check(
+        cg_coord_write(file, base, zone, CGNS_ENUMV(RealDouble), "CoordinateX", x.data(), &coord),
+        "writing CoordinateX");
+    cg_check(
+        cg_coord_write(file, base, zone, CGNS_ENUMV(RealDouble), "CoordinateY", y.data(), &coord),
+        "writing CoordinateY");
+    cg_check(
+        cg_coord_write(file, base, zone, CGNS_ENUMV(RealDouble), "CoordinateZ", z.data(), &coord),
+        "writing CoordinateZ");
 
     const PeriodicFace faces[] = {
-        make_periodic_face("Imin_to_Imax", "IsentropicCurlZone",
-                           1, 1, 1, 1, nj, nk,
-                           ni, 1, 1, ni, nj, nk,
-                           10.0f, 0.0f, 0.0f),
-        make_periodic_face("Imax_to_Imin", "IsentropicCurlZone",
-                           ni, 1, 1, ni, nj, nk,
-                           1, 1, 1, 1, nj, nk,
-                           -10.0f, 0.0f, 0.0f),
-        make_periodic_face("Jmin_to_Jmax", "IsentropicCurlZone",
-                           1, 1, 1, ni, 1, nk,
-                           1, nj, 1, ni, nj, nk,
-                           0.0f, 10.0f, 0.0f),
-        make_periodic_face("Jmax_to_Jmin", "IsentropicCurlZone",
-                           1, nj, 1, ni, nj, nk,
-                           1, 1, 1, ni, 1, nk,
-                           0.0f, -10.0f, 0.0f),
-        make_periodic_face("Kmin_to_Kmax", "IsentropicCurlZone",
-                           1, 1, 1, ni, nj, 1,
-                           1, 1, nk, ni, nj, nk,
-                           0.0f, 0.0f, 0.1f),
-        make_periodic_face("Kmax_to_Kmin", "IsentropicCurlZone",
-                           1, 1, nk, ni, nj, nk,
-                           1, 1, 1, ni, nj, 1,
-                           0.0f, 0.0f, -0.1f),
+        make_periodic_face("Imin_to_Imax",
+                           "IsentropicCurlZone",
+                           1,
+                           1,
+                           1,
+                           1,
+                           nj,
+                           nk,
+                           ni,
+                           1,
+                           1,
+                           ni,
+                           nj,
+                           nk,
+                           10.0f,
+                           0.0f,
+                           0.0f),
+        make_periodic_face("Imax_to_Imin",
+                           "IsentropicCurlZone",
+                           ni,
+                           1,
+                           1,
+                           ni,
+                           nj,
+                           nk,
+                           1,
+                           1,
+                           1,
+                           1,
+                           nj,
+                           nk,
+                           -10.0f,
+                           0.0f,
+                           0.0f),
+        make_periodic_face("Jmin_to_Jmax",
+                           "IsentropicCurlZone",
+                           1,
+                           1,
+                           1,
+                           ni,
+                           1,
+                           nk,
+                           1,
+                           nj,
+                           1,
+                           ni,
+                           nj,
+                           nk,
+                           0.0f,
+                           10.0f,
+                           0.0f),
+        make_periodic_face("Jmax_to_Jmin",
+                           "IsentropicCurlZone",
+                           1,
+                           nj,
+                           1,
+                           ni,
+                           nj,
+                           nk,
+                           1,
+                           1,
+                           1,
+                           ni,
+                           1,
+                           nk,
+                           0.0f,
+                           -10.0f,
+                           0.0f),
+        make_periodic_face("Kmin_to_Kmax",
+                           "IsentropicCurlZone",
+                           1,
+                           1,
+                           1,
+                           ni,
+                           nj,
+                           1,
+                           1,
+                           1,
+                           nk,
+                           ni,
+                           nj,
+                           nk,
+                           0.0f,
+                           0.0f,
+                           0.1f),
+        make_periodic_face("Kmax_to_Kmin",
+                           "IsentropicCurlZone",
+                           1,
+                           1,
+                           nk,
+                           ni,
+                           nj,
+                           nk,
+                           1,
+                           1,
+                           1,
+                           ni,
+                           nj,
+                           1,
+                           0.0f,
+                           0.0f,
+                           -0.1f),
     };
 
-    for (const PeriodicFace &face : faces) {
+    for (const PeriodicFace& face : faces) {
         int conn = 0;
-        cg_check(cg_1to1_write(file, base, zone, face.name, face.donor_name,
-                               face.range, face.donor_range, face.transform, &conn),
+        cg_check(cg_1to1_write(file,
+                               base,
+                               zone,
+                               face.name,
+                               face.donor_name,
+                               face.range,
+                               face.donor_range,
+                               face.transform,
+                               &conn),
                  "writing 1-to-1 connectivity");
         float rotation_center[3] = {0.0f, 0.0f, 0.0f};
         float rotation_angle[3] = {0.0f, 0.0f, 0.0f};
-        cg_check(cg_1to1_periodic_write(file, base, zone, conn,
-                                        rotation_center, rotation_angle, face.translation),
+        cg_check(cg_1to1_periodic_write(
+                     file, base, zone, conn, rotation_center, rotation_angle, face.translation),
                  "writing periodic connectivity property");
     }
 
     cg_check(cg_close(file), "closing file");
 
-    std::cout << "Wrote " << output_name << " with an Isentropic curl grid "
-              << ni << " x " << nj << " x " << nk << std::endl;
+    std::cout << "Wrote " << output_name << " with an Isentropic curl grid " << ni << " x " << nj
+              << " x " << nk << std::endl;
     return EXIT_SUCCESS;
 }

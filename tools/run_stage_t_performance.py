@@ -48,19 +48,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scaling-steps", type=int, default=2)
     parser.add_argument("--skip-scaling", action="store_true")
     parser.add_argument(
-        "--reuse-serial-manifest", type=Path,
+        "--reuse-serial-manifest",
+        type=Path,
         help="reuse serial/allocation results from a prior stage-T manifest",
     )
     parser.add_argument(
-        "--reuse-scaling-manifest", type=Path,
+        "--reuse-scaling-manifest",
+        type=Path,
         help="reuse passing scaling groups from a prior stage-T manifest",
     )
     parser.add_argument(
-        "--rerun-strong-ranks", default="1,2,4,8",
+        "--rerun-strong-ranks",
+        default="1,2,4,8",
         help="comma-separated strong-scaling ranks to measure",
     )
     parser.add_argument(
-        "--rerun-weak-ranks", default="1,2,4,8",
+        "--rerun-weak-ranks",
+        default="1,2,4,8",
         help="comma-separated weak-scaling ranks to measure",
     )
     return parser.parse_args()
@@ -68,9 +72,7 @@ def parse_args() -> argparse.Namespace:
 
 def command_version(command: list[str]) -> str:
     try:
-        result = subprocess.run(
-            command, check=True, capture_output=True, text=True, timeout=10
-        )
+        result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=10)
         return (result.stdout or result.stderr).splitlines()[0]
     except (OSError, subprocess.SubprocessError, IndexError):
         return "unavailable"
@@ -138,12 +140,14 @@ def measure_case(
             rss_samples.append(peak_rss)
     result: dict[str, object] = statistics_for(samples)
     median = float(result["median_wall_seconds"])
-    result.update({
-        "peak_process_tree_rss_bytes": rss_samples,
-        "cell_stages_per_second": 3.0 * cells * steps / median,
-        "commands": commands,
-        "detailed_timing": detailed,
-    })
+    result.update(
+        {
+            "peak_process_tree_rss_bytes": rss_samples,
+            "cell_stages_per_second": 3.0 * cells * steps / median,
+            "commands": commands,
+            "detailed_timing": detailed,
+        }
+    )
     return result
 
 
@@ -188,17 +192,48 @@ def serial_cases(repository: Path, root: Path, generator: Path) -> list[dict[str
 
     viscous_mesh = root / "viscous-36x48x36.cgns"
     run_checked(
-        [str(generator), "periodic-channel", str(viscous_mesh), "36", "48", "36", "2", "2", "2.0", "1.0", "2.0", "1.5"],
+        [
+            str(generator),
+            "periodic-channel",
+            str(viscous_mesh),
+            "36",
+            "48",
+            "36",
+            "2",
+            "2",
+            "2.0",
+            "1.0",
+            "2.0",
+            "1.5",
+        ],
         root / "generate-viscous.log",
     )
     viscous = viscous_config(repository, viscous_mesh, "t-candidate-viscous", 3)
     return [
-        {"id": "vortex-2d-100x100", "grid": [100, 100, 1], "zones": 1,
-         "cells": 100 * 100, "steps": 20, "config": vortex},
-        {"id": "case07-cylinder-4zone-48x32", "grid": [48, 32, 1], "zones": 4,
-         "cells": 48 * 32, "steps": 20, "config": cylinder},
-        {"id": "viscous-3d-36x48x36", "grid": [36, 48, 36], "zones": 4,
-         "cells": 36 * 48 * 36, "steps": 3, "config": viscous},
+        {
+            "id": "vortex-2d-100x100",
+            "grid": [100, 100, 1],
+            "zones": 1,
+            "cells": 100 * 100,
+            "steps": 20,
+            "config": vortex,
+        },
+        {
+            "id": "case07-cylinder-4zone-48x32",
+            "grid": [48, 32, 1],
+            "zones": 4,
+            "cells": 48 * 32,
+            "steps": 20,
+            "config": cylinder,
+        },
+        {
+            "id": "viscous-3d-36x48x36",
+            "grid": [36, 48, 36],
+            "zones": 4,
+            "cells": 36 * 48 * 36,
+            "steps": 3,
+            "config": viscous,
+        },
     ]
 
 
@@ -271,33 +306,52 @@ def scaling_matrix(
     strong_grid = (48, 72, 48)
     strong_mesh = root / "strong-48x72x48.cgns"
     run_checked(
-        [str(generator), "periodic-channel", str(strong_mesh), *map(str, strong_grid),
-         "2", "2", "2.0", "1.0", "2.0", "1.5"],
+        [
+            str(generator),
+            "periodic-channel",
+            str(strong_mesh),
+            *map(str, strong_grid),
+            "2",
+            "2",
+            "2.0",
+            "1.0",
+            "2.0",
+            "1.5",
+        ],
         root / "generate-strong.log",
     )
     strong_config = viscous_config(repository, strong_mesh, "t-strong", steps)
-    prior_strong = {
-        int(item["ranks"]): item
-        for item in ([] if prior is None else prior["strong"])
-    }
+    prior_strong = {int(item["ranks"]): item for item in ([] if prior is None else prior["strong"])}
     strong_by_rank: dict[int, dict[str, object]] = dict(prior_strong)
     mpi_prefix = [str(mpiexec)]
     if pin_processor_list is not None:
         if re.fullmatch(r"[0-9,-]+", pin_processor_list) is None:
             raise RuntimeError("MPI processor list may contain only digits, commas, and hyphens")
-        mpi_prefix.extend([
-            "-genv", "I_MPI_PIN", "1",
-            "-genv", "I_MPI_PIN_PROCESSOR_LIST", pin_processor_list,
-        ])
+        mpi_prefix.extend(
+            [
+                "-genv",
+                "I_MPI_PIN",
+                "1",
+                "-genv",
+                "I_MPI_PIN_PROCESSOR_LIST",
+                pin_processor_list,
+            ]
+        )
     for rank_count in ranks:
         if rerun_strong is not None and rank_count not in rerun_strong:
             if rank_count not in strong_by_rank:
                 raise RuntimeError(f"no reused strong result for r{rank_count}")
             continue
         measured = measure_case(
-            [*mpi_prefix, "-n", str(rank_count)], executable, strong_config,
-            root / "strong" / f"r{rank_count}", warmups, repetitions,
-            math.prod(strong_grid), steps, detailed,
+            [*mpi_prefix, "-n", str(rank_count)],
+            executable,
+            strong_config,
+            root / "strong" / f"r{rank_count}",
+            warmups,
+            repetitions,
+            math.prod(strong_grid),
+            steps,
+            detailed,
             {executable.name} if high_priority else None,
             rank_count if high_priority else 0,
         )
@@ -312,10 +366,7 @@ def scaling_matrix(
         rank_count = int(item["ranks"])
         item["efficiency"] = t1 / (rank_count * float(item["median_wall_seconds"]))
 
-    prior_weak = {
-        int(item["ranks"]): item
-        for item in ([] if prior is None else prior["weak"])
-    }
+    prior_weak = {int(item["ranks"]): item for item in ([] if prior is None else prior["weak"])}
     weak_by_rank: dict[int, dict[str, object]] = dict(prior_weak)
     # Both periodic directions are split into two source zones, so their
     # global counts must remain divisible by two at every rank count.
@@ -329,15 +380,31 @@ def scaling_matrix(
         grid = (local_grid[0] * rank_count, local_grid[1], local_grid[2])
         mesh = root / f"weak-r{rank_count}.cgns"
         run_checked(
-            [str(generator), "periodic-channel", str(mesh), *map(str, grid),
-             "2", "2", "2.0", "1.0", "2.0", "1.5"],
+            [
+                str(generator),
+                "periodic-channel",
+                str(mesh),
+                *map(str, grid),
+                "2",
+                "2",
+                "2.0",
+                "1.0",
+                "2.0",
+                "1.5",
+            ],
             root / f"generate-weak-r{rank_count}.log",
         )
         config = viscous_config(repository, mesh, f"t-weak-r{rank_count}", steps)
         measured = measure_case(
-            [*mpi_prefix, "-n", str(rank_count)], executable, config,
-            root / "weak" / f"r{rank_count}", warmups, repetitions,
-            local_cells * rank_count, steps, detailed,
+            [*mpi_prefix, "-n", str(rank_count)],
+            executable,
+            config,
+            root / "weak" / f"r{rank_count}",
+            warmups,
+            repetitions,
+            local_cells * rank_count,
+            steps,
+            detailed,
             {executable.name} if high_priority else None,
             rank_count if high_priority else 0,
         )
@@ -375,36 +442,41 @@ def main() -> int:
     serial: list[dict[str, object]] = []
     allocation: dict[str, object]
     if args.reuse_serial_manifest is not None:
-        prior = json.loads(
-            args.reuse_serial_manifest.resolve().read_text(encoding="utf-8")
-        )
+        prior = json.loads(args.reuse_serial_manifest.resolve().read_text(encoding="utf-8"))
         if prior.get("stage") != "T" or not prior.get("serial"):
             raise RuntimeError("reused serial manifest is not a stage-T result")
         prior_protocol = prior.get("protocol", {})
         if prior_protocol.get("detailed_timing") != args.detailed:
             raise RuntimeError("reused serial manifest has a different timing mode")
-        if prior_protocol.get("warmups") != args.warmups \
-                or prior_protocol.get("repetitions") != args.repetitions:
+        if (
+            prior_protocol.get("warmups") != args.warmups
+            or prior_protocol.get("repetitions") != args.repetitions
+        ):
             raise RuntimeError("reused serial manifest has a different sample protocol")
         serial = prior["serial"]
         allocation = prior["allocation"]
     else:
         for case in serial_cases(repository, root, generator):
             measured = measure_case(
-                [], executable, str(case["config"]),
-                root / "serial" / str(case["id"]), args.warmups,
-                args.repetitions, int(case["cells"]), int(case["steps"]),
+                [],
+                executable,
+                str(case["config"]),
+                root / "serial" / str(case["id"]),
+                args.warmups,
+                args.repetitions,
+                int(case["cells"]),
+                int(case["steps"]),
                 args.detailed,
             )
-            baseline_seconds = float(
-                baseline_by_id[str(case["id"])]["median_wall_seconds"]
+            baseline_seconds = float(baseline_by_id[str(case["id"])]["median_wall_seconds"])
+            serial.append(
+                {key: value for key, value in case.items() if key != "config"}
+                | measured
+                | {
+                    "baseline_median_wall_seconds": baseline_seconds,
+                    "speedup": baseline_seconds / float(measured["median_wall_seconds"]),
+                }
             )
-            serial.append({
-                key: value for key, value in case.items() if key != "config"
-            } | measured | {
-                "baseline_median_wall_seconds": baseline_seconds,
-                "speedup": baseline_seconds / float(measured["median_wall_seconds"]),
-            })
         allocation = allocation_result(args.allocation_probe.resolve(), root)
 
     scaling: dict[str, object] | None = None
@@ -430,21 +502,21 @@ def main() -> int:
             }
             for key, expected in expected_protocol.items():
                 if prior_protocol.get(key) != expected:
-                    raise RuntimeError(
-                        f"reused scaling manifest has a different {key} protocol"
-                    )
-        parse_ranks = lambda text: {
-            int(value) for value in text.split(",") if value.strip()
-        }
+                    raise RuntimeError(f"reused scaling manifest has a different {key} protocol")
+        parse_ranks = lambda text: {int(value) for value in text.split(",") if value.strip()}
         rerun_strong = parse_ranks(args.rerun_strong_ranks)
         rerun_weak = parse_ranks(args.rerun_weak_ranks)
-        if not rerun_strong.issubset({1, 2, 4, 8}) \
-                or not rerun_weak.issubset({1, 2, 4, 8}):
+        if not rerun_strong.issubset({1, 2, 4, 8}) or not rerun_weak.issubset({1, 2, 4, 8}):
             raise RuntimeError("scaling ranks must be selected from 1,2,4,8")
         scaling = scaling_matrix(
-            repository, root / "scaling", generator, args.mpiexec.resolve(),
-            args.mpi_run.resolve(), args.scaling_warmups,
-            args.scaling_repetitions, args.detailed,
+            repository,
+            root / "scaling",
+            generator,
+            args.mpiexec.resolve(),
+            args.mpi_run.resolve(),
+            args.scaling_warmups,
+            args.scaling_repetitions,
+            args.detailed,
             steps=args.scaling_steps,
             pin_processor_list=args.mpi_pin_processor_list,
             high_priority=args.mpi_high_priority,
@@ -455,8 +527,11 @@ def main() -> int:
 
     try:
         commit = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=repository, check=True,
-            capture_output=True, text=True,
+            ["git", "rev-parse", "HEAD"],
+            cwd=repository,
+            check=True,
+            capture_output=True,
+            text=True,
         ).stdout.strip()
     except subprocess.SubprocessError:
         commit = "unknown"
@@ -510,9 +585,7 @@ def main() -> int:
         for family in (scaling["strong"], scaling["weak"]):
             for item in family:
                 if float(item["coefficient_of_variation"]) > 0.05:
-                    failures.append(
-                        f"scaling r{item['ranks']}: CV exceeds 5%"
-                    )
+                    failures.append(f"scaling r{item['ranks']}: CV exceeds 5%")
     print(f"stage-T performance manifest written: {output}")
     if failures:
         for failure in failures:

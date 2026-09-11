@@ -95,9 +95,7 @@ def measure_case(
 
 def command_version(command: list[str]) -> str:
     try:
-        result = subprocess.run(
-            command, check=True, capture_output=True, text=True, timeout=10
-        )
+        result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=10)
         return (result.stdout or result.stderr).splitlines()[0]
     except (OSError, subprocess.SubprocessError, IndexError):
         return "unavailable"
@@ -141,8 +139,15 @@ def main() -> int:
     cylinder_mesh = root / "case07-cylinder-48x32.cgns"
     run_checked(
         [
-            str(generator), "cylinder-o", str(cylinder_mesh),
-            "48", "32", "4", "1.0", "8.0", "2.5",
+            str(generator),
+            "cylinder-o",
+            str(cylinder_mesh),
+            "48",
+            "32",
+            "4",
+            "1.0",
+            "8.0",
+            "2.5",
         ],
         root / "generate-cylinder.log",
     )
@@ -158,8 +163,18 @@ def main() -> int:
     viscous_mesh = root / "viscous-36x48x36.cgns"
     run_checked(
         [
-            str(generator), "periodic-channel", str(viscous_mesh),
-            "36", "48", "36", "2", "2", "2.0", "1.0", "2.0", "1.5",
+            str(generator),
+            "periodic-channel",
+            str(viscous_mesh),
+            "36",
+            "48",
+            "36",
+            "2",
+            "2",
+            "2.0",
+            "1.0",
+            "2.0",
+            "1.5",
         ],
         root / "generate-viscous.log",
     )

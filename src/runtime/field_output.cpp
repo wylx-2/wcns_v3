@@ -25,8 +25,7 @@ namespace {
 void check_cgns(int status, const char* operation)
 {
     if (status != CG_OK) {
-        throw std::runtime_error(
-            std::string(operation) + ": " + cg_get_error());
+        throw std::runtime_error(std::string(operation) + ": " + cg_get_error());
     }
 }
 
@@ -66,8 +65,7 @@ std::string safe_name(std::string name)
 {
     for (char& character : name) {
         const bool safe = (character >= 'a' && character <= 'z')
-            || (character >= 'A' && character <= 'Z')
-            || (character >= '0' && character <= '9')
+            || (character >= 'A' && character <= 'Z') || (character >= '0' && character <= '9')
             || character == '-' || character == '_';
         if (!safe) character = '_';
     }
@@ -80,9 +78,12 @@ std::string time_tag(Real time)
     result << std::scientific << std::setprecision(9) << time;
     auto tag = result.str();
     for (char& character : tag) {
-        if (character == '.') character = 'p';
-        else if (character == '+') character = 'P';
-        else if (character == '-') character = 'M';
+        if (character == '.')
+            character = 'p';
+        else if (character == '+')
+            character = 'P';
+        else if (character == '-')
+            character = 'M';
     }
     return tag;
 }
@@ -90,9 +91,8 @@ std::string time_tag(Real time)
 std::string field_stem(const CaseConfig& config, const SimulationState& state)
 {
     std::ostringstream result;
-    result << safe_name(config.case_name) << ".field.step"
-           << std::setw(8) << std::setfill('0') << state.step
-           << ".time" << time_tag(state.time);
+    result << safe_name(config.case_name) << ".field.step" << std::setw(8) << std::setfill('0')
+           << state.step << ".time" << time_tag(state.time);
     return result.str();
 }
 
@@ -102,10 +102,7 @@ bool file_exists(const std::string& path)
     return static_cast<bool>(input);
 }
 
-void commit_file(
-    const std::string& temporary,
-    const std::string& target,
-    bool allow_existing)
+void commit_file(const std::string& temporary, const std::string& target, bool allow_existing)
 {
     if (file_exists(target)) {
         if (!allow_existing) {
@@ -123,28 +120,26 @@ void commit_file(
 std::size_t flat_index(Extent3 extent, int i, int j, int k)
 {
     return (static_cast<std::size_t>(k) * static_cast<std::size_t>(extent.nj)
-        + static_cast<std::size_t>(j)) * static_cast<std::size_t>(extent.ni)
+            + static_cast<std::size_t>(j))
+        * static_cast<std::size_t>(extent.ni)
         + static_cast<std::size_t>(i);
 }
 
-const StructuredBlock& local_block(
-    const std::unordered_map<BlockId, const StructuredBlock*>& blocks,
-    BlockId id)
+const StructuredBlock&
+local_block(const std::unordered_map<BlockId, const StructuredBlock*>& blocks, BlockId id)
 {
     const auto iterator = blocks.find(id);
     if (iterator == blocks.end()) {
-        throw std::runtime_error(
-            "field output cannot find owned block " + std::to_string(id));
+        throw std::runtime_error("field output cannot find owned block " + std::to_string(id));
     }
     return *iterator->second;
 }
 
 enum class ZoneComponent { X, Y, Z, Quantity };
 
-void collective_root_action(
-    const MpiRuntime& mpi,
-    const std::function<void()>& action,
-    RankId root = 0)
+void collective_root_action(const MpiRuntime& mpi,
+                            const std::function<void()>& action,
+                            RankId root = 0)
 {
     std::string status;
     if (mpi.rank() == root) {
@@ -164,17 +159,16 @@ void collective_root_action(
     }
 }
 
-std::vector<Real> gather_zone_component(
-    const MpiRuntime& mpi,
-    const LocalBlockSet& local_blocks,
-    const BlockMetricMap& metrics,
-    const StructuredPartitionPlan& partition,
-    const PartitionZone& zone,
-    const FieldQuantityRegistry& registry,
-    const QuantityContext& context,
-    ZoneComponent component,
-    const std::string& quantity = {},
-    RankId root = 0)
+std::vector<Real> gather_zone_component(const MpiRuntime& mpi,
+                                        const LocalBlockSet& local_blocks,
+                                        const BlockMetricMap& metrics,
+                                        const StructuredPartitionPlan& partition,
+                                        const PartitionZone& zone,
+                                        const FieldQuantityRegistry& registry,
+                                        const QuantityContext& context,
+                                        ZoneComponent component,
+                                        const std::string& quantity = {},
+                                        RankId root = 0)
 {
     std::unordered_map<BlockId, const StructuredBlock*> blocks;
     for (const auto& block : local_blocks.blocks()) {
@@ -189,8 +183,7 @@ std::vector<Real> gather_zone_component(
         const auto& metric = metrics.at(block.id());
         if (component == ZoneComponent::Quantity) {
             const auto values = registry.evaluate(quantity, block, metric, context);
-            local_payload.insert(
-                local_payload.end(), values.values.begin(), values.values.end());
+            local_payload.insert(local_payload.end(), values.values.begin(), values.values.end());
             continue;
         }
         const auto& coordinates = metric.cell_coordinates();
@@ -213,15 +206,13 @@ std::vector<Real> gather_zone_component(
         try {
             const auto count = zone.cell_extent.size();
             if (gathered.size() != count) {
-                throw std::runtime_error(
-                    "chunked field gather has an incorrect payload length");
+                throw std::runtime_error("chunked field gather has an incorrect payload length");
             }
             std::vector<std::size_t> target(count, count);
             std::size_t source = 0;
             for (int rank = 0; rank < mpi.size(); ++rank) {
                 for (const auto& leaf : partition.leaves()) {
-                    if (leaf.source_zone != zone.source_zone
-                        || leaf.owner != rank) {
+                    if (leaf.source_zone != zone.source_zone || leaf.owner != rank) {
                         continue;
                     }
                     const auto extent = leaf.cell_extent();
@@ -232,19 +223,17 @@ std::vector<Real> gather_zone_component(
                                     throw std::runtime_error(
                                         "chunked field gather overlaps source cells");
                                 }
-                                target[source++] = flat_index(
-                                    zone.cell_extent,
-                                    leaf.cells.begin.i + i,
-                                    leaf.cells.begin.j + j,
-                                    leaf.cells.begin.k + k);
+                                target[source++] = flat_index(zone.cell_extent,
+                                                              leaf.cells.begin.i + i,
+                                                              leaf.cells.begin.j + j,
+                                                              leaf.cells.begin.k + k);
                             }
                         }
                     }
                 }
             }
             if (source != count) {
-                throw std::runtime_error(
-                    "chunked field gather leaves source cells missing");
+                throw std::runtime_error("chunked field gather leaves source cells missing");
             }
             std::vector<unsigned char> visited(count, 0);
             for (std::size_t start = 0; start < count; ++start) {
@@ -255,15 +244,13 @@ std::vector<Real> gather_zone_component(
                     visited[current] = 1;
                     const auto destination = target[current];
                     if (destination >= count) {
-                        throw std::runtime_error(
-                            "chunked field gather target is invalid");
+                        throw std::runtime_error("chunked field gather target is invalid");
                     }
                     std::swap(carried, gathered[destination]);
                     current = destination;
                 }
                 if (current != start) {
-                    throw std::runtime_error(
-                        "chunked field gather mapping is not one-to-one");
+                    throw std::runtime_error("chunked field gather mapping is not one-to-one");
                 }
             }
             status = "OK";
@@ -284,11 +271,18 @@ std::vector<Real> gather_zone_component(
 std::string cgns_field_name(const std::string& name)
 {
     static const std::unordered_map<std::string, std::string> standard {
-        {"rho", "Density"}, {"u", "VelocityX"}, {"v", "VelocityY"},
-        {"w", "VelocityZ"}, {"p", "Pressure"}, {"T", "Temperature"},
-        {"rho_u", "MomentumX"}, {"rho_v", "MomentumY"},
-        {"rho_w", "MomentumZ"}, {"rho_E", "EnergyStagnationDensity"},
-        {"mach", "Mach"}, {"jacobian", "Jacobian"},
+        {"rho", "Density"},
+        {"u", "VelocityX"},
+        {"v", "VelocityY"},
+        {"w", "VelocityZ"},
+        {"p", "Pressure"},
+        {"T", "Temperature"},
+        {"rho_u", "MomentumX"},
+        {"rho_v", "MomentumY"},
+        {"rho_w", "MomentumZ"},
+        {"rho_E", "EnergyStagnationDensity"},
+        {"mach", "Mach"},
+        {"jacobian", "Jacobian"},
     };
     const auto iterator = standard.find(name);
     return iterator == standard.end() ? safe_name(name) : iterator->second;
@@ -296,32 +290,37 @@ std::string cgns_field_name(const std::string& name)
 
 } // namespace
 
-std::vector<Real> gather_original_zone_quantity(
-    const MpiRuntime& mpi,
-    const LocalBlockSet& local_blocks,
-    const BlockMetricMap& metrics,
-    const StructuredPartitionPlan& partition,
-    const PartitionZone& zone,
-    const FieldQuantityRegistry& registry,
-    const std::string& quantity,
-    const QuantityContext& context,
-    RankId root)
+std::vector<Real> gather_original_zone_quantity(const MpiRuntime& mpi,
+                                                const LocalBlockSet& local_blocks,
+                                                const BlockMetricMap& metrics,
+                                                const StructuredPartitionPlan& partition,
+                                                const PartitionZone& zone,
+                                                const FieldQuantityRegistry& registry,
+                                                const std::string& quantity,
+                                                const QuantityContext& context,
+                                                RankId root)
 {
     registry.validate_selection({quantity});
-    return gather_zone_component(
-        mpi, local_blocks, metrics, partition, zone, registry, context,
-        ZoneComponent::Quantity, quantity, root);
+    return gather_zone_component(mpi,
+                                 local_blocks,
+                                 metrics,
+                                 partition,
+                                 zone,
+                                 registry,
+                                 context,
+                                 ZoneComponent::Quantity,
+                                 quantity,
+                                 root);
 }
 
-OriginalFieldSnapshot gather_original_zone_fields(
-    const MpiRuntime& mpi,
-    const LocalBlockSet& local_blocks,
-    const BlockMetricMap& metrics,
-    const StructuredPartitionPlan& partition,
-    const FieldQuantityRegistry& registry,
-    const std::vector<std::string>& quantities,
-    const QuantityContext& context,
-    RankId root)
+OriginalFieldSnapshot gather_original_zone_fields(const MpiRuntime& mpi,
+                                                  const LocalBlockSet& local_blocks,
+                                                  const BlockMetricMap& metrics,
+                                                  const StructuredPartitionPlan& partition,
+                                                  const FieldQuantityRegistry& registry,
+                                                  const std::vector<std::string>& quantities,
+                                                  const QuantityContext& context,
+                                                  RankId root)
 {
     registry.validate_selection(quantities);
     std::unordered_map<BlockId, const StructuredBlock*> blocks;
@@ -329,8 +328,7 @@ OriginalFieldSnapshot gather_original_zone_fields(
         blocks.emplace(block.id(), &block);
     }
     std::vector<Real> local_payload;
-    const Real coordinate_scale = context.dimensional
-        ? context.reference.length() : 1.0;
+    const Real coordinate_scale = context.dimensional ? context.reference.length() : 1.0;
     for (const auto& leaf : partition.leaves()) {
         if (leaf.owner != mpi.rank()) continue;
         const auto& block = local_block(blocks, leaf.block);
@@ -344,8 +342,7 @@ OriginalFieldSnapshot gather_original_zone_fields(
             for (int k = 0; k < extent.nk; ++k) {
                 for (int j = 0; j < extent.nj; ++j) {
                     for (int i = 0; i < extent.ni; ++i) {
-                        local_payload.push_back(
-                            coordinate_scale * values(i, j, k));
+                        local_payload.push_back(coordinate_scale * values(i, j, k));
                     }
                 }
             }
@@ -354,10 +351,8 @@ OriginalFieldSnapshot gather_original_zone_fields(
         append_coordinates(metric.cell_coordinates().y);
         append_coordinates(metric.cell_coordinates().z);
         for (const auto& name : quantities) {
-            const auto values = registry.evaluate(
-                name, block, metric, context);
-            local_payload.insert(
-                local_payload.end(), values.values.begin(), values.values.end());
+            const auto values = registry.evaluate(name, block, metric, context);
+            local_payload.insert(local_payload.end(), values.values.begin(), values.values.end());
         }
     }
     const auto gathered = mpi.gather_reals(std::move(local_payload), root);
@@ -402,21 +397,18 @@ OriginalFieldSnapshot gather_original_zone_fields(
                 for (int j = 0; j < extent.nj; ++j) {
                     for (int i = 0; i < extent.ni; ++i) {
                         const auto local = flat_index(extent, i, j, k);
-                        const auto global = flat_index(
-                            zone.cell_extent,
-                            leaf.cells.begin.i + i,
-                            leaf.cells.begin.j + j,
-                            leaf.cells.begin.k + k);
+                        const auto global = flat_index(zone.cell_extent,
+                                                       leaf.cells.begin.i + i,
+                                                       leaf.cells.begin.j + j,
+                                                       leaf.cells.begin.k + k);
                         if (zone_coverage[global] != 0) {
-                            throw std::runtime_error(
-                                "field gather overlaps an original-zone cell");
+                            throw std::runtime_error("field gather overlaps an original-zone cell");
                         }
                         zone_coverage[global] = 1;
                         zone.x[global] = gathered[offset + local];
                         zone.y[global] = gathered[offset + count + local];
                         zone.z[global] = gathered[offset + 2 * count + local];
-                        for (std::size_t quantity = 0;
-                             quantity < quantities.size(); ++quantity) {
+                        for (std::size_t quantity = 0; quantity < quantities.size(); ++quantity) {
                             zone.quantities.at(quantities[quantity])[global]
                                 = gathered[offset + (3 + quantity) * count + local];
                         }
@@ -430,23 +422,21 @@ OriginalFieldSnapshot gather_original_zone_fields(
         throw std::runtime_error("field gather payload has trailing values");
     }
     for (std::size_t zone = 0; zone < result.zones.size(); ++zone) {
-        if (std::find(coverage[zone].begin(), coverage[zone].end(), 0)
-            != coverage[zone].end()) {
+        if (std::find(coverage[zone].begin(), coverage[zone].end(), 0) != coverage[zone].end()) {
             throw std::runtime_error("field gather leaves original-zone cells missing");
         }
     }
     return result;
 }
 
-ProductionFieldWriter::ProductionFieldWriter(
-    const MpiRuntime& mpi,
-    const CaseConfig& config,
-    const StructuredPartitionPlan& partition,
-    const LocalBlockSet& local_blocks,
-    const BlockMetricMap& metrics,
-    QuantityContext quantity_context,
-    std::string mesh_path,
-    FieldQuantityRegistry registry)
+ProductionFieldWriter::ProductionFieldWriter(const MpiRuntime& mpi,
+                                             const CaseConfig& config,
+                                             const StructuredPartitionPlan& partition,
+                                             const LocalBlockSet& local_blocks,
+                                             const BlockMetricMap& metrics,
+                                             QuantityContext quantity_context,
+                                             std::string mesh_path,
+                                             FieldQuantityRegistry registry)
     : mpi_(mpi)
     , config_(config)
     , partition_(partition)
@@ -459,8 +449,7 @@ ProductionFieldWriter::ProductionFieldWriter(
     registry_.validate_selection(config_.output.field.quantities);
 }
 
-std::vector<std::string> ProductionFieldWriter::write(
-    const SimulationState& state) const
+std::vector<std::string> ProductionFieldWriter::write(const SimulationState& state) const
 {
     std::vector<std::string> result;
     const auto stem = field_stem(config_, state);
@@ -479,9 +468,7 @@ std::vector<std::string> ProductionFieldWriter::write(
     return result;
 }
 
-void ProductionFieldWriter::write_cgns(
-    const SimulationState& state,
-    const std::string& path) const
+void ProductionFieldWriter::write_cgns(const SimulationState& state, const std::string& path) const
 {
     const auto temporary = path + ".tmp";
     CgnsReader reader;
@@ -489,44 +476,40 @@ void ProductionFieldWriter::write_cgns(
     std::unique_ptr<CgnsOutputFile> file;
     std::unordered_map<int, int> output_bases;
     collective_root_action(mpi_, [&] {
-        metadata = std::make_unique<CgnsMeshMetadata>(
-            reader.read_metadata(mesh_path_));
+        metadata = std::make_unique<CgnsMeshMetadata>(reader.read_metadata(mesh_path_));
         file = std::make_unique<CgnsOutputFile>(temporary);
         for (const auto& base : metadata->bases) {
             int output_base = 0;
-            check_cgns(
-                cg_base_write(
-                    file->id(), base.name.c_str(), base.cell_dimension,
-                    base.physical_dimension, &output_base),
-                "cg_base_write output");
+            check_cgns(cg_base_write(file->id(),
+                                     base.name.c_str(),
+                                     base.cell_dimension,
+                                     base.physical_dimension,
+                                     &output_base),
+                       "cg_base_write output");
             output_bases.emplace(base.file_index, output_base);
-            check_cgns(
-                cg_goto(file->id(), output_base, "end"),
-                "cg_goto output base");
-            check_cgns(
-                cg_dataclass_write(
-                    config_.output.dimensional
-                    ? Dimensional : NormalizedByDimensional),
-                "cg_dataclass_write output");
+            check_cgns(cg_goto(file->id(), output_base, "end"), "cg_goto output base");
+            check_cgns(cg_dataclass_write(config_.output.dimensional ? Dimensional
+                                                                     : NormalizedByDimensional),
+                       "cg_dataclass_write output");
             if (config_.output.dimensional) {
-                check_cgns(
-                    cg_units_write(Kilogram, Meter, Second, Kelvin, Radian),
-                    "cg_units_write output");
+                check_cgns(cg_units_write(Kilogram, Meter, Second, Kelvin, Radian),
+                           "cg_units_write output");
             }
         }
     });
-    const Real coordinate_scale = quantity_context_.dimensional
-        ? quantity_context_.reference.length() : 1.0;
+    const Real coordinate_scale
+        = quantity_context_.dimensional ? quantity_context_.reference.length() : 1.0;
     for (const auto& partition_zone : partition_.zones()) {
         int output_zone = 0;
         int solution = 0;
         int base = 0;
         collective_root_action(mpi_, [&] {
-            const auto zone_iterator = std::find_if(
-                metadata->zones.begin(), metadata->zones.end(),
-                [&](const CgnsZoneMetadata& candidate) {
-                    return candidate.block_id == partition_zone.source_zone;
-                });
+            const auto zone_iterator
+                = std::find_if(metadata->zones.begin(),
+                               metadata->zones.end(),
+                               [&](const CgnsZoneMetadata& candidate) {
+                                   return candidate.block_id == partition_zone.source_zone;
+                               });
             if (zone_iterator == metadata->zones.end()) {
                 throw std::runtime_error("CGNS output is missing an original zone");
             }
@@ -542,66 +525,69 @@ void ProductionFieldWriter::write_cgns(
             base = output_bases.at(zone.base_file_index);
             check_cgns(
                 cg_zone_write(
-                    file->id(), base, zone.name.c_str(), size.data(),
-                    Structured, &output_zone),
+                    file->id(), base, zone.name.c_str(), size.data(), Structured, &output_zone),
                 "cg_zone_write output");
             std::vector<Real> coordinate(zone.vertex_extent.size());
-            const std::array<std::pair<const char*, const Array3D<Real>*>, 3>
-                coordinates {{
-                    {"CoordinateX", &block.coordinates.x},
-                    {"CoordinateY", &block.coordinates.y},
-                    {"CoordinateZ", &block.coordinates.z},
-                }};
+            const std::array<std::pair<const char*, const Array3D<Real>*>, 3> coordinates {{
+                {"CoordinateX", &block.coordinates.x},
+                {"CoordinateY", &block.coordinates.y},
+                {"CoordinateZ", &block.coordinates.z},
+            }};
             for (int axis = 0; axis < zone.physical_dimension; ++axis) {
                 std::size_t offset = 0;
                 for (int k = 0; k < zone.vertex_extent.nk; ++k) {
                     for (int j = 0; j < zone.vertex_extent.nj; ++j) {
                         for (int i = 0; i < zone.vertex_extent.ni; ++i) {
                             coordinate[offset++] = coordinate_scale
-                                * (*coordinates[static_cast<std::size_t>(axis)].second)(
-                                    i, j, k);
+                                * (*coordinates[static_cast<std::size_t>(axis)].second)(i, j, k);
                         }
                     }
                 }
                 int coordinate_index = 0;
-                check_cgns(
-                    cg_coord_write(
-                        file->id(), base, output_zone, RealDouble,
-                        coordinates[static_cast<std::size_t>(axis)].first,
-                        coordinate.data(), &coordinate_index),
-                    "cg_coord_write output");
+                check_cgns(cg_coord_write(file->id(),
+                                          base,
+                                          output_zone,
+                                          RealDouble,
+                                          coordinates[static_cast<std::size_t>(axis)].first,
+                                          coordinate.data(),
+                                          &coordinate_index),
+                           "cg_coord_write output");
             }
             check_cgns(
-                cg_sol_write(
-                    file->id(), base, output_zone, "FlowSolution",
-                    CellCenter, &solution),
+                cg_sol_write(file->id(), base, output_zone, "FlowSolution", CellCenter, &solution),
                 "cg_sol_write output");
         });
         for (const auto& name : config_.output.field.quantities) {
-            auto values = gather_zone_component(
-                mpi_, local_blocks_, metrics_, partition_, partition_zone,
-                registry_, quantity_context_, ZoneComponent::Quantity, name);
+            auto values = gather_zone_component(mpi_,
+                                                local_blocks_,
+                                                metrics_,
+                                                partition_,
+                                                partition_zone,
+                                                registry_,
+                                                quantity_context_,
+                                                ZoneComponent::Quantity,
+                                                name);
             collective_root_action(mpi_, [&] {
                 int field_index = 0;
-                check_cgns(
-                    cg_field_write(
-                        file->id(), base, output_zone, solution, RealDouble,
-                        cgns_field_name(name).c_str(), values.data(),
-                        &field_index),
-                    "cg_field_write output");
+                check_cgns(cg_field_write(file->id(),
+                                          base,
+                                          output_zone,
+                                          solution,
+                                          RealDouble,
+                                          cgns_field_name(name).c_str(),
+                                          values.data(),
+                                          &field_index),
+                           "cg_field_write output");
             });
         }
         collective_root_action(mpi_, [&] {
             check_cgns(
-                cg_goto(
-                    file->id(), base, "Zone_t", output_zone,
-                    "FlowSolution_t", solution, "end"),
+                cg_goto(file->id(), base, "Zone_t", output_zone, "FlowSolution_t", solution, "end"),
                 "cg_goto output solution");
             std::ostringstream time;
             time << std::setprecision(17) << state.time;
-            check_cgns(
-                cg_descriptor_write("WCNS_Time", time.str().c_str()),
-                "cg_descriptor_write output time");
+            check_cgns(cg_descriptor_write("WCNS_Time", time.str().c_str()),
+                       "cg_descriptor_write output time");
         });
     }
     collective_root_action(mpi_, [&] {
@@ -610,52 +596,55 @@ void ProductionFieldWriter::write_cgns(
     });
 }
 
-void ProductionFieldWriter::write_tecplot(
-    const SimulationState& state,
-    const std::string& path) const
+void ProductionFieldWriter::write_tecplot(const SimulationState& state,
+                                          const std::string& path) const
 {
     const auto temporary = path + ".tmp";
     std::unique_ptr<std::ofstream> output;
     collective_root_action(mpi_, [&] {
-        output = std::make_unique<std::ofstream>(
-            temporary, std::ios::out | std::ios::trunc);
+        output = std::make_unique<std::ofstream>(temporary, std::ios::out | std::ios::trunc);
         if (!*output) {
             throw std::runtime_error("cannot open Tecplot output: " + temporary);
         }
-        *output << "TITLE=\"WCNS step " << state.step << " time "
-                << std::setprecision(17) << state.time << "\"\n"
+        *output << "TITLE=\"WCNS step " << state.step << " time " << std::setprecision(17)
+                << state.time << "\"\n"
                 << "VARIABLES=\"X\",\"Y\"";
-        const bool three_dimensional = !partition_.zones().empty()
-            && partition_.zones().front().cell_dimension == 3;
+        const bool three_dimensional
+            = !partition_.zones().empty() && partition_.zones().front().cell_dimension == 3;
         if (three_dimensional) *output << ",\"Z\"";
         for (const auto& name : config_.output.field.quantities) {
             *output << ",\"" << name << "\"";
         }
         *output << '\n';
     });
-    const auto write_component = [&](const PartitionZone& zone,
-                                     ZoneComponent component,
-                                     const std::string& name = {}) {
-        auto values = gather_zone_component(
-            mpi_, local_blocks_, metrics_, partition_, zone, registry_,
-            quantity_context_, component, name);
-        collective_root_action(mpi_, [&] {
-            for (std::size_t index = 0; index < values.size(); ++index) {
-                *output << std::setprecision(17) << values[index];
-                *output << ((index + 1) % 6 == 0 ? '\n' : ' ');
-            }
-            if (values.size() % 6 != 0) *output << '\n';
-        });
-    };
+    const auto write_component
+        = [&](const PartitionZone& zone, ZoneComponent component, const std::string& name = {}) {
+              auto values = gather_zone_component(mpi_,
+                                                  local_blocks_,
+                                                  metrics_,
+                                                  partition_,
+                                                  zone,
+                                                  registry_,
+                                                  quantity_context_,
+                                                  component,
+                                                  name);
+              collective_root_action(mpi_, [&] {
+                  for (std::size_t index = 0; index < values.size(); ++index) {
+                      *output << std::setprecision(17) << values[index];
+                      *output << ((index + 1) % 6 == 0 ? '\n' : ' ');
+                  }
+                  if (values.size() % 6 != 0) *output << '\n';
+              });
+          };
     for (const auto& zone : partition_.zones()) {
         collective_root_action(mpi_, [&] {
-            *output << "ZONE T=\"" << zone.name << "\", I="
-                    << zone.cell_extent.ni << ", J=" << zone.cell_extent.nj;
+            *output << "ZONE T=\"" << zone.name << "\", I=" << zone.cell_extent.ni
+                    << ", J=" << zone.cell_extent.nj;
             if (zone.cell_dimension == 3) {
                 *output << ", K=" << zone.cell_extent.nk;
             }
-            *output << ", DATAPACKING=BLOCK, SOLUTIONTIME="
-                    << std::setprecision(17) << state.time << '\n';
+            *output << ", DATAPACKING=BLOCK, SOLUTIONTIME=" << std::setprecision(17) << state.time
+                    << '\n';
         });
         write_component(zone, ZoneComponent::X);
         write_component(zone, ZoneComponent::Y);

@@ -134,7 +134,11 @@ def main() -> int:
             raise RuntimeError(f"{label} must be positive and finite")
 
     executables = [
-        args.run, args.generator, args.validator, args.metric_comparator, args.mpi_exec,
+        args.run,
+        args.generator,
+        args.validator,
+        args.metric_comparator,
+        args.mpi_exec,
     ]
     executables = [path.resolve() for path in executables]
     for path in executables:
@@ -154,14 +158,22 @@ def main() -> int:
     try:
         records: list[dict[str, object]] = []
         grid_command = [
-            str(generator), "warped-periodic-square", "grids/warped_100x100.cgns",
-            "100", "100", "10.0", "0.5", "0.5",
+            str(generator),
+            "warped-periodic-square",
+            "grids/warped_100x100.cgns",
+            "100",
+            "100",
+            "10.0",
+            "0.5",
+            "0.5",
         ]
         records.append(execute(grid_command, CASE_DIR / "logs/generate-grid.log"))
-        records.append(execute(
-            [str(metric_comparator), "grids/warped_100x100.cgns"],
-            CASE_DIR / "validation/metric-profile-comparison.txt",
-        ))
+        records.append(
+            execute(
+                [str(metric_comparator), "grids/warped_100x100.cgns"],
+                CASE_DIR / "validation/metric-profile-comparison.txt",
+            )
+        )
 
         profiles: dict[str, dict[str, object]] = {}
         for name, config_name in (
@@ -169,8 +181,12 @@ def main() -> int:
             ("scmm6", "scmm6_100x100.wcns"),
         ):
             command = [
-                str(mpi_executable), "-n", str(args.ranks),
-                str(run_executable), "--config", config_name,
+                str(mpi_executable),
+                "-n",
+                str(args.ranks),
+                str(run_executable),
+                "--config",
+                config_name,
             ]
             if args.dry_run:
                 command.append("--dry-run")
@@ -191,50 +207,66 @@ def main() -> int:
                 raise RuntimeError(f"{name} did not stop at the requested physical time")
 
             for label, field in (("initial", initial), ("final", final)):
-                records.append(execute(
-                    [str(validator), "finite", str(field)],
-                    CASE_DIR / f"validation/{name}-{label}-finite.txt",
-                ))
+                records.append(
+                    execute(
+                        [str(validator), "finite", str(field)],
+                        CASE_DIR / f"validation/{name}-{label}-finite.txt",
+                    )
+                )
             analytic_errors: dict[str, object] = {}
             for label, field, time in (
                 ("initial", initial, 0.0),
                 ("final", final, 10.0),
             ):
                 analytic_log = CASE_DIR / f"validation/{name}-{label}-analytic-error.txt"
-                records.append(execute(
-                    [
-                        str(validator), "vortex", str(field), str(time), "10.0",
-                        "5.0", "5.0", "5.0", "1.0", "1.0", "1.4",
-                        str(mach), str(args.vortex_density_l1_tolerance),
-                    ],
-                    analytic_log,
-                ))
+                records.append(
+                    execute(
+                        [
+                            str(validator),
+                            "vortex",
+                            str(field),
+                            str(time),
+                            "10.0",
+                            "5.0",
+                            "5.0",
+                            "5.0",
+                            "1.0",
+                            "1.0",
+                            "1.4",
+                            str(mach),
+                            str(args.vortex_density_l1_tolerance),
+                        ],
+                        analytic_log,
+                    )
+                )
                 parsed = parse_records(analytic_log, "check=isentropic_vortex")
                 analytic_errors[label] = parsed[0] if len(parsed) == 1 else parsed
             field_error_log = CASE_DIR / f"validation/{name}-initial-final-error.txt"
-            records.append(execute(
-                [str(validator), "field-error", str(initial), str(final)],
-                field_error_log,
-            ))
+            records.append(
+                execute(
+                    [str(validator), "field-error", str(initial), str(final)],
+                    field_error_log,
+                )
+            )
             conservation_log = CASE_DIR / f"validation/{name}-conservation.txt"
-            records.append(execute(
-                [
-                    str(validator), "series-constant", str(statistics[0]),
-                    str(args.conservation_tolerance),
-                ],
-                conservation_log,
-            ))
+            records.append(
+                execute(
+                    [
+                        str(validator),
+                        "series-constant",
+                        str(statistics[0]),
+                        str(args.conservation_tolerance),
+                    ],
+                    conservation_log,
+                )
+            )
             profiles[name] = {
                 "manifest": run_manifest,
                 "initial_field": str(initial.relative_to(CASE_DIR)),
                 "final_field": str(final.relative_to(CASE_DIR)),
                 "analytic_errors": analytic_errors,
-                "initial_final_errors": parse_records(
-                    field_error_log, "check=field_error field="
-                ),
-                "conservation": parse_records(
-                    conservation_log, "check=series_constant"
-                ),
+                "initial_final_errors": parse_records(field_error_log, "check=field_error field="),
+                "conservation": parse_records(conservation_log, "check=series_constant"),
             }
 
         if args.dry_run:
@@ -256,8 +288,7 @@ def main() -> int:
             if float(metric["gcl_closure_linf"]) > 1.0e-10:
                 raise RuntimeError("metric geometric-conservation closure exceeds tolerance")
         for metric in metric_differences:
-            if metric["comparison"] == "jacobian" \
-                    and float(metric["relative_linf"]) > 1.0e-3:
+            if metric["comparison"] == "jacobian" and float(metric["relative_linf"]) > 1.0e-3:
                 raise RuntimeError("profile Jacobians differ beyond the case03 tolerance")
 
         summary = {
@@ -311,16 +342,11 @@ def main() -> int:
 
         generated = [summary_path]
         for directory in ("grids", "results", "logs", "validation"):
-            generated.extend(
-                path for path in (CASE_DIR / directory).rglob("*") if path.is_file()
-            )
+            generated.extend(path for path in (CASE_DIR / directory).rglob("*") if path.is_file())
         checksum_lines = [
-            f"{sha256(path)}  {path.relative_to(CASE_DIR).as_posix()}"
-            for path in sorted(generated)
+            f"{sha256(path)}  {path.relative_to(CASE_DIR).as_posix()}" for path in sorted(generated)
         ]
-        (CASE_DIR / "files.sha256").write_text(
-            "\n".join(checksum_lines) + "\n", encoding="utf-8"
-        )
+        (CASE_DIR / "files.sha256").write_text("\n".join(checksum_lines) + "\n", encoding="utf-8")
     finally:
         os.chdir(old_cwd)
     print(f"case03 passed: {CASE_DIR / 'case03-summary.json'}", flush=True)

@@ -36,12 +36,9 @@ def density_l2(text: str) -> float:
 def representative_dt(log: Path) -> tuple[int, float]:
     text = log.read_text(encoding="utf-8")
     samples = [
-        float(value)
-        for value in re.findall(r"^step=\d+\s+time=\S+\s+dt=(\S+)", text, re.MULTILINE)
+        float(value) for value in re.findall(r"^step=\d+\s+time=\S+\s+dt=(\S+)", text, re.MULTILINE)
     ]
-    stopped = re.search(
-        r"reason=physical_time_reached step=(\d+) time=", text
-    )
+    stopped = re.search(r"reason=physical_time_reached step=(\d+) time=", text)
     if stopped is None or len(samples) < 2:
         raise RuntimeError(f"time run did not provide enough accepted steps: {log}")
     # The last step is normally clipped to t_end and is not the nominal CFL step.
@@ -77,18 +74,30 @@ def main() -> int:
     for index, cfl in enumerate(cfl_values):
         run_root = root / f"level-{index}"
         command = [
-            sys.executable, str(vortex_matrix),
-            "--run", str(args.run),
-            "--generator", str(args.generator),
-            "--validator", str(args.validator),
-            "--template", str(args.template),
-            "--work-dir", str(run_root),
-            "--ranks", "1",
-            "--resolutions", str(args.resolution),
-            "--profile", args.profile,
-            "--end-time", str(args.end_time),
-            "--cfl", str(cfl),
-            "--finest-l1", "1",
+            sys.executable,
+            str(vortex_matrix),
+            "--run",
+            str(args.run),
+            "--generator",
+            str(args.generator),
+            "--validator",
+            str(args.validator),
+            "--template",
+            str(args.template),
+            "--work-dir",
+            str(run_root),
+            "--ranks",
+            "1",
+            "--resolutions",
+            str(args.resolution),
+            "--profile",
+            args.profile,
+            "--end-time",
+            str(args.end_time),
+            "--cfl",
+            str(cfl),
+            "--finest-l1",
+            "1",
         ]
         root_log = root / f"level-{index}.log"
         checked(command, root_log)
@@ -98,14 +107,20 @@ def main() -> int:
             raise RuntimeError(f"level {index} did not produce exactly one final field")
         fields.append(field_matches[0])
         steps, dt = representative_dt(case_root / "run-r1.log")
-        runs.append({"level": index, "cfl": cfl, "steps": steps,
-                     "representative_dt": dt, "field": str(fields[-1])})
+        runs.append(
+            {
+                "level": index,
+                "cfl": cfl,
+                "steps": steps,
+                "representative_dt": dt,
+                "field": str(fields[-1]),
+            }
+        )
     differences: list[float] = []
     for index in range(len(fields) - 1):
         log = root / f"difference-{index}-{index + 1}.log"
         text = checked(
-            [str(args.validator), "field-error", str(fields[index + 1]),
-             str(fields[index])],
+            [str(args.validator), "field-error", str(fields[index + 1]), str(fields[index])],
             log,
         )
         differences.append(density_l2(text))

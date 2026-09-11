@@ -12,8 +12,7 @@ struct ViscousStabilityCoefficients {
     Real scmm6_3d_ssprk3 = 4.0;
 
     void validate() const;
-    [[nodiscard]] Real for_ssprk3(
-        AlgorithmProfileKind profile, int dimension) const;
+    [[nodiscard]] Real for_ssprk3(AlgorithmProfileKind profile, int dimension) const;
     [[nodiscard]] std::string summary() const;
 };
 
@@ -29,19 +28,18 @@ struct ViscousWcnsConfig {
 
 class ViscousWcnsSolver {
 public:
-    ViscousWcnsSolver(
-        const MpiRuntime& mpi,
-        LocalBlockSet& local_blocks,
-        const StructuredMesh& global_mesh,
-        const DistributedTopology& topology,
-        int distribution_rank_count,
-        BlockMetricMap& metrics,
-        const BlockBoundaryDataMap& boundary_data,
-        AlgorithmProfile profile,
-        GasModel gas,
-        ReferenceScales reference,
-        NumericalFloors floors,
-        ViscousWcnsConfig config = {});
+    ViscousWcnsSolver(const MpiRuntime& mpi,
+                      LocalBlockSet& local_blocks,
+                      const StructuredMesh& global_mesh,
+                      const DistributedTopology& topology,
+                      int distribution_rank_count,
+                      BlockMetricMap& metrics,
+                      const BlockBoundaryDataMap& boundary_data,
+                      AlgorithmProfile profile,
+                      GasModel gas,
+                      ReferenceScales reference,
+                      NumericalFloors floors,
+                      ViscousWcnsConfig config = {});
 
     void compute_residuals(Real stage_time, int rk_stage = 0);
     [[nodiscard]] Real advance(Real time_step, Real initial_time);
@@ -61,10 +59,9 @@ public:
     [[nodiscard]] RobustnessDiagnostics global_robustness_diagnostics() const;
 
 private:
-    void compute_residuals_impl(
-        Real stage_time,
-        int rk_stage,
-        const BlockFaceRobustnessMap* robustness_levels);
+    void compute_residuals_impl(Real stage_time,
+                                int rk_stage,
+                                const BlockFaceRobustnessMap* robustness_levels);
 
     const MpiRuntime& mpi_;
     LocalBlockSet& local_blocks_;

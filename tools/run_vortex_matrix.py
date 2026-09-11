@@ -113,9 +113,7 @@ def main() -> int:
             command = [str(args.run), "--config", str(config)]
             if rank_count > 1:
                 command = [str(args.mpi_exec), "-n", str(rank_count)] + command
-            records.append(
-                run(command, resolution_root / f"run-r{rank_count}.log")
-            )
+            records.append(run(command, resolution_root / f"run-r{rank_count}.log"))
             fields[rank_count] = one_field(output)
             validation_log = resolution_root / f"vortex-r{rank_count}.log"
             records.append(
@@ -175,14 +173,11 @@ def main() -> int:
             )
     if args.minimum_finest_order > 0.0:
         if not orders:
-            raise RuntimeError(
-                "minimum finest-grid order requires at least two resolutions"
-            )
+            raise RuntimeError("minimum finest-grid order requires at least two resolutions")
         finest_order = orders[-1]["rho_l1_order"]
         if finest_order < args.minimum_finest_order:
             raise RuntimeError(
-                "vortex finest-pair order "
-                f"{finest_order} is below {args.minimum_finest_order}"
+                "vortex finest-pair order " f"{finest_order} is below {args.minimum_finest_order}"
             )
     if errors[ordered[-1]] > args.finest_l1:
         raise RuntimeError("vortex finest-grid L1 exceeds tolerance")

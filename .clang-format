@@ -1,0 +1,60 @@
+---
+Language: Cpp
+BasedOnStyle: WebKit
+Standard: c++20
+
+IndentWidth: 4
+ContinuationIndentWidth: 4
+TabWidth: 4
+UseTab: Never
+# Keep implementation text compact enough for side-by-side review.
+ColumnLimit: 100
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: false
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterFunction: true
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
+  BeforeCatch: false
+  BeforeElse: false
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
+
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseExpressionOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortEnumsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: InlineOnly
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLambdasOnASingleLine: All
+AllowShortLoopsOnASingleLine: false
+
+AlignAfterOpenBracket: Align
+AlignOperands: DontAlign
+BreakBeforeBinaryOperators: All
+BreakConstructorInitializers: BeforeComma
+PackConstructorInitializers: Never
+BinPackArguments: false
+BinPackParameters: false
+
+DerivePointerAlignment: false
+PointerAlignment: Left
+ReferenceAlignment: Left
+NamespaceIndentation: None
+
+IncludeBlocks: Preserve
+SortIncludes: Never
+SortUsingDeclarations: Never
+SpacesInContainerLiterals: false
+Cpp11BracedListStyle: true
+ReflowComments: false
+...

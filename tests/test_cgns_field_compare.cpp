@@ -20,20 +20,14 @@ void check_cgns(int status, const char* operation)
     }
 }
 
-std::vector<double> read_field(
-    int file,
-    const char* name,
-    const std::array<cgsize_t, 9>& size)
+std::vector<double> read_field(int file, const char* name, const std::array<cgsize_t, 9>& size)
 {
     const auto count = static_cast<std::size_t>(size[2] * size[3]);
     std::vector<double> values(count);
     cgsize_t lower[2] = {1, 1};
     cgsize_t upper[2] = {size[2], size[3]};
-    check_cgns(
-        cg_field_read(
-            file, 1, 1, 1, name, RealDouble,
-            lower, upper, values.data()),
-        "cg_field_read comparison");
+    check_cgns(cg_field_read(file, 1, 1, 1, name, RealDouble, lower, upper, values.data()),
+               "cg_field_read comparison");
     return values;
 }
 
@@ -51,12 +45,8 @@ int main(int argc, char** argv)
     int actual_file = 0;
     try {
         const double tolerance = std::stod(argv[3]);
-        check_cgns(
-            cg_open(argv[1], CG_MODE_READ, &expected_file),
-            "cg_open expected field");
-        check_cgns(
-            cg_open(argv[2], CG_MODE_READ, &actual_file),
-            "cg_open actual field");
+        check_cgns(cg_open(argv[1], CG_MODE_READ, &expected_file), "cg_open expected field");
+        check_cgns(cg_open(argv[2], CG_MODE_READ, &actual_file), "cg_open actual field");
         int expected_zones = 0;
         int actual_zones = 0;
         check_cgns(cg_nzones(expected_file, 1, &expected_zones), "cg_nzones expected");
@@ -67,17 +57,18 @@ int main(int argc, char** argv)
         std::array<cgsize_t, 9> actual_size {{}};
         char expected_zone[33] = {};
         char actual_zone[33] = {};
-        check_cgns(
-            cg_zone_read(expected_file, 1, 1, expected_zone, expected_size.data()),
-            "cg_zone_read expected");
-        check_cgns(
-            cg_zone_read(actual_file, 1, 1, actual_zone, actual_size.data()),
-            "cg_zone_read actual");
+        check_cgns(cg_zone_read(expected_file, 1, 1, expected_zone, expected_size.data()),
+                   "cg_zone_read expected");
+        check_cgns(cg_zone_read(actual_file, 1, 1, actual_zone, actual_size.data()),
+                   "cg_zone_read actual");
         WCNS_REQUIRE(std::string(expected_zone) == actual_zone);
         WCNS_REQUIRE(expected_size[2] == actual_size[2]);
         WCNS_REQUIRE(expected_size[3] == actual_size[3]);
         constexpr std::array<const char*, 5> fields {{
-            "Density", "MomentumX", "MomentumY", "MomentumZ",
+            "Density",
+            "MomentumX",
+            "MomentumY",
+            "MomentumZ",
             "EnergyStagnationDensity",
         }};
         double maximum_difference = 0.0;
@@ -88,9 +79,8 @@ int main(int argc, char** argv)
             for (std::size_t index = 0; index < expected.size(); ++index) {
                 WCNS_REQUIRE(std::isfinite(expected[index]));
                 WCNS_REQUIRE(std::isfinite(actual[index]));
-                maximum_difference = std::max(
-                    maximum_difference,
-                    std::abs(expected[index] - actual[index]));
+                maximum_difference
+                    = std::max(maximum_difference, std::abs(expected[index] - actual[index]));
             }
         }
         WCNS_REQUIRE(maximum_difference <= tolerance);

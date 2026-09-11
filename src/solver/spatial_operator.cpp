@@ -11,12 +11,9 @@ namespace {
 const FaceMetric& face_metric(const StructuredBlock& block, Axis axis)
 {
     switch (axis) {
-    case Axis::I:
-        return block.face_metrics.i_faces;
-    case Axis::J:
-        return block.face_metrics.j_faces;
-    case Axis::K:
-        return block.face_metrics.k_faces;
+    case Axis::I: return block.face_metrics.i_faces;
+    case Axis::J: return block.face_metrics.j_faces;
+    case Axis::K: return block.face_metrics.k_faces;
     }
     throw std::invalid_argument("invalid flux axis");
 }
@@ -29,8 +26,8 @@ Index3 shifted(Index3 index, Axis axis, int offset)
 
 bool interior(Index3 index, const Extent3& extent)
 {
-    return index.i >= 0 && index.i < extent.ni && index.j >= 0
-        && index.j < extent.nj && index.k >= 0 && index.k < extent.nk;
+    return index.i >= 0 && index.i < extent.ni && index.j >= 0 && index.j < extent.nj
+        && index.k >= 0 && index.k < extent.nk;
 }
 
 bool valid_state(const PrimitiveState& state, const IdealGas& gas)
@@ -43,12 +40,11 @@ bool valid_state(const PrimitiveState& state, const IdealGas& gas)
     }
 }
 
-EulerFaceStates limited_face_states(
-    const StructuredBlock& block,
-    Axis axis,
-    Index3 face,
-    const IdealGas& gas,
-    const WcnsParameters& parameters)
+EulerFaceStates limited_face_states(const StructuredBlock& block,
+                                    Axis axis,
+                                    Index3 face,
+                                    const IdealGas& gas,
+                                    const WcnsParameters& parameters)
 {
     auto states = reconstruct_euler_face(block.flow.primitive, axis, face, parameters);
     if (!valid_state(states.left, gas) || !valid_state(states.right, gas)) {
@@ -61,12 +57,11 @@ EulerFaceStates limited_face_states(
     return states;
 }
 
-void accumulate_face(
-    StructuredBlock& block,
-    Axis axis,
-    Index3 face,
-    const IdealGas& gas,
-    const WcnsParameters& parameters)
+void accumulate_face(StructuredBlock& block,
+                     Axis axis,
+                     Index3 face,
+                     const IdealGas& gas,
+                     const WcnsParameters& parameters)
 {
     const auto& metric = face_metric(block, axis);
     const Normal3 normal {
@@ -100,19 +95,18 @@ void accumulate_face(
     }
 }
 
-Real face_spectral_radius(
-    const StructuredBlock& block,
-    Axis axis,
-    Index3 face,
-    const PrimitiveState& primitive,
-    const IdealGas& gas)
+Real face_spectral_radius(const StructuredBlock& block,
+                          Axis axis,
+                          Index3 face,
+                          const PrimitiveState& primitive,
+                          const IdealGas& gas)
 {
     const auto& metric = face_metric(block, axis);
     const Real nx = metric.normal_x(face.i, face.j, face.k);
     const Real ny = metric.normal_y(face.i, face.j, face.k);
     const Real nz = metric.normal_z(face.i, face.j, face.k);
-    const Real normal_velocity = primitive[velocity_x] * nx
-        + primitive[velocity_y] * ny + primitive[velocity_z] * nz;
+    const Real normal_velocity
+        = primitive[velocity_x] * nx + primitive[velocity_y] * ny + primitive[velocity_z] * nz;
     return metric.area(face.i, face.j, face.k)
         * (std::abs(normal_velocity) + sound_speed(primitive, gas));
 }
@@ -129,18 +123,15 @@ void SpatialParameters::validate() const
     static_cast<void>(SourceTermRegistry::create_stage_h(source_terms));
 }
 
-void compute_euler_residual(
-    StructuredBlock& block,
-    const SpatialParameters& parameters)
+void compute_euler_residual(StructuredBlock& block, const SpatialParameters& parameters)
 {
     parameters.validate();
     compute_euler_residual(block, parameters.gas, parameters.wcns);
 }
 
-void compute_euler_residual(
-    StructuredBlock& block,
-    const IdealGas& gas,
-    const WcnsParameters& parameters)
+void compute_euler_residual(StructuredBlock& block,
+                            const IdealGas& gas,
+                            const WcnsParameters& parameters)
 {
     gas.validate();
     parameters.validate();
@@ -195,7 +186,8 @@ Real stable_time_step(const StructuredBlock& block, Real cfl, const IdealGas& ga
                 denominator += face_spectral_radius(block, Axis::J, {i, j + 1, k}, primitive, gas);
                 if (block.cell_dimension() == 3) {
                     denominator += face_spectral_radius(block, Axis::K, {i, j, k}, primitive, gas);
-                    denominator += face_spectral_radius(block, Axis::K, {i, j, k + 1}, primitive, gas);
+                    denominator
+                        += face_spectral_radius(block, Axis::K, {i, j, k + 1}, primitive, gas);
                 }
                 const Real volume = block.cell_metrics.volume(i, j, k);
                 if (!std::isfinite(volume) || volume <= 0.0 || !std::isfinite(denominator)

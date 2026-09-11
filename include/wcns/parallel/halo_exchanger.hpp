@@ -30,11 +30,10 @@ struct HaloMessageBuffer {
 
 class HaloExchanger {
 public:
-    HaloExchanger(
-        const MpiRuntime& mpi,
-        const DistributedTopology& topology,
-        int distribution_rank_count,
-        int prepared_components = 0);
+    HaloExchanger(const MpiRuntime& mpi,
+                  const DistributedTopology& topology,
+                  int distribution_rank_count,
+                  int prepared_components = 0);
 
     void exchange(const BlockFieldRegistry& fields) const;
 

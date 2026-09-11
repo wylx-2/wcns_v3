@@ -33,9 +33,7 @@ rank = int(sys.argv[2]) if len(sys.argv) > 2 else 1
 faces = sorted(glob.glob(os.path.join(output, f"*.boundary.r{rank}.step*.txt")))
 loads = glob.glob(os.path.join(output, f"*.loads.r{rank}.txt"))
 if len(faces) < 2 or len(loads) != 1:
-    raise SystemExit(
-        f"expected boundary snapshots and one load history, got {faces}, {loads}"
-    )
+    raise SystemExit(f"expected boundary snapshots and one load history, got {faces}, {loads}")
 
 initial_paths = [path for path in faces if ".step00000000." in path]
 if len(initial_paths) != 1:
@@ -52,8 +50,11 @@ if keys != ordered_keys or len(keys) != len(set(keys)):
 
 column = {name: index for index, name in enumerate(names)}
 required = {
-    "Cp", "pressure_traction_x", "pressure_traction_y",
-    "traction_x", "traction_y",
+    "Cp",
+    "pressure_traction_x",
+    "pressure_traction_y",
+    "traction_x",
+    "traction_y",
 }
 if not required.issubset(column):
     raise SystemExit(f"boundary snapshot is missing columns: {required - set(column)}")
@@ -61,10 +62,10 @@ cp = [row[column["Cp"]] for row in initial]
 if max(abs(value) for value in cp) > 1.0e-13:
     raise SystemExit(f"uniform initial Cp is not zero: {max(abs(v) for v in cp)}")
 for row in initial:
-    if (abs(row[column["pressure_traction_x"]] - row[column["traction_x"]])
-            > 1.0e-13
-            or abs(row[column["pressure_traction_y"]] - row[column["traction_y"]])
-            > 1.0e-13):
+    if (
+        abs(row[column["pressure_traction_x"]] - row[column["traction_x"]]) > 1.0e-13
+        or abs(row[column["pressure_traction_y"]] - row[column["traction_y"]]) > 1.0e-13
+    ):
         raise SystemExit("inviscid face pressure and total traction differ")
 
 history = rows(loads[0])

@@ -53,9 +53,7 @@ def validate_series(path: Path, end_time: float, tolerance: float) -> float:
         for actual, initial, source in zip(row[2:], selected_initial, selected_source):
             maximum = max(maximum, abs(actual - (initial + time * source)))
     if abs(rows[-1][1] - end_time) > 1.0e-14 or maximum > tolerance:
-        raise RuntimeError(
-            f"uniform-source statistics error {maximum} exceeds {tolerance}: {path}"
-        )
+        raise RuntimeError(f"uniform-source statistics error {maximum} exceeds {tolerance}: {path}")
     return maximum
 
 
@@ -78,8 +76,12 @@ def main() -> int:
     records.append(
         run(
             [
-                str(args.generator), "periodic-square", str(mesh),
-                str(args.resolution), str(args.resolution), "1.0",
+                str(args.generator),
+                "periodic-square",
+                str(mesh),
+                str(args.resolution),
+                str(args.resolution),
+                "1.0",
             ],
             root / "generate.log",
         )
@@ -115,7 +117,9 @@ def main() -> int:
         records.append(
             run(
                 [
-                    str(args.validator), "uniform-source", str(fields[rank_count]),
+                    str(args.validator),
+                    "uniform-source",
+                    str(fields[rank_count]),
                     str(args.end_time),
                     *(str(value) for value in INITIAL),
                     *(str(value) for value in SOURCE),
@@ -137,8 +141,11 @@ def main() -> int:
         records.append(
             run(
                 [
-                    str(args.validator), "compare", str(fields[ranks[0]]),
-                    str(fields[rank_count]), "2e-11",
+                    str(args.validator),
+                    "compare",
+                    str(fields[ranks[0]]),
+                    str(fields[rank_count]),
+                    "2e-11",
                 ],
                 root / f"compare-r{ranks[0]}-r{rank_count}.log",
             )

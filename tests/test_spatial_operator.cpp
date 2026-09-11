@@ -25,22 +25,34 @@ wcns::StructuredBlock make_uniform_block()
     compute_metrics(block);
     const auto cells = block.cell_extent();
     block.boundaries = {
-        {"i-lower", BoundaryType::Farfield, {Axis::I, Side::Lower},
-            {{0, 0, 0}, {0, vertices.nj - 1, 0}},
-            {{0, 0, 0}, {0, cells.nj - 1, 0}},
-            {{0, 0, 0}, {0, cells.nj - 1, 0}}, {}},
-        {"i-upper", BoundaryType::Farfield, {Axis::I, Side::Upper},
-            {{vertices.ni - 1, 0, 0}, {vertices.ni - 1, vertices.nj - 1, 0}},
-            {{cells.ni - 1, 0, 0}, {cells.ni - 1, cells.nj - 1, 0}},
-            {{cells.ni, 0, 0}, {cells.ni, cells.nj - 1, 0}}, {}},
-        {"j-lower", BoundaryType::Farfield, {Axis::J, Side::Lower},
-            {{0, 0, 0}, {vertices.ni - 1, 0, 0}},
-            {{0, 0, 0}, {cells.ni - 1, 0, 0}},
-            {{0, 0, 0}, {cells.ni - 1, 0, 0}}, {}},
-        {"j-upper", BoundaryType::Farfield, {Axis::J, Side::Upper},
-            {{0, vertices.nj - 1, 0}, {vertices.ni - 1, vertices.nj - 1, 0}},
-            {{0, cells.nj - 1, 0}, {cells.ni - 1, cells.nj - 1, 0}},
-            {{0, cells.nj, 0}, {cells.ni - 1, cells.nj, 0}}, {}},
+        {"i-lower",
+         BoundaryType::Farfield,
+         {Axis::I, Side::Lower},
+         {{0, 0, 0}, {0, vertices.nj - 1, 0}},
+         {{0, 0, 0}, {0, cells.nj - 1, 0}},
+         {{0, 0, 0}, {0, cells.nj - 1, 0}},
+         {}},
+        {"i-upper",
+         BoundaryType::Farfield,
+         {Axis::I, Side::Upper},
+         {{vertices.ni - 1, 0, 0}, {vertices.ni - 1, vertices.nj - 1, 0}},
+         {{cells.ni - 1, 0, 0}, {cells.ni - 1, cells.nj - 1, 0}},
+         {{cells.ni, 0, 0}, {cells.ni, cells.nj - 1, 0}},
+         {}},
+        {"j-lower",
+         BoundaryType::Farfield,
+         {Axis::J, Side::Lower},
+         {{0, 0, 0}, {vertices.ni - 1, 0, 0}},
+         {{0, 0, 0}, {cells.ni - 1, 0, 0}},
+         {{0, 0, 0}, {cells.ni - 1, 0, 0}},
+         {}},
+        {"j-upper",
+         BoundaryType::Farfield,
+         {Axis::J, Side::Upper},
+         {{0, vertices.nj - 1, 0}, {vertices.ni - 1, vertices.nj - 1, 0}},
+         {{0, cells.nj - 1, 0}, {cells.ni - 1, cells.nj - 1, 0}},
+         {{0, cells.nj, 0}, {cells.ni - 1, cells.nj, 0}},
+         {}},
     };
     return block;
 }
@@ -97,9 +109,8 @@ void test_spatial_operator()
     for (int j = 0; j < extent.nj; ++j) {
         for (int i = 0; i < extent.ni; ++i) {
             for (int component = 0; component < euler_components; ++component) {
-                WCNS_REQUIRE(
-                    block.flow.residual(i, j, 0, component)
-                    == configured_block.flow.residual(i, j, 0, component));
+                WCNS_REQUIRE(block.flow.residual(i, j, 0, component)
+                             == configured_block.flow.residual(i, j, 0, component));
             }
         }
     }
@@ -114,21 +125,17 @@ void test_spatial_operator()
             const auto configured_state
                 = load_conservative(configured_block.flow.conservative, {i, j, 0});
             for (int component = 0; component < euler_components; ++component) {
-                WCNS_REQUIRE(
-                    state[static_cast<std::size_t>(component)]
-                    == configured_state[static_cast<std::size_t>(component)]);
-                WCNS_REQUIRE_NEAR(
-                    state[static_cast<std::size_t>(component)],
-                    initial[static_cast<std::size_t>(component)],
-                    1.0e-13);
+                WCNS_REQUIRE(state[static_cast<std::size_t>(component)]
+                             == configured_state[static_cast<std::size_t>(component)]);
+                WCNS_REQUIRE_NEAR(state[static_cast<std::size_t>(component)],
+                                  initial[static_cast<std::size_t>(component)],
+                                  1.0e-13);
             }
         }
     }
 
     WCNS_REQUIRE_THROWS(std::invalid_argument, stable_time_step(block, 0.0));
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument,
-        advance_ssprk3(blocks, -1.0, evaluate));
+    WCNS_REQUIRE_THROWS(std::invalid_argument, advance_ssprk3(blocks, -1.0, evaluate));
 
     StructuredBlock block_3d(2, "uniform-3d", 0, 3, 3, {6, 6, 6}, 3);
     const auto vertices_3d = block_3d.vertex_extent();
@@ -144,39 +151,48 @@ void test_spatial_operator()
     compute_metrics(block_3d);
     const auto cells_3d = block_3d.cell_extent();
     block_3d.boundaries = {
-        {"i-lower", BoundaryType::Farfield, {Axis::I, Side::Lower},
-            {{0, 0, 0}, {0, vertices_3d.nj - 1, vertices_3d.nk - 1}},
-            {{0, 0, 0}, {0, cells_3d.nj - 1, cells_3d.nk - 1}},
-            {{0, 0, 0}, {0, cells_3d.nj - 1, cells_3d.nk - 1}}, {}},
-        {"i-upper", BoundaryType::Farfield, {Axis::I, Side::Upper},
-            {{vertices_3d.ni - 1, 0, 0},
-                {vertices_3d.ni - 1, vertices_3d.nj - 1, vertices_3d.nk - 1}},
-            {{cells_3d.ni - 1, 0, 0},
-                {cells_3d.ni - 1, cells_3d.nj - 1, cells_3d.nk - 1}},
-            {{cells_3d.ni, 0, 0},
-                {cells_3d.ni, cells_3d.nj - 1, cells_3d.nk - 1}}, {}},
-        {"j-lower", BoundaryType::Farfield, {Axis::J, Side::Lower},
-            {{0, 0, 0}, {vertices_3d.ni - 1, 0, vertices_3d.nk - 1}},
-            {{0, 0, 0}, {cells_3d.ni - 1, 0, cells_3d.nk - 1}},
-            {{0, 0, 0}, {cells_3d.ni - 1, 0, cells_3d.nk - 1}}, {}},
-        {"j-upper", BoundaryType::Farfield, {Axis::J, Side::Upper},
-            {{0, vertices_3d.nj - 1, 0},
-                {vertices_3d.ni - 1, vertices_3d.nj - 1, vertices_3d.nk - 1}},
-            {{0, cells_3d.nj - 1, 0},
-                {cells_3d.ni - 1, cells_3d.nj - 1, cells_3d.nk - 1}},
-            {{0, cells_3d.nj, 0},
-                {cells_3d.ni - 1, cells_3d.nj, cells_3d.nk - 1}}, {}},
-        {"k-lower", BoundaryType::Farfield, {Axis::K, Side::Lower},
-            {{0, 0, 0}, {vertices_3d.ni - 1, vertices_3d.nj - 1, 0}},
-            {{0, 0, 0}, {cells_3d.ni - 1, cells_3d.nj - 1, 0}},
-            {{0, 0, 0}, {cells_3d.ni - 1, cells_3d.nj - 1, 0}}, {}},
-        {"k-upper", BoundaryType::Farfield, {Axis::K, Side::Upper},
-            {{0, 0, vertices_3d.nk - 1},
-                {vertices_3d.ni - 1, vertices_3d.nj - 1, vertices_3d.nk - 1}},
-            {{0, 0, cells_3d.nk - 1},
-                {cells_3d.ni - 1, cells_3d.nj - 1, cells_3d.nk - 1}},
-            {{0, 0, cells_3d.nk},
-                {cells_3d.ni - 1, cells_3d.nj - 1, cells_3d.nk}}, {}},
+        {"i-lower",
+         BoundaryType::Farfield,
+         {Axis::I, Side::Lower},
+         {{0, 0, 0}, {0, vertices_3d.nj - 1, vertices_3d.nk - 1}},
+         {{0, 0, 0}, {0, cells_3d.nj - 1, cells_3d.nk - 1}},
+         {{0, 0, 0}, {0, cells_3d.nj - 1, cells_3d.nk - 1}},
+         {}},
+        {"i-upper",
+         BoundaryType::Farfield,
+         {Axis::I, Side::Upper},
+         {{vertices_3d.ni - 1, 0, 0}, {vertices_3d.ni - 1, vertices_3d.nj - 1, vertices_3d.nk - 1}},
+         {{cells_3d.ni - 1, 0, 0}, {cells_3d.ni - 1, cells_3d.nj - 1, cells_3d.nk - 1}},
+         {{cells_3d.ni, 0, 0}, {cells_3d.ni, cells_3d.nj - 1, cells_3d.nk - 1}},
+         {}},
+        {"j-lower",
+         BoundaryType::Farfield,
+         {Axis::J, Side::Lower},
+         {{0, 0, 0}, {vertices_3d.ni - 1, 0, vertices_3d.nk - 1}},
+         {{0, 0, 0}, {cells_3d.ni - 1, 0, cells_3d.nk - 1}},
+         {{0, 0, 0}, {cells_3d.ni - 1, 0, cells_3d.nk - 1}},
+         {}},
+        {"j-upper",
+         BoundaryType::Farfield,
+         {Axis::J, Side::Upper},
+         {{0, vertices_3d.nj - 1, 0}, {vertices_3d.ni - 1, vertices_3d.nj - 1, vertices_3d.nk - 1}},
+         {{0, cells_3d.nj - 1, 0}, {cells_3d.ni - 1, cells_3d.nj - 1, cells_3d.nk - 1}},
+         {{0, cells_3d.nj, 0}, {cells_3d.ni - 1, cells_3d.nj, cells_3d.nk - 1}},
+         {}},
+        {"k-lower",
+         BoundaryType::Farfield,
+         {Axis::K, Side::Lower},
+         {{0, 0, 0}, {vertices_3d.ni - 1, vertices_3d.nj - 1, 0}},
+         {{0, 0, 0}, {cells_3d.ni - 1, cells_3d.nj - 1, 0}},
+         {{0, 0, 0}, {cells_3d.ni - 1, cells_3d.nj - 1, 0}},
+         {}},
+        {"k-upper",
+         BoundaryType::Farfield,
+         {Axis::K, Side::Upper},
+         {{0, 0, vertices_3d.nk - 1}, {vertices_3d.ni - 1, vertices_3d.nj - 1, vertices_3d.nk - 1}},
+         {{0, 0, cells_3d.nk - 1}, {cells_3d.ni - 1, cells_3d.nj - 1, cells_3d.nk - 1}},
+         {{0, 0, cells_3d.nk}, {cells_3d.ni - 1, cells_3d.nj - 1, cells_3d.nk}},
+         {}},
     };
     initialize(block_3d, freestream);
     update_primitive_interior(block_3d);
@@ -197,35 +213,42 @@ void test_spatial_operator()
     compute_metrics(shock);
     const auto shock_cells = shock.cell_extent();
     shock.boundaries = {
-        {"left", BoundaryType::Inflow, {Axis::I, Side::Lower},
-            {{0, 0, 0}, {0, shock_vertices.nj - 1, 0}},
-            {{0, 0, 0}, {0, shock_cells.nj - 1, 0}},
-            {{0, 0, 0}, {0, shock_cells.nj - 1, 0}}, {}},
-        {"right", BoundaryType::Outflow, {Axis::I, Side::Upper},
-            {{shock_vertices.ni - 1, 0, 0},
-                {shock_vertices.ni - 1, shock_vertices.nj - 1, 0}},
-            {{shock_cells.ni - 1, 0, 0},
-                {shock_cells.ni - 1, shock_cells.nj - 1, 0}},
-            {{shock_cells.ni, 0, 0}, {shock_cells.ni, shock_cells.nj - 1, 0}}, {}},
-        {"bottom", BoundaryType::SlipWall, {Axis::J, Side::Lower},
-            {{0, 0, 0}, {shock_vertices.ni - 1, 0, 0}},
-            {{0, 0, 0}, {shock_cells.ni - 1, 0, 0}},
-            {{0, 0, 0}, {shock_cells.ni - 1, 0, 0}}, {}},
-        {"top", BoundaryType::SlipWall, {Axis::J, Side::Upper},
-            {{0, shock_vertices.nj - 1, 0},
-                {shock_vertices.ni - 1, shock_vertices.nj - 1, 0}},
-            {{0, shock_cells.nj - 1, 0},
-                {shock_cells.ni - 1, shock_cells.nj - 1, 0}},
-            {{0, shock_cells.nj, 0}, {shock_cells.ni - 1, shock_cells.nj, 0}}, {}},
+        {"left",
+         BoundaryType::Inflow,
+         {Axis::I, Side::Lower},
+         {{0, 0, 0}, {0, shock_vertices.nj - 1, 0}},
+         {{0, 0, 0}, {0, shock_cells.nj - 1, 0}},
+         {{0, 0, 0}, {0, shock_cells.nj - 1, 0}},
+         {}},
+        {"right",
+         BoundaryType::Outflow,
+         {Axis::I, Side::Upper},
+         {{shock_vertices.ni - 1, 0, 0}, {shock_vertices.ni - 1, shock_vertices.nj - 1, 0}},
+         {{shock_cells.ni - 1, 0, 0}, {shock_cells.ni - 1, shock_cells.nj - 1, 0}},
+         {{shock_cells.ni, 0, 0}, {shock_cells.ni, shock_cells.nj - 1, 0}},
+         {}},
+        {"bottom",
+         BoundaryType::SlipWall,
+         {Axis::J, Side::Lower},
+         {{0, 0, 0}, {shock_vertices.ni - 1, 0, 0}},
+         {{0, 0, 0}, {shock_cells.ni - 1, 0, 0}},
+         {{0, 0, 0}, {shock_cells.ni - 1, 0, 0}},
+         {}},
+        {"top",
+         BoundaryType::SlipWall,
+         {Axis::J, Side::Upper},
+         {{0, shock_vertices.nj - 1, 0}, {shock_vertices.ni - 1, shock_vertices.nj - 1, 0}},
+         {{0, shock_cells.nj - 1, 0}, {shock_cells.ni - 1, shock_cells.nj - 1, 0}},
+         {{0, shock_cells.nj, 0}, {shock_cells.ni - 1, shock_cells.nj, 0}},
+         {}},
     };
     const PrimitiveState left_state {1.0, 0.0, 0.0, 0.0, 1.0};
     const PrimitiveState right_state {0.125, 0.0, 0.0, 0.0, 0.1};
     for (int j = 0; j < shock_cells.nj; ++j) {
         for (int i = 0; i < shock_cells.ni; ++i) {
-            store_state(
-                shock.flow.conservative,
-                {i, j, 0},
-                to_conservative(i < shock_cells.ni / 2 ? left_state : right_state));
+            store_state(shock.flow.conservative,
+                        {i, j, 0},
+                        to_conservative(i < shock_cells.ni / 2 ? left_state : right_state));
         }
     }
     const auto evaluate_shock = [&] {

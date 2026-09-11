@@ -23,9 +23,7 @@ struct LineConservationWeights {
 };
 
 [[nodiscard]] LineConservationWeights build_line_conservation_weights(
-    const AlgorithmProfile& profile,
-    int cell_count,
-    bool periodic = false);
+    const AlgorithmProfile& profile, int cell_count, bool periodic = false);
 
 struct BlockConservationWeights {
     explicit BlockConservationWeights(Extent3 cell_extent)
@@ -47,16 +45,12 @@ struct BlockConservationWeights {
 
 class GlobalConservationWeights {
 public:
-    [[nodiscard]] static GlobalConservationWeights build(
-        const StructuredMesh& mesh,
-        const AlgorithmProfile& profile);
+    [[nodiscard]] static GlobalConservationWeights build(const StructuredMesh& mesh,
+                                                         const AlgorithmProfile& profile);
 
     [[nodiscard]] AlgorithmProfileKind profile() const noexcept { return profile_; }
     [[nodiscard]] const BlockConservationWeights& block(BlockId id) const;
-    [[nodiscard]] Real maximum_line_residual() const noexcept
-    {
-        return maximum_line_residual_;
-    }
+    [[nodiscard]] Real maximum_line_residual() const noexcept { return maximum_line_residual_; }
     [[nodiscard]] Real maximum_shared_face_mismatch() const noexcept
     {
         return maximum_shared_face_mismatch_;

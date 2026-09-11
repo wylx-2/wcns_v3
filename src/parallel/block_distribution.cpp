@@ -8,22 +8,17 @@
 
 namespace wcns {
 
-BlockDistribution BlockDistribution::balanced(
-    std::vector<BlockLoad> loads,
-    int rank_count)
+BlockDistribution BlockDistribution::balanced(std::vector<BlockLoad> loads, int rank_count)
 {
     if (rank_count <= 0) {
         throw std::invalid_argument("rank count must be positive");
     }
-    std::sort(
-        loads.begin(),
-        loads.end(),
-        [](const BlockLoad& lhs, const BlockLoad& rhs) {
-            if (lhs.cell_count != rhs.cell_count) {
-                return lhs.cell_count > rhs.cell_count;
-            }
-            return lhs.block < rhs.block;
-        });
+    std::sort(loads.begin(), loads.end(), [](const BlockLoad& lhs, const BlockLoad& rhs) {
+        if (lhs.cell_count != rhs.cell_count) {
+            return lhs.cell_count > rhs.cell_count;
+        }
+        return lhs.block < rhs.block;
+    });
 
     BlockDistribution result;
     result.rank_loads_.assign(static_cast<std::size_t>(rank_count), 0);
@@ -36,9 +31,9 @@ BlockDistribution BlockDistribution::balanced(
         if (result.owners_.find(load.block) != result.owners_.end()) {
             throw std::invalid_argument("block load ids must be unique");
         }
-        const auto target = static_cast<RankId>(std::distance(
-            result.rank_loads_.begin(),
-            std::min_element(result.rank_loads_.begin(), result.rank_loads_.end())));
+        const auto target = static_cast<RankId>(
+            std::distance(result.rank_loads_.begin(),
+                          std::min_element(result.rank_loads_.begin(), result.rank_loads_.end())));
         auto& rank_load = result.rank_loads_[static_cast<std::size_t>(target)];
         if (load.cell_count > std::numeric_limits<std::size_t>::max() - rank_load) {
             throw std::overflow_error("rank cell load exceeds size_t range");
@@ -47,12 +42,11 @@ BlockDistribution BlockDistribution::balanced(
         result.assignments_.push_back({load.block, target, load.cell_count});
         result.owners_.emplace(load.block, target);
     }
-    std::sort(
-        result.assignments_.begin(),
-        result.assignments_.end(),
-        [](const BlockAssignment& lhs, const BlockAssignment& rhs) {
-            return lhs.block < rhs.block;
-        });
+    std::sort(result.assignments_.begin(),
+              result.assignments_.end(),
+              [](const BlockAssignment& lhs, const BlockAssignment& rhs) {
+                  return lhs.block < rhs.block;
+              });
     return result;
 }
 
@@ -96,10 +90,9 @@ void BlockDistribution::apply(StructuredMesh& mesh) const
     mesh.validate_connectivities();
 }
 
-LocalBlockSet::LocalBlockSet(
-    RankId rank,
-    std::vector<StructuredBlock> blocks,
-    const BlockDistribution& distribution)
+LocalBlockSet::LocalBlockSet(RankId rank,
+                             std::vector<StructuredBlock> blocks,
+                             const BlockDistribution& distribution)
     : rank_(rank)
     , blocks_(std::move(blocks))
 {
@@ -146,4 +139,3 @@ const StructuredBlock& LocalBlockSet::block(BlockId id) const
 }
 
 } // namespace wcns
-

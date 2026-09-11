@@ -38,22 +38,27 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", type=Path, default=default_executable("wcns_run"))
     parser.add_argument(
-        "--generator", type=Path,
+        "--generator",
+        type=Path,
         default=default_executable("wcns_generate_release_cgns"),
     )
     parser.add_argument(
-        "--validator", type=Path,
+        "--validator",
+        type=Path,
         default=default_executable("wcns_validate_release_case"),
     )
     parser.add_argument("--mpi-exec", type=Path, default=Path("mpiexec"))
     parser.add_argument("--ranks", type=int, default=8)
     parser.add_argument(
-        "--method", choices=("both", "weno5", "mdcd_hybrid"), default="both",
+        "--method",
+        choices=("both", "weno5", "mdcd_hybrid"),
+        default="both",
     )
     parser.add_argument("--clean", action="store_true")
     parser.add_argument("--dry-run-only", action="store_true")
     parser.add_argument(
-        "--postprocess-only", action="store_true",
+        "--postprocess-only",
+        action="store_true",
         help="validate and compare already completed result directories",
     )
     parser.add_argument("--skip-analysis", action="store_true")
@@ -84,7 +89,9 @@ def clean_comparison_outputs() -> None:
 
 
 def execute_streaming(
-    command: list[str], log_path: Path, accepted: tuple[int, ...] = (0,),
+    command: list[str],
+    log_path: Path,
+    accepted: tuple[int, ...] = (0,),
 ) -> tuple[int, float]:
     print("running:", subprocess.list2cmdline(command), flush=True)
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -106,16 +113,14 @@ def execute_streaming(
         returncode = process.wait()
     elapsed = time.perf_counter() - started
     if returncode not in accepted:
-        raise RuntimeError(
-            f"command failed with exit code {returncode}; see {log_path}")
+        raise RuntimeError(f"command failed with exit code {returncode}; see {log_path}")
     return returncode, elapsed
 
 
 def require_single(directory: Path, pattern: str) -> Path:
     matches = sorted(directory.glob(pattern))
     if len(matches) != 1:
-        raise RuntimeError(
-            f"expected one {pattern} in {directory}, found {len(matches)}")
+        raise RuntimeError(f"expected one {pattern} in {directory}, found {len(matches)}")
     return matches[0]
 
 
@@ -156,8 +161,15 @@ def main() -> int:
         if not grid.exists():
             execute_streaming(
                 [
-                    str(generator), "rectangle", "grids/double_mach_480x120.cgns",
-                    "480", "120", "4", "4.0", "1.0", "false",
+                    str(generator),
+                    "rectangle",
+                    "grids/double_mach_480x120.cgns",
+                    "480",
+                    "120",
+                    "4",
+                    "4.0",
+                    "1.0",
+                    "false",
                 ],
                 CASE_DIR / "logs/comparison/generate-grid.log",
             )
@@ -179,8 +191,11 @@ def main() -> int:
             if output.exists():
                 raise RuntimeError(f"output exists; archive it or use --clean: {output}")
             _, elapsed[method] = execute_streaming(
-                prefix + [
-                    str(run), "--config", specification["config"],
+                prefix
+                + [
+                    str(run),
+                    "--config",
+                    specification["config"],
                 ],
                 CASE_DIR / f"logs/comparison/run-{method}-r{args.ranks}.log",
             )
@@ -203,8 +218,11 @@ def main() -> int:
         )
         execute_streaming(
             [
-                str(validator), "tecplot-consistency", str(final_cgns),
-                str(final_tecplot), "1e-12",
+                str(validator),
+                "tecplot-consistency",
+                str(final_cgns),
+                str(final_tecplot),
+                "1e-12",
             ],
             validation / f"tecplot-consistency-{method}.txt",
         )
@@ -220,7 +238,8 @@ def main() -> int:
     if args.method == "both" and not args.skip_analysis:
         execute_streaming(
             [
-                str(validator), "field-error",
+                str(validator),
+                "field-error",
                 str(outputs["weno5"]["cgns"]),
                 str(outputs["mdcd_hybrid"]["cgns"]),
             ],
@@ -228,22 +247,25 @@ def main() -> int:
         )
         execute_streaming(
             [
-                sys.executable, str(CASE_DIR / "analyze_case04.py"),
+                sys.executable,
+                str(CASE_DIR / "analyze_case04.py"),
                 str(outputs["weno5"]["tecplot"]),
                 str(outputs["mdcd_hybrid"]["tecplot"]),
-                "--weno-history", str(outputs["weno5"]["history"]),
-                "--mdcd-history", str(outputs["mdcd_hybrid"]["history"]),
-                "--weno-statistics", str(outputs["weno5"]["statistics"]),
-                "--mdcd-statistics", str(outputs["mdcd_hybrid"]["statistics"]),
-                "--output-directory", str(CASE_DIR / "comparison"),
+                "--weno-history",
+                str(outputs["weno5"]["history"]),
+                "--mdcd-history",
+                str(outputs["mdcd_hybrid"]["history"]),
+                "--weno-statistics",
+                str(outputs["weno5"]["statistics"]),
+                "--mdcd-statistics",
+                str(outputs["mdcd_hybrid"]["statistics"]),
+                "--output-directory",
+                str(CASE_DIR / "comparison"),
             ],
             validation / "analysis.log",
         )
 
-    manifest_ranks = {
-        int(output["manifest_values"]["mpi_ranks"])
-        for output in outputs.values()
-    }
+    manifest_ranks = {int(output["manifest_values"]["mpi_ranks"]) for output in outputs.values()}
     if len(manifest_ranks) != 1:
         raise RuntimeError("comparison results use different MPI rank counts")
     summary = {
@@ -265,7 +287,8 @@ def main() -> int:
             "git_commit": values["git_commit"],
         }
     validation.joinpath("run-summary.json").write_text(
-        json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
+    )
     print(json.dumps(summary, indent=2))
     return 0
 

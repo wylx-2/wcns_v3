@@ -16,9 +16,7 @@ namespace {
 
 constexpr int robustness_message_tag_base = 24576;
 
-bool same_strategy(
-    const RobustFluxStrategy& lhs,
-    const RobustFluxStrategy& rhs)
+bool same_strategy(const RobustFluxStrategy& lhs, const RobustFluxStrategy& rhs)
 {
     return lhs.reconstruction.scheme == rhs.reconstruction.scheme
         && lhs.reconstruction.variables == rhs.reconstruction.variables
@@ -30,19 +28,16 @@ std::size_t expected_values(Extent3 extent)
     return extent.size() * static_cast<std::size_t>(euler_components);
 }
 
-void require_matching_snapshot(
-    const std::vector<StructuredBlock*>& blocks,
-    const StateSnapshot& snapshot)
+void require_matching_snapshot(const std::vector<StructuredBlock*>& blocks,
+                               const StateSnapshot& snapshot)
 {
     if (blocks.empty() || blocks.size() != snapshot.size()) {
         throw std::invalid_argument("state snapshot does not match block set");
     }
     for (std::size_t index = 0; index < blocks.size(); ++index) {
-        if (blocks[index] == nullptr
-            || blocks[index]->id() != snapshot[index].block
+        if (blocks[index] == nullptr || blocks[index]->id() != snapshot[index].block
             || blocks[index]->cell_extent() != snapshot[index].extent
-            || snapshot[index].values.size()
-                != expected_values(snapshot[index].extent)) {
+            || snapshot[index].values.size() != expected_values(snapshot[index].extent)) {
             throw std::invalid_argument("state snapshot block metadata mismatch");
         }
     }
@@ -50,8 +45,7 @@ void require_matching_snapshot(
 
 std::size_t candidate_offset(Extent3 extent, Index3 cell, int component)
 {
-    return (((static_cast<std::size_t>(cell.k)
-                  * static_cast<std::size_t>(extent.nj)
+    return (((static_cast<std::size_t>(cell.k) * static_cast<std::size_t>(extent.nj)
               + static_cast<std::size_t>(cell.j))
                  * static_cast<std::size_t>(extent.ni)
              + static_cast<std::size_t>(cell.i))
@@ -76,8 +70,8 @@ void RobustnessConfig::validate() const
     if (max_local_recomputations < 0 || max_step_retries < 0) {
         throw std::invalid_argument("robustness retry limits must be non-negative");
     }
-    if (!std::isfinite(time_step_reduction)
-        || time_step_reduction <= 0.0 || time_step_reduction >= 1.0) {
+    if (!std::isfinite(time_step_reduction) || time_step_reduction <= 0.0
+        || time_step_reduction >= 1.0) {
         throw std::invalid_argument("robustness time-step reduction must lie in (0,1)");
     }
     if (!std::isfinite(minimum_time_step) || minimum_time_step <= 0.0) {
@@ -92,8 +86,7 @@ std::string RobustnessConfig::summary() const
     result << "robustness(enabled=" << (enabled ? "true" : "false")
            << ",max_local_recomputations=" << max_local_recomputations
            << ",max_step_retries=" << max_step_retries
-           << ",time_step_reduction=" << std::setprecision(17)
-           << time_step_reduction
+           << ",time_step_reduction=" << std::setprecision(17) << time_step_reduction
            << ",minimum_time_step=" << minimum_time_step << ')';
     return result.str();
 }
@@ -103,17 +96,15 @@ std::string RobustnessConfig::restart_signature() const
     return "robustness_v1;" + summary();
 }
 
-RobustnessLadder RobustnessLadder::build(
-    const ReconstructionConfig& reconstruction,
-    const RiemannConfig& riemann)
+RobustnessLadder RobustnessLadder::build(const ReconstructionConfig& reconstruction,
+                                         const RiemannConfig& riemann)
 {
     reconstruction.validate();
     riemann.validate();
     RobustnessLadder result;
     const auto append = [&](RobustFluxStrategy strategy) {
         strategy.reconstruction.validate();
-        if (result.strategies_.empty()
-            || !same_strategy(result.strategies_.back(), strategy)) {
+        if (result.strategies_.empty() || !same_strategy(result.strategies_.back(), strategy)) {
             result.strategies_.push_back(std::move(strategy));
         }
     };
@@ -158,10 +149,7 @@ std::string RobustnessLadder::summary() const
     return result.str();
 }
 
-FaceRobustnessField::FaceRobustnessField(
-    Extent3 cells,
-    int dimension,
-    AlgorithmProfileKind profile)
+FaceRobustnessField::FaceRobustnessField(Extent3 cells, int dimension, AlgorithmProfileKind profile)
     : profile_(profile)
     , dimension_(dimension)
     , halo_layers_(profile == AlgorithmProfileKind::PhengleiWcns ? 1 : 2)
@@ -192,10 +180,7 @@ int FaceRobustnessField::level(Axis axis, Index3 face) const
     return field(axis)(face.i, face.j, face.k, 0);
 }
 
-bool FaceRobustnessField::request_next(
-    Axis axis,
-    Index3 face,
-    int maximum_level)
+bool FaceRobustnessField::request_next(Axis axis, Index3 face, int maximum_level)
 {
     if (maximum_level < 0) {
         throw std::invalid_argument("maximum robustness level must be non-negative");
@@ -209,10 +194,7 @@ bool FaceRobustnessField::request_next(
     return true;
 }
 
-bool FaceRobustnessField::merge_max(
-    Axis axis,
-    Index3 face,
-    int requested_level)
+bool FaceRobustnessField::merge_max(Axis axis, Index3 face, int requested_level)
 {
     if (requested_level < 0) {
         throw std::invalid_argument("requested robustness level is negative");
@@ -239,10 +221,9 @@ FaceRobustnessField& FaceRobustnessRegistry::field(BlockId block) const
     return *iterator->second;
 }
 
-bool FaceRobustnessExchanger::exchange_requests(
-    const FaceRobustnessRegistry& fields,
-    int rk_stage,
-    int recomputation_round) const
+bool FaceRobustnessExchanger::exchange_requests(const FaceRobustnessRegistry& fields,
+                                                int rk_stage,
+                                                int recomputation_round) const
 {
     if (rk_stage < 1 || rk_stage > 3 || recomputation_round < 1) {
         throw std::invalid_argument("robustness exchange stage/round is invalid");
@@ -261,10 +242,10 @@ bool FaceRobustnessExchanger::exchange_requests(
             auto& receiver = fields.field(descriptor.receiver_block);
             auto& donor = fields.field(descriptor.donor_block);
             for (const auto& pair : descriptor.pairs) {
-                changed = donor.merge_max(
-                    descriptor.donor_axis,
-                    pair.donor,
-                    receiver.level(descriptor.receiver_axis, pair.receiver)) || changed;
+                changed = donor.merge_max(descriptor.donor_axis,
+                                          pair.donor,
+                                          receiver.level(descriptor.receiver_axis, pair.receiver))
+                    || changed;
             }
         } else if (descriptor.receiver_rank == rank) {
             auto& receiver = fields.field(descriptor.receiver_block);
@@ -274,8 +255,8 @@ bool FaceRobustnessExchanger::exchange_requests(
             pending.values[2] = static_cast<Real>(recomputation_round);
             std::size_t offset = 3;
             for (const auto& pair : descriptor.pairs) {
-                pending.values[offset++] = static_cast<Real>(
-                    receiver.level(descriptor.receiver_axis, pair.receiver));
+                pending.values[offset++]
+                    = static_cast<Real>(receiver.level(descriptor.receiver_axis, pair.receiver));
             }
             sends.push_back(std::move(pending));
         } else if (descriptor.donor_rank == rank) {
@@ -288,24 +269,28 @@ bool FaceRobustnessExchanger::exchange_requests(
     std::vector<MPI_Request> requests(receives.size() + sends.size(), MPI_REQUEST_NULL);
     std::size_t request = 0;
     for (auto& pending : receives) {
-        check_mpi(MPI_Irecv(
-            pending.values.data(), mpi_count(pending.values.size()), MPI_DOUBLE,
-            pending.descriptor->receiver_rank,
-            pending.descriptor->message_tag(robustness_message_tag_base),
-            mpi_.communicator(), &requests[request++]),
-            "MPI_Irecv robustness request");
+        check_mpi(MPI_Irecv(pending.values.data(),
+                            mpi_count(pending.values.size()),
+                            MPI_DOUBLE,
+                            pending.descriptor->receiver_rank,
+                            pending.descriptor->message_tag(robustness_message_tag_base),
+                            mpi_.communicator(),
+                            &requests[request++]),
+                  "MPI_Irecv robustness request");
     }
     for (auto& pending : sends) {
-        check_mpi(MPI_Isend(
-            pending.values.data(), mpi_count(pending.values.size()), MPI_DOUBLE,
-            pending.descriptor->donor_rank,
-            pending.descriptor->message_tag(robustness_message_tag_base),
-            mpi_.communicator(), &requests[request++]),
-            "MPI_Isend robustness request");
+        check_mpi(MPI_Isend(pending.values.data(),
+                            mpi_count(pending.values.size()),
+                            MPI_DOUBLE,
+                            pending.descriptor->donor_rank,
+                            pending.descriptor->message_tag(robustness_message_tag_base),
+                            mpi_.communicator(),
+                            &requests[request++]),
+                  "MPI_Isend robustness request");
     }
     if (!requests.empty()) {
-        check_mpi(MPI_Waitall(
-            static_cast<int>(requests.size()), requests.data(), MPI_STATUSES_IGNORE),
+        check_mpi(
+            MPI_Waitall(static_cast<int>(requests.size()), requests.data(), MPI_STATUSES_IGNORE),
             "MPI_Waitall robustness request");
     }
 #else
@@ -326,19 +311,16 @@ bool FaceRobustnessExchanger::exchange_requests(
         for (const auto& pair : pending.descriptor->pairs) {
             const Real encoded = pending.values[offset++];
             const int level = static_cast<int>(encoded);
-            if (!std::isfinite(encoded) || encoded != static_cast<Real>(level)
-                || level < 0) {
+            if (!std::isfinite(encoded) || encoded != static_cast<Real>(level) || level < 0) {
                 throw MpiError("robustness request contains an invalid level");
             }
-            changed = donor.merge_max(
-                pending.descriptor->donor_axis, pair.donor, level) || changed;
+            changed = donor.merge_max(pending.descriptor->donor_axis, pair.donor, level) || changed;
         }
     }
     return !mpi_.all_true(!changed);
 }
 
-StateSnapshot capture_conservative_state(
-    const std::vector<StructuredBlock*>& blocks)
+StateSnapshot capture_conservative_state(const std::vector<StructuredBlock*>& blocks)
 {
     if (blocks.empty()) {
         throw std::invalid_argument("cannot capture an empty block set");
@@ -353,8 +335,7 @@ StateSnapshot capture_conservative_state(
             for (int j = 0; j < buffer.extent.nj; ++j) {
                 for (int i = 0; i < buffer.extent.ni; ++i) {
                     for (int component = 0; component < euler_components; ++component) {
-                        buffer.values.push_back(
-                            block->flow.conservative(i, j, k, component));
+                        buffer.values.push_back(block->flow.conservative(i, j, k, component));
                     }
                 }
             }
@@ -364,9 +345,8 @@ StateSnapshot capture_conservative_state(
     return result;
 }
 
-void restore_conservative_state(
-    const std::vector<StructuredBlock*>& blocks,
-    const StateSnapshot& snapshot)
+void restore_conservative_state(const std::vector<StructuredBlock*>& blocks,
+                                const StateSnapshot& snapshot)
 {
     require_matching_snapshot(blocks, snapshot);
     for (std::size_t index = 0; index < blocks.size(); ++index) {
@@ -385,12 +365,11 @@ void restore_conservative_state(
     }
 }
 
-StateSnapshot form_ssprk_candidate(
-    const std::vector<StructuredBlock*>& blocks,
-    const StateSnapshot& initial,
-    Real initial_weight,
-    Real stage_weight,
-    Real residual_weight)
+StateSnapshot form_ssprk_candidate(const std::vector<StructuredBlock*>& blocks,
+                                   const StateSnapshot& initial,
+                                   Real initial_weight,
+                                   Real stage_weight,
+                                   Real residual_weight)
 {
     require_matching_snapshot(blocks, initial);
     if (!std::isfinite(initial_weight) || !std::isfinite(stage_weight)
@@ -407,10 +386,8 @@ StateSnapshot form_ssprk_candidate(
                     for (int component = 0; component < euler_components; ++component) {
                         result[index].values[offset]
                             = initial_weight * initial[index].values[offset]
-                            + stage_weight
-                                * blocks[index]->flow.conservative(i, j, k, component)
-                            + residual_weight
-                                * blocks[index]->flow.residual(i, j, k, component);
+                            + stage_weight * blocks[index]->flow.conservative(i, j, k, component)
+                            + residual_weight * blocks[index]->flow.residual(i, j, k, component);
                         ++offset;
                     }
                 }
@@ -420,14 +397,13 @@ StateSnapshot form_ssprk_candidate(
     return result;
 }
 
-CandidateValidation validate_candidate_state(
-    const StateSnapshot& candidate,
-    const std::vector<StructuredBlock*>& blocks,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors,
-    int rk_stage,
-    Real stage_time)
+CandidateValidation validate_candidate_state(const StateSnapshot& candidate,
+                                             const std::vector<StructuredBlock*>& blocks,
+                                             const GasModel& gas,
+                                             const ReferenceScales& reference,
+                                             const NumericalFloors& floors,
+                                             int rk_stage,
+                                             Real stage_time)
 {
     require_matching_snapshot(blocks, candidate);
     floors.validate();
@@ -458,8 +434,8 @@ CandidateValidation validate_candidate_state(
                         const Real mx = values[base + 1];
                         const Real my = values[base + 2];
                         const Real mz = values[base + 3];
-                        const Real internal_density = values[base + 4]
-                            - (mx * mx + my * my + mz * mz) / (2.0 * density);
+                        const Real internal_density
+                            = values[base + 4] - (mx * mx + my * my + mz * mz) / (2.0 * density);
                         pressure = gamma_minus_one * internal_density;
                         internal_energy = internal_density / density;
                         temperature = temperature_scale * pressure / density;
@@ -467,24 +443,30 @@ CandidateValidation validate_candidate_state(
                     result.minimum_density = std::min(result.minimum_density, density);
                     result.minimum_pressure = std::min(result.minimum_pressure, pressure);
                     result.minimum_temperature = std::min(result.minimum_temperature, temperature);
-                    result.minimum_internal_energy = std::min(
-                        result.minimum_internal_energy, internal_energy);
+                    result.minimum_internal_energy
+                        = std::min(result.minimum_internal_energy, internal_energy);
                     std::string reason;
-                    if (!components_finite) reason = "non_finite_conservative";
+                    if (!components_finite)
+                        reason = "non_finite_conservative";
                     else if (!std::isfinite(density) || density < floors.density)
                         reason = "density_floor";
                     else if (!std::isfinite(pressure) || pressure < floors.pressure)
                         reason = "pressure_floor";
-                    else if (!std::isfinite(temperature)
-                        || temperature < floors.temperature)
+                    else if (!std::isfinite(temperature) || temperature < floors.temperature)
                         reason = "temperature_floor";
                     else if (!std::isfinite(internal_energy) || internal_energy <= 0.0)
                         reason = "internal_energy";
                     if (!reason.empty()) {
-                        result.troubled_cells.push_back({
-                            blocks[block_index]->id(), blocks[block_index]->owner_rank(),
-                            cell, rk_stage, stage_time, density, pressure, temperature,
-                            internal_energy, std::move(reason)});
+                        result.troubled_cells.push_back({blocks[block_index]->id(),
+                                                         blocks[block_index]->owner_rank(),
+                                                         cell,
+                                                         rk_stage,
+                                                         stage_time,
+                                                         density,
+                                                         pressure,
+                                                         temperature,
+                                                         internal_energy,
+                                                         std::move(reason)});
                     }
                 }
             }
@@ -493,23 +475,20 @@ CandidateValidation validate_candidate_state(
     return result;
 }
 
-void commit_candidate_state(
-    const std::vector<StructuredBlock*>& blocks,
-    const StateSnapshot& candidate)
+void commit_candidate_state(const std::vector<StructuredBlock*>& blocks,
+                            const StateSnapshot& candidate)
 {
     restore_conservative_state(blocks, candidate);
 }
 
-bool request_troubled_cell_support(
-    const StructuredBlock& block,
-    const AlgorithmProfile& profile,
-    FluxDifferenceMode mode,
-    const std::vector<TroubledCell>& troubled_cells,
-    FaceRobustnessField& levels,
-    int maximum_level)
+bool request_troubled_cell_support(const StructuredBlock& block,
+                                   const AlgorithmProfile& profile,
+                                   FluxDifferenceMode mode,
+                                   const std::vector<TroubledCell>& troubled_cells,
+                                   FaceRobustnessField& levels,
+                                   int maximum_level)
 {
-    if (levels.profile() != profile.kind()
-        || levels.dimension() != block.cell_dimension()) {
+    if (levels.profile() != profile.kind() || levels.dimension() != block.cell_dimension()) {
         throw ProfileError("troubled-cell support uses a mismatched face field");
     }
     bool changed = false;
@@ -519,13 +498,12 @@ bool request_troubled_cell_support(
     const auto add_cell_support = [&](Index3 cell, std::set<FaceKey>& faces) {
         for (int logical = 0; logical < block.cell_dimension(); ++logical) {
             const auto axis = static_cast<Axis>(logical);
-            for (const auto& [face_index, coefficient] : inviscid_residual_stencil(
-                     block, profile, mode, axis, cell)) {
+            for (const auto& [face_index, coefficient] :
+                 inviscid_residual_stencil(block, profile, mode, axis, cell)) {
                 if (coefficient == 0.0) continue;
                 auto face = cell;
                 face[static_cast<std::size_t>(axis)] = face_index;
-                faces.emplace(
-                    logical, face.i, face.j, face.k);
+                faces.emplace(logical, face.i, face.j, face.k);
             }
         }
     };
@@ -561,15 +539,14 @@ bool request_troubled_cell_support(
         add_cell_support({i, j, k}, requested_faces);
     }
     for (const auto& [logical, i, j, k] : requested_faces) {
-        changed = levels.request_next(
-            static_cast<Axis>(logical), {i, j, k}, maximum_level) || changed;
+        changed
+            = levels.request_next(static_cast<Axis>(logical), {i, j, k}, maximum_level) || changed;
     }
     return changed;
 }
 
-std::array<std::size_t, 4> count_owned_face_levels(
-    const StructuredBlock& block,
-    const FaceRobustnessField& levels)
+std::array<std::size_t, 4> count_owned_face_levels(const StructuredBlock& block,
+                                                   const FaceRobustnessField& levels)
 {
     std::array<std::size_t, 4> result {};
     for (int logical = 0; logical < block.cell_dimension(); ++logical) {
@@ -598,28 +575,25 @@ void RobustnessDiagnostics::observe(const CandidateValidation& validation)
     minimum_density = std::min(minimum_density, validation.minimum_density);
     minimum_pressure = std::min(minimum_pressure, validation.minimum_pressure);
     minimum_temperature = std::min(minimum_temperature, validation.minimum_temperature);
-    minimum_internal_energy = std::min(
-        minimum_internal_energy, validation.minimum_internal_energy);
+    minimum_internal_energy = std::min(minimum_internal_energy, validation.minimum_internal_energy);
     failures.insert(
-        failures.end(), validation.troubled_cells.begin(),
-        validation.troubled_cells.end());
+        failures.end(), validation.troubled_cells.begin(), validation.troubled_cells.end());
 }
 
-Real advance_ssprk3_with_robustness(
-    const MpiRuntime& mpi,
-    const std::vector<StructuredBlock*>& blocks,
-    const StructuredMesh& global_mesh,
-    const AlgorithmProfile& profile,
-    FluxDifferenceMode flux_difference,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors,
-    const RobustnessConfig& config,
-    const RobustnessLadder& ladder,
-    Real proposed_time_step,
-    Real initial_time,
-    const RobustResidualEvaluator& evaluate_residuals,
-    RobustnessDiagnostics& diagnostics)
+Real advance_ssprk3_with_robustness(const MpiRuntime& mpi,
+                                    const std::vector<StructuredBlock*>& blocks,
+                                    const StructuredMesh& global_mesh,
+                                    const AlgorithmProfile& profile,
+                                    FluxDifferenceMode flux_difference,
+                                    const GasModel& gas,
+                                    const ReferenceScales& reference,
+                                    const NumericalFloors& floors,
+                                    const RobustnessConfig& config,
+                                    const RobustnessLadder& ladder,
+                                    Real proposed_time_step,
+                                    Real initial_time,
+                                    const RobustResidualEvaluator& evaluate_residuals,
+                                    RobustnessDiagnostics& diagnostics)
 {
     config.validate();
     if (!config.enabled || blocks.empty() || !evaluate_residuals
@@ -634,8 +608,10 @@ Real advance_ssprk3_with_robustness(
     std::uint64_t request_version = 1;
     std::array<std::size_t, 4> attempt_face_levels {};
 
-    const auto run_stage = [&](int rk_stage, Real stage_time,
-                               Real initial_weight, Real stage_weight,
+    const auto run_stage = [&](int rk_stage,
+                               Real stage_time,
+                               Real initial_weight,
+                               Real stage_weight,
                                Real residual_weight) {
         BlockFaceRobustnessMap levels;
         FaceRobustnessRegistry registry;
@@ -658,10 +634,8 @@ Real advance_ssprk3_with_robustness(
             if (mpi.all_true(validation.valid())) {
                 commit_candidate_state(blocks, candidate);
                 for (const auto* block : blocks) {
-                    const auto counts = count_owned_face_levels(
-                        *block, levels.at(block->id()));
-                    for (std::size_t level = 0;
-                         level < attempt_face_levels.size(); ++level) {
+                    const auto counts = count_owned_face_levels(*block, levels.at(block->id()));
+                    for (std::size_t level = 0; level < attempt_face_levels.size(); ++level) {
                         attempt_face_levels[level] += counts[level];
                     }
                 }
@@ -670,20 +644,21 @@ Real advance_ssprk3_with_robustness(
             if (round >= config.max_local_recomputations) return false;
             bool local_changed = false;
             for (const auto* block : blocks) {
-                local_changed = request_troubled_cell_support(
-                    *block, profile, flux_difference,
-                    validation.troubled_cells, levels.at(block->id()),
-                    ladder.maximum_level()) || local_changed;
+                local_changed = request_troubled_cell_support(*block,
+                                                              profile,
+                                                              flux_difference,
+                                                              validation.troubled_cells,
+                                                              levels.at(block->id()),
+                                                              ladder.maximum_level())
+                    || local_changed;
             }
             if (request_version == std::numeric_limits<std::uint64_t>::max()) {
                 throw std::overflow_error("robustness request version overflow");
             }
-            const auto plan = FaceFluxHaloPlan::build(
-                global_mesh, profile, request_version++);
-            const bool exchange_changed = FaceRobustnessExchanger(mpi, plan)
-                .exchange_requests(registry, rk_stage, round + 1);
-            const bool global_changed = !mpi.all_true(
-                !(local_changed || exchange_changed));
+            const auto plan = FaceFluxHaloPlan::build(global_mesh, profile, request_version++);
+            const bool exchange_changed = FaceRobustnessExchanger(mpi, plan).exchange_requests(
+                registry, rk_stage, round + 1);
+            const bool global_changed = !mpi.all_true(!(local_changed || exchange_changed));
             if (!global_changed) return false;
             ++diagnostics.local_recomputations;
         }
@@ -692,17 +667,13 @@ Real advance_ssprk3_with_robustness(
     for (int retry = 0; retry <= config.max_step_retries; ++retry) {
         restore_conservative_state(blocks, initial);
         attempt_face_levels.fill(0);
-        bool accepted = run_stage(
-            1, initial_time, 1.0, 0.0, time_step);
+        bool accepted = run_stage(1, initial_time, 1.0, 0.0, time_step);
         if (accepted) {
-            accepted = run_stage(
-                2, initial_time + time_step,
-                0.75, 0.25, 0.25 * time_step);
+            accepted = run_stage(2, initial_time + time_step, 0.75, 0.25, 0.25 * time_step);
         }
         if (accepted) {
             accepted = run_stage(
-                3, initial_time + 0.5 * time_step,
-                1.0 / 3.0, 2.0 / 3.0, 2.0 * time_step / 3.0);
+                3, initial_time + 0.5 * time_step, 1.0 / 3.0, 2.0 / 3.0, 2.0 * time_step / 3.0);
         }
         if (accepted) {
             diagnostics.face_levels = attempt_face_levels;
@@ -711,18 +682,15 @@ Real advance_ssprk3_with_robustness(
         }
         restore_conservative_state(blocks, initial);
         if (retry == config.max_step_retries
-            || time_step * config.time_step_reduction
-                < config.minimum_time_step) {
+            || time_step * config.time_step_reduction < config.minimum_time_step) {
             std::ostringstream message;
-            message << "robust SSPRK3 exhausted retries at dt="
-                    << std::setprecision(17) << time_step;
+            message << "robust SSPRK3 exhausted retries at dt=" << std::setprecision(17)
+                    << time_step;
             if (!diagnostics.failures.empty()) {
                 const auto& first = diagnostics.failures.front();
-                message << "; first troubled cell rank=" << first.rank
-                        << " block=" << first.block
-                        << " cell=(" << first.cell.i << ',' << first.cell.j
-                        << ',' << first.cell.k << ") stage=" << first.rk_stage
-                        << " time=" << first.stage_time
+                message << "; first troubled cell rank=" << first.rank << " block=" << first.block
+                        << " cell=(" << first.cell.i << ',' << first.cell.j << ',' << first.cell.k
+                        << ") stage=" << first.rk_stage << " time=" << first.stage_time
                         << " reason=" << first.reason;
             }
             throw PhysicsError(message.str());

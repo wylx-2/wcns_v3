@@ -11,13 +11,12 @@
 
 namespace wcns {
 
-EulerSolver::EulerSolver(
-    const MpiRuntime& mpi,
-    LocalBlockSet& local_blocks,
-    const DistributedTopology& topology,
-    int distribution_rank_count,
-    PrimitiveState prescribed_state,
-    SpatialParameters parameters)
+EulerSolver::EulerSolver(const MpiRuntime& mpi,
+                         LocalBlockSet& local_blocks,
+                         const DistributedTopology& topology,
+                         int distribution_rank_count,
+                         PrimitiveState prescribed_state,
+                         SpatialParameters parameters)
     : mpi_(mpi)
     , local_blocks_(local_blocks)
     , topology_(topology)

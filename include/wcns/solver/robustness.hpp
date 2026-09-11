@@ -31,9 +31,8 @@ struct RobustFluxStrategy {
 
 class RobustnessLadder {
 public:
-    [[nodiscard]] static RobustnessLadder build(
-        const ReconstructionConfig& reconstruction,
-        const RiemannConfig& riemann);
+    [[nodiscard]] static RobustnessLadder build(const ReconstructionConfig& reconstruction,
+                                                const RiemannConfig& riemann);
 
     [[nodiscard]] int maximum_level() const noexcept
     {
@@ -49,10 +48,7 @@ private:
 
 class FaceRobustnessField {
 public:
-    FaceRobustnessField(
-        Extent3 cell_extent,
-        int dimension,
-        AlgorithmProfileKind profile);
+    FaceRobustnessField(Extent3 cell_extent, int dimension, AlgorithmProfileKind profile);
 
     [[nodiscard]] AlgorithmProfileKind profile() const noexcept { return profile_; }
     [[nodiscard]] int dimension() const noexcept { return dimension_; }
@@ -81,26 +77,19 @@ private:
     std::unordered_map<BlockId, FaceRobustnessField*> fields_;
 };
 
-using BlockFaceRobustnessMap
-    = std::unordered_map<BlockId, FaceRobustnessField>;
-using RobustResidualEvaluator = std::function<void(
-    Real,
-    int,
-    const BlockFaceRobustnessMap&)>;
+using BlockFaceRobustnessMap = std::unordered_map<BlockId, FaceRobustnessField>;
+using RobustResidualEvaluator = std::function<void(Real, int, const BlockFaceRobustnessMap&)>;
 
 class FaceRobustnessExchanger {
 public:
-    FaceRobustnessExchanger(
-        const MpiRuntime& mpi,
-        const FaceFluxHaloPlan& plan)
-        : mpi_(mpi), plan_(plan)
-    {
-    }
+    FaceRobustnessExchanger(const MpiRuntime& mpi, const FaceFluxHaloPlan& plan)
+        : mpi_(mpi)
+        , plan_(plan)
+    { }
 
-    [[nodiscard]] bool exchange_requests(
-        const FaceRobustnessRegistry& fields,
-        int rk_stage,
-        int recomputation_round) const;
+    [[nodiscard]] bool exchange_requests(const FaceRobustnessRegistry& fields,
+                                         int rk_stage,
+                                         int recomputation_round) const;
 
 private:
     const MpiRuntime& mpi_;
@@ -154,59 +143,52 @@ struct RobustnessDiagnostics {
     void observe(const CandidateValidation& validation);
 };
 
-[[nodiscard]] StateSnapshot capture_conservative_state(
-    const std::vector<StructuredBlock*>& blocks);
+[[nodiscard]] StateSnapshot capture_conservative_state(const std::vector<StructuredBlock*>& blocks);
 
-void restore_conservative_state(
-    const std::vector<StructuredBlock*>& blocks,
-    const StateSnapshot& snapshot);
+void restore_conservative_state(const std::vector<StructuredBlock*>& blocks,
+                                const StateSnapshot& snapshot);
 
-[[nodiscard]] StateSnapshot form_ssprk_candidate(
-    const std::vector<StructuredBlock*>& blocks,
-    const StateSnapshot& initial,
-    Real initial_weight,
-    Real stage_weight,
-    Real residual_weight);
+[[nodiscard]] StateSnapshot form_ssprk_candidate(const std::vector<StructuredBlock*>& blocks,
+                                                 const StateSnapshot& initial,
+                                                 Real initial_weight,
+                                                 Real stage_weight,
+                                                 Real residual_weight);
 
-[[nodiscard]] CandidateValidation validate_candidate_state(
-    const StateSnapshot& candidate,
-    const std::vector<StructuredBlock*>& blocks,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors,
-    int rk_stage,
-    Real stage_time);
+[[nodiscard]] CandidateValidation
+validate_candidate_state(const StateSnapshot& candidate,
+                         const std::vector<StructuredBlock*>& blocks,
+                         const GasModel& gas,
+                         const ReferenceScales& reference,
+                         const NumericalFloors& floors,
+                         int rk_stage,
+                         Real stage_time);
 
-void commit_candidate_state(
-    const std::vector<StructuredBlock*>& blocks,
-    const StateSnapshot& candidate);
+void commit_candidate_state(const std::vector<StructuredBlock*>& blocks,
+                            const StateSnapshot& candidate);
 
-[[nodiscard]] bool request_troubled_cell_support(
-    const StructuredBlock& block,
-    const AlgorithmProfile& profile,
-    FluxDifferenceMode mode,
-    const std::vector<TroubledCell>& troubled_cells,
-    FaceRobustnessField& levels,
-    int maximum_level);
+[[nodiscard]] bool request_troubled_cell_support(const StructuredBlock& block,
+                                                 const AlgorithmProfile& profile,
+                                                 FluxDifferenceMode mode,
+                                                 const std::vector<TroubledCell>& troubled_cells,
+                                                 FaceRobustnessField& levels,
+                                                 int maximum_level);
 
-[[nodiscard]] std::array<std::size_t, 4> count_owned_face_levels(
-    const StructuredBlock& block,
-    const FaceRobustnessField& levels);
+[[nodiscard]] std::array<std::size_t, 4> count_owned_face_levels(const StructuredBlock& block,
+                                                                 const FaceRobustnessField& levels);
 
-[[nodiscard]] Real advance_ssprk3_with_robustness(
-    const MpiRuntime& mpi,
-    const std::vector<StructuredBlock*>& blocks,
-    const StructuredMesh& global_mesh,
-    const AlgorithmProfile& profile,
-    FluxDifferenceMode flux_difference,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors,
-    const RobustnessConfig& config,
-    const RobustnessLadder& ladder,
-    Real proposed_time_step,
-    Real initial_time,
-    const RobustResidualEvaluator& evaluate_residuals,
-    RobustnessDiagnostics& diagnostics);
+[[nodiscard]] Real advance_ssprk3_with_robustness(const MpiRuntime& mpi,
+                                                  const std::vector<StructuredBlock*>& blocks,
+                                                  const StructuredMesh& global_mesh,
+                                                  const AlgorithmProfile& profile,
+                                                  FluxDifferenceMode flux_difference,
+                                                  const GasModel& gas,
+                                                  const ReferenceScales& reference,
+                                                  const NumericalFloors& floors,
+                                                  const RobustnessConfig& config,
+                                                  const RobustnessLadder& ladder,
+                                                  Real proposed_time_step,
+                                                  Real initial_time,
+                                                  const RobustResidualEvaluator& evaluate_residuals,
+                                                  RobustnessDiagnostics& diagnostics);
 
 } // namespace wcns

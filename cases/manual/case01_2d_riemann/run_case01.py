@@ -74,24 +74,22 @@ def execute(command: list[str], log: Path) -> dict[str, object]:
 def clustered_coordinate(logical: float, center: float, strength: float) -> float:
     denominator = math.sinh(strength)
     if logical <= center:
-        return center * (
-            1.0 - math.sinh(strength * (center - logical) / center) / denominator
-        )
-    return center + (1.0 - center) * math.sinh(
-        strength * (logical - center) / (1.0 - center)
-    ) / denominator
+        return center * (1.0 - math.sinh(strength * (center - logical) / center) / denominator)
+    return (
+        center
+        + (1.0 - center) * math.sinh(strength * (logical - center) / (1.0 - center)) / denominator
+    )
 
 
 def spacing_metadata(clustered: bool) -> dict[str, object]:
     coordinates = [
-        clustered_coordinate(index / 256.0, 0.5, 2.5)
-        if clustered
-        else index / 256.0
+        clustered_coordinate(index / 256.0, 0.5, 2.5) if clustered else index / 256.0
         for index in range(257)
     ]
     spacing = [right - left for left, right in zip(coordinates, coordinates[1:])]
     discontinuity_cell = next(
-        index for index, (left, right) in enumerate(zip(coordinates, coordinates[1:]))
+        index
+        for index, (left, right) in enumerate(zip(coordinates, coordinates[1:]))
         if left <= 0.8 < right
     )
     return {
@@ -106,7 +104,8 @@ def spacing_metadata(clustered: bool) -> dict[str, object]:
         "center_vertex": coordinates[128],
         "cell_containing_discontinuity": discontinuity_cell,
         "discontinuity_cell_bounds": [
-            coordinates[discontinuity_cell], coordinates[discontinuity_cell + 1]
+            coordinates[discontinuity_cell],
+            coordinates[discontinuity_cell + 1],
         ],
     }
 
@@ -144,15 +143,41 @@ def main() -> int:
     os.chdir(CASE_DIR)
     try:
         records: list[dict[str, object]] = []
-        records.append(execute([
-            str(generator), "rectangle", "grids/uniform_256x256.cgns",
-            "256", "256", "4", "1.0", "1.0", "false",
-        ], CASE_DIR / "logs/generate-uniform.log"))
-        records.append(execute([
-            str(generator), "clustered-rectangle",
-            "grids/clustered_256x256_x0p5_y0p5.cgns",
-            "256", "256", "4", "1.0", "1.0", "0.5", "0.5", "2.5", "false",
-        ], CASE_DIR / "logs/generate-clustered.log"))
+        records.append(
+            execute(
+                [
+                    str(generator),
+                    "rectangle",
+                    "grids/uniform_256x256.cgns",
+                    "256",
+                    "256",
+                    "4",
+                    "1.0",
+                    "1.0",
+                    "false",
+                ],
+                CASE_DIR / "logs/generate-uniform.log",
+            )
+        )
+        records.append(
+            execute(
+                [
+                    str(generator),
+                    "clustered-rectangle",
+                    "grids/clustered_256x256_x0p5_y0p5.cgns",
+                    "256",
+                    "256",
+                    "4",
+                    "1.0",
+                    "1.0",
+                    "0.5",
+                    "0.5",
+                    "2.5",
+                    "false",
+                ],
+                CASE_DIR / "logs/generate-clustered.log",
+            )
+        )
 
         final_fields: dict[str, Path] = {}
         for name, config in (
@@ -169,14 +194,18 @@ def main() -> int:
             final = fields[-1]
             final_fields[name] = final
             for label, field in (("initial", fields[0]), ("final", final)):
-                records.append(execute(
-                    [str(validator), "finite", str(field)],
-                    CASE_DIR / f"validation/{name}-{label}-finite.txt",
-                ))
-            records.append(execute(
-                [str(validator), "diagonal-symmetry", str(final), "5e-4"],
-                CASE_DIR / f"validation/{name}-final-symmetry.txt",
-            ))
+                records.append(
+                    execute(
+                        [str(validator), "finite", str(field)],
+                        CASE_DIR / f"validation/{name}-{label}-finite.txt",
+                    )
+                )
+            records.append(
+                execute(
+                    [str(validator), "diagonal-symmetry", str(final), "5e-4"],
+                    CASE_DIR / f"validation/{name}-final-symmetry.txt",
+                )
+            )
 
         summary = {
             "case": "case01_2d_riemann",
@@ -210,12 +239,9 @@ def main() -> int:
         for directory in ("grids", "results", "logs", "validation"):
             generated.extend(path for path in (CASE_DIR / directory).rglob("*") if path.is_file())
         checksum_lines = [
-            f"{sha256(path)}  {path.relative_to(CASE_DIR).as_posix()}"
-            for path in sorted(generated)
+            f"{sha256(path)}  {path.relative_to(CASE_DIR).as_posix()}" for path in sorted(generated)
         ]
-        (CASE_DIR / "files.sha256").write_text(
-            "\n".join(checksum_lines) + "\n", encoding="utf-8"
-        )
+        (CASE_DIR / "files.sha256").write_text("\n".join(checksum_lines) + "\n", encoding="utf-8")
     finally:
         os.chdir(old_cwd)
     print(f"case01 passed: {CASE_DIR / 'case01-summary.json'}", flush=True)

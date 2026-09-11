@@ -25,11 +25,13 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", type=Path, default=default_executable("wcns_run"))
     parser.add_argument(
-        "--generator", type=Path,
+        "--generator",
+        type=Path,
         default=default_executable("wcns_generate_release_cgns"),
     )
     parser.add_argument(
-        "--validator", type=Path,
+        "--validator",
+        type=Path,
         default=default_executable("wcns_validate_release_case"),
     )
     parser.add_argument("--mpi-exec", type=Path, default=Path("mpiexec"))
@@ -37,7 +39,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--generate-only", action="store_true")
     parser.add_argument("--dry-run-only", action="store_true")
     parser.add_argument(
-        "--clean", action="store_true",
+        "--clean",
+        action="store_true",
         help="delete only case05 grids/logs/results/validation before running",
     )
     return parser.parse_args()
@@ -60,19 +63,24 @@ def require_file(path: Path, label: str) -> Path:
 
 
 def execute(
-    command: list[str], log_path: Path, acceptable_returncodes: tuple[int, ...] = (0,),
+    command: list[str],
+    log_path: Path,
+    acceptable_returncodes: tuple[int, ...] = (0,),
 ) -> str:
     print("running:", subprocess.list2cmdline(command), flush=True)
     completed = subprocess.run(
-        command, cwd=CASE_DIR, text=True,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False,
+        command,
+        cwd=CASE_DIR,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
     )
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_path.write_text(completed.stdout, encoding="utf-8")
     print(completed.stdout, end="")
     if completed.returncode not in acceptable_returncodes:
-        raise RuntimeError(
-            f"command failed with exit code {completed.returncode}; see {log_path}")
+        raise RuntimeError(f"command failed with exit code {completed.returncode}; see {log_path}")
     return completed.stdout
 
 
@@ -92,13 +100,24 @@ def main() -> int:
     generator = require_file(args.generator, "grid generator")
     grid = CASE_DIR / "grids/channel_36x48x36_beta1p75.cgns"
     if not grid.exists():
-        execute([
-            str(generator), "periodic-channel",
-            "grids/channel_36x48x36_beta1p75.cgns",
-            "36", "48", "36", "2", "2",
-            "6.283185307179586", "2.0", "3.141592653589793",
-            "1.75", "-1.0",
-        ], CASE_DIR / "logs/generate-grid.log")
+        execute(
+            [
+                str(generator),
+                "periodic-channel",
+                "grids/channel_36x48x36_beta1p75.cgns",
+                "36",
+                "48",
+                "36",
+                "2",
+                "2",
+                "6.283185307179586",
+                "2.0",
+                "3.141592653589793",
+                "1.75",
+                "-1.0",
+            ],
+            CASE_DIR / "logs/generate-grid.log",
+        )
     else:
         print(f"reusing existing grid: {grid}")
     if args.generate_only:
@@ -123,8 +142,7 @@ def main() -> int:
         "output(directory=results/lowmach-feasibility-r4",
     ):
         if expected not in dry_run_output:
-            raise RuntimeError(
-                f"low-Mach dry-run summary lacks expected text: {expected}")
+            raise RuntimeError(f"low-Mach dry-run summary lacks expected text: {expected}")
     if args.dry_run_only:
         return 0
 
@@ -134,7 +152,8 @@ def main() -> int:
         raise RuntimeError(
             "the frozen feasibility config writes results/lowmach-feasibility-r4; "
             "use --ranks 4 for recorded acceptance, or copy the config and change "
-            "output.directory before testing another rank count")
+            "output.directory before testing another rank count"
+        )
     if output.exists() or configured_output.exists():
         raise RuntimeError("feasibility output exists; archive it or rerun with --clean")
     execute(

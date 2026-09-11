@@ -44,23 +44,12 @@ struct PartitionLeaf {
 
 class StructuredPartitionPlan {
 public:
-    [[nodiscard]] static StructuredPartitionPlan build(
-        std::vector<PartitionZone> zones,
-        int rank_count,
-        const PartitionConfig& config);
+    [[nodiscard]] static StructuredPartitionPlan
+    build(std::vector<PartitionZone> zones, int rank_count, const PartitionConfig& config);
 
-    [[nodiscard]] const std::vector<PartitionZone>& zones() const noexcept
-    {
-        return zones_;
-    }
-    [[nodiscard]] const std::vector<PartitionLeaf>& leaves() const noexcept
-    {
-        return leaves_;
-    }
-    [[nodiscard]] const BlockDistribution& distribution() const noexcept
-    {
-        return distribution_;
-    }
+    [[nodiscard]] const std::vector<PartitionZone>& zones() const noexcept { return zones_; }
+    [[nodiscard]] const std::vector<PartitionLeaf>& leaves() const noexcept { return leaves_; }
+    [[nodiscard]] const BlockDistribution& distribution() const noexcept { return distribution_; }
     [[nodiscard]] std::size_t maximum_feasible_leaf_count() const noexcept
     {
         return maximum_feasible_leaf_count_;

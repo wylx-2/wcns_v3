@@ -25,10 +25,8 @@ void test_field()
         WCNS_REQUIRE(state(0, 0, 0, component) == 10.0 + component);
     }
 
-    WCNS_REQUIRE(
-        state.linear_index(0, 0, 0, 0) + 1 == state.linear_index(0, 0, 0, 1));
-    WCNS_REQUIRE(
-        state.linear_index(0, 0, 0, 4) + 1 == state.linear_index(1, 0, 0, 0));
+    WCNS_REQUIRE(state.linear_index(0, 0, 0, 0) + 1 == state.linear_index(0, 0, 0, 1));
+    WCNS_REQUIRE(state.linear_index(0, 0, 0, 4) + 1 == state.linear_index(1, 0, 0, 0));
 
     state(-1, -1, -1, 0) = -10.0;
     state(2, 1, 1, 4) = 20.0;

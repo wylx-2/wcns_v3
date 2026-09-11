@@ -45,7 +45,6 @@ void test_array3d()
 
     WCNS_REQUIRE_THROWS(std::invalid_argument, (Array3D<double>({-1, 2, 3}, 0)));
     WCNS_REQUIRE_THROWS(std::invalid_argument, (Array3D<double>({1, 2, 3}, -1)));
-    WCNS_REQUIRE_THROWS(
-        std::overflow_error,
-        (Array3D<double>({1, 1, 1}, std::numeric_limits<int>::max())));
+    WCNS_REQUIRE_THROWS(std::overflow_error,
+                        (Array3D<double>({1, 1, 1}, std::numeric_limits<int>::max())));
 }

@@ -25,14 +25,13 @@ private:
     int ghost_width_;
 
 public:
-    StructuredBlock(
-        BlockId id,
-        std::string name,
-        RankId owner_rank,
-        int cell_dimension,
-        int physical_dimension,
-        Extent3 vertex_extent,
-        int ghost_width)
+    StructuredBlock(BlockId id,
+                    std::string name,
+                    RankId owner_rank,
+                    int cell_dimension,
+                    int physical_dimension,
+                    Extent3 vertex_extent,
+                    int ghost_width)
         : id_(checked_id(id))
         , name_(checked_name(std::move(name)))
         , owner_rank_(checked_rank(owner_rank))
@@ -45,8 +44,7 @@ public:
         , cell_metrics(cell_extent_, ghost_width_)
         , face_metrics(cell_extent_)
         , flow(cell_extent_, ghost_width_)
-    {
-    }
+    { }
 
     [[nodiscard]] BlockId id() const noexcept { return id_; }
     [[nodiscard]] const std::string& name() const noexcept { return name_; }
@@ -57,10 +55,7 @@ public:
     [[nodiscard]] const Extent3& cell_extent() const noexcept { return cell_extent_; }
     [[nodiscard]] int ghost_width() const noexcept { return ghost_width_; }
 
-    void set_owner_rank(RankId owner_rank)
-    {
-        owner_rank_ = checked_rank(owner_rank);
-    }
+    void set_owner_rank(RankId owner_rank) { owner_rank_ = checked_rank(owner_rank); }
 
     NodeCoordinates coordinates;
     CellMetrics cell_metrics;
@@ -99,19 +94,21 @@ private:
         if ((cell_dimension != 2 && cell_dimension != 3)
             || (physical_dimension != 2 && physical_dimension != 3)
             || cell_dimension > physical_dimension) {
-            throw std::invalid_argument("StructuredBlock dimensions must satisfy 2 <= cell <= physical <= 3");
+            throw std::invalid_argument(
+                "StructuredBlock dimensions must satisfy 2 <= cell <= physical <= 3");
         }
         return cell_dimension;
     }
 
     static Extent3 checked_vertex_extent(Extent3 extent, int cell_dimension)
     {
-        const bool valid_2d = cell_dimension == 2 && extent.ni >= 2 && extent.nj >= 2
-            && extent.nk == 1;
-        const bool valid_3d = cell_dimension == 3 && extent.ni >= 2 && extent.nj >= 2
-            && extent.nk >= 2;
+        const bool valid_2d
+            = cell_dimension == 2 && extent.ni >= 2 && extent.nj >= 2 && extent.nk == 1;
+        const bool valid_3d
+            = cell_dimension == 3 && extent.ni >= 2 && extent.nj >= 2 && extent.nk >= 2;
         if (!valid_2d && !valid_3d) {
-            throw std::invalid_argument("StructuredBlock vertex extent is incompatible with cell dimension");
+            throw std::invalid_argument(
+                "StructuredBlock vertex extent is incompatible with cell dimension");
         }
         return extent;
     }
@@ -132,7 +129,6 @@ private:
         }
         return ghost_width;
     }
-
 };
 
 } // namespace wcns

@@ -56,14 +56,12 @@ void test_topology()
 
     const IndexTransform transform {{{2, -1, 3}}};
     WCNS_REQUIRE(transform.valid(2));
-    WCNS_REQUIRE(transform.map({4, 3, 0}, {4, 0, 0}, {3, 0, 0}, 2)
-        == (Index3 {0, 0, 0}));
+    WCNS_REQUIRE(transform.map({4, 3, 0}, {4, 0, 0}, {3, 0, 0}, 2) == (Index3 {0, 0, 0}));
     WCNS_REQUIRE(transform.inverse(2) == (IndexTransform {{{-2, 1, 3}}}));
     WCNS_REQUIRE((!IndexTransform {{{2, 2, 3}}}.valid(2)));
     WCNS_REQUIRE((!IndexTransform {{{1, 2, -3}}}.valid(2)));
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument,
-        (IndexTransform {{{2, 2, 3}}}.map({0, 0, 0}, {0, 0, 0}, {0, 0, 0}, 2)));
+    WCNS_REQUIRE_THROWS(std::invalid_argument,
+                        (IndexTransform {{{2, 2, 3}}}.map({0, 0, 0}, {0, 0, 0}, {0, 0, 0}, 2)));
 
     PeriodicTransform periodic {
         {{{{0.0, -1.0, 0.0}}, {{1.0, 0.0, 0.0}}, {{0.0, 0.0, 1.0}}}},
@@ -92,28 +90,21 @@ void test_topology()
     WCNS_REQUIRE(mesh.block(1).name() == "right");
     mesh.validate_connectivities();
 
-    const auto halo = make_halo_exchange_plan(
-        mesh.block(0).connectivities.front(),
-        mesh.block(0).cell_extent(),
-        mesh.block(1).cell_extent(),
-        2);
+    const auto halo = make_halo_exchange_plan(mesh.block(0).connectivities.front(),
+                                              mesh.block(0).cell_extent(),
+                                              mesh.block(1).cell_extent(),
+                                              2);
     WCNS_REQUIRE(halo.receiver_block == 0);
     WCNS_REQUIRE(halo.donor_block == 1);
     WCNS_REQUIRE(halo.donor_rank == 1);
     WCNS_REQUIRE(halo.cell_pairs.size() == 9);
-    WCNS_REQUIRE(
-        halo.cell_pairs[0] == (HaloCellPair {{4, 0, 0}, {2, 0, 0}}));
-    WCNS_REQUIRE(
-        halo.cell_pairs[1] == (HaloCellPair {{5, 0, 0}, {2, 1, 0}}));
-    WCNS_REQUIRE(
-        halo.cell_pairs[3] == (HaloCellPair {{4, 1, 0}, {1, 0, 0}}));
+    WCNS_REQUIRE(halo.cell_pairs[0] == (HaloCellPair {{4, 0, 0}, {2, 0, 0}}));
+    WCNS_REQUIRE(halo.cell_pairs[1] == (HaloCellPair {{5, 0, 0}, {2, 1, 0}}));
+    WCNS_REQUIRE(halo.cell_pairs[3] == (HaloCellPair {{4, 1, 0}, {1, 0, 0}}));
     WCNS_REQUIRE_THROWS(
         TopologyError,
         make_halo_exchange_plan(
-            mesh.block(0).connectivities.front(),
-            mesh.block(0).cell_extent(),
-            {3, 2, 1},
-            2));
+            mesh.block(0).connectivities.front(), mesh.block(0).cell_extent(), {3, 2, 1}, 2));
 
     mesh.block(0).connectivities.front().donor_rank = 7;
     WCNS_REQUIRE_THROWS(TopologyError, mesh.validate_connectivities());

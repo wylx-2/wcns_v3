@@ -47,34 +47,24 @@ struct IdealGas {
     void validate() const;
 };
 
-[[nodiscard]] ConservativeState to_conservative(
-    const PrimitiveState& primitive,
-    const IdealGas& gas = {});
+[[nodiscard]] ConservativeState to_conservative(const PrimitiveState& primitive,
+                                                const IdealGas& gas = {});
 
-[[nodiscard]] PrimitiveState to_primitive(
-    const ConservativeState& conservative,
-    const IdealGas& gas = {});
+[[nodiscard]] PrimitiveState to_primitive(const ConservativeState& conservative,
+                                          const IdealGas& gas = {});
 
-[[nodiscard]] Real sound_speed(
-    const PrimitiveState& primitive,
-    const IdealGas& gas = {});
+[[nodiscard]] Real sound_speed(const PrimitiveState& primitive, const IdealGas& gas = {});
 
-[[nodiscard]] ConservativeState euler_flux(
-    const PrimitiveState& primitive,
-    Normal3 unit_normal,
-    const IdealGas& gas = {});
+[[nodiscard]] ConservativeState
+euler_flux(const PrimitiveState& primitive, Normal3 unit_normal, const IdealGas& gas = {});
 
-[[nodiscard]] ConservativeState rusanov_flux(
-    const PrimitiveState& left,
-    const PrimitiveState& right,
-    Normal3 unit_normal,
-    const IdealGas& gas = {});
+[[nodiscard]] ConservativeState rusanov_flux(const PrimitiveState& left,
+                                             const PrimitiveState& right,
+                                             Normal3 unit_normal,
+                                             const IdealGas& gas = {});
 
-[[nodiscard]] ConservativeState load_conservative(
-    const Field<Real>& field,
-    Index3 index);
+[[nodiscard]] ConservativeState load_conservative(const Field<Real>& field, Index3 index);
 [[nodiscard]] PrimitiveState load_primitive(const Field<Real>& field, Index3 index);
 void store_state(Field<Real>& field, Index3 index, const ConservativeState& state);
 
 } // namespace wcns
-

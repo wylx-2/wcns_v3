@@ -102,12 +102,10 @@ void test_3d(const char* path)
     WCNS_REQUIRE(block.coordinates.z(3, 2, 2) == 0.5);
     WCNS_REQUIRE(block.boundaries.size() == 6);
     WCNS_REQUIRE(block.boundaries[0].type == wcns::BoundaryType::Farfield);
-    WCNS_REQUIRE(
-        block.boundaries[3].adjacent_cell_range.untyped()
-        == (wcns::IndexRange3 {{2, 1, 0}, {0, 1, 1}}));
-    WCNS_REQUIRE(
-        block.boundaries[5].face
-        == (wcns::FaceLocation {wcns::Axis::K, wcns::Side::Upper}));
+    WCNS_REQUIRE(block.boundaries[3].adjacent_cell_range.untyped()
+                 == (wcns::IndexRange3 {{2, 1, 0}, {0, 1, 1}}));
+    WCNS_REQUIRE(block.boundaries[5].face
+                 == (wcns::FaceLocation {wcns::Axis::K, wcns::Side::Upper}));
 
     wcns::compute_metrics(block);
     WCNS_REQUIRE_NEAR(block.cell_metrics.center_x(0, 0, 0), 0.5, 1.0e-14);
@@ -141,10 +139,9 @@ void test_out_of_extent_boundary(const char* path)
     try {
         static_cast<void>(reader.read_block(path, metadata.zones.front(), 0, 3));
     } catch (const wcns::CgnsError& error) {
-        WCNS_REQUIRE(
-            std::string(error.what()).find(
-                "boundary vertex PointRange end J index 4 is outside [0, 3]")
-            != std::string::npos);
+        WCNS_REQUIRE(std::string(error.what())
+                         .find("boundary vertex PointRange end J index 4 is outside [0, 3]")
+                     != std::string::npos);
         return;
     }
     throw std::runtime_error("out-of-extent CGNS boundary was accepted");
@@ -167,22 +164,16 @@ void test_multiblock_2d(const char* path)
     WCNS_REQUIRE(connection.receiver_block == 0);
     WCNS_REQUIRE(connection.donor_block == 1);
     WCNS_REQUIRE(connection.donor_rank == 2);
-    WCNS_REQUIRE(
-        connection.receiver_face
-        == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Upper}));
-    WCNS_REQUIRE(
-        connection.donor_face
-        == (wcns::FaceLocation {wcns::Axis::J, wcns::Side::Lower}));
-    WCNS_REQUIRE(
-        connection.receiver_vertex_range.untyped()
-        == (wcns::IndexRange3 {{4, 0, 0}, {4, 3, 0}}));
-    WCNS_REQUIRE(
-        connection.donor_vertex_range.untyped()
-        == (wcns::IndexRange3 {{3, 0, 0}, {0, 0, 0}}));
+    WCNS_REQUIRE(connection.receiver_face
+                 == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Upper}));
+    WCNS_REQUIRE(connection.donor_face == (wcns::FaceLocation {wcns::Axis::J, wcns::Side::Lower}));
+    WCNS_REQUIRE(connection.receiver_vertex_range.untyped()
+                 == (wcns::IndexRange3 {{4, 0, 0}, {4, 3, 0}}));
+    WCNS_REQUIRE(connection.donor_vertex_range.untyped()
+                 == (wcns::IndexRange3 {{3, 0, 0}, {0, 0, 0}}));
     WCNS_REQUIRE(connection.transform == (wcns::IndexTransform {{{2, -1, 3}}}));
-    WCNS_REQUIRE(
-        connection.shared_face_range.untyped()
-        == (wcns::IndexRange3 {{4, 0, 0}, {4, 2, 0}}));
+    WCNS_REQUIRE(connection.shared_face_range.untyped()
+                 == (wcns::IndexRange3 {{4, 0, 0}, {4, 2, 0}}));
     WCNS_REQUIRE(connection.ghost_width == 3);
 }
 
@@ -195,19 +186,14 @@ void test_multiblock_3d(const char* path)
     const auto& connection = mesh.block(0).connectivities.front();
     WCNS_REQUIRE(connection.receiver_block == 0);
     WCNS_REQUIRE(connection.donor_block == 1);
-    WCNS_REQUIRE(
-        connection.receiver_face
-        == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Upper}));
-    WCNS_REQUIRE(
-        connection.donor_face
-        == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Lower}));
+    WCNS_REQUIRE(connection.receiver_face
+                 == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Upper}));
+    WCNS_REQUIRE(connection.donor_face == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Lower}));
     WCNS_REQUIRE(connection.transform == (wcns::IndexTransform {{{1, -2, 3}}}));
-    WCNS_REQUIRE(
-        connection.donor_vertex_range.untyped()
-        == (wcns::IndexRange3 {{0, 2, 0}, {0, 0, 2}}));
-    WCNS_REQUIRE(
-        connection.donor_adjacent_cell_range.untyped()
-        == (wcns::IndexRange3 {{0, 1, 0}, {0, 0, 1}}));
+    WCNS_REQUIRE(connection.donor_vertex_range.untyped()
+                 == (wcns::IndexRange3 {{0, 2, 0}, {0, 0, 2}}));
+    WCNS_REQUIRE(connection.donor_adjacent_cell_range.untyped()
+                 == (wcns::IndexRange3 {{0, 1, 0}, {0, 0, 1}}));
 }
 
 // 验收缺少互反记录的单边连接不能进入求解拓扑。
@@ -217,9 +203,8 @@ void test_one_sided_connectivity(const char* path)
     try {
         static_cast<void>(reader.read_mesh(path, 0, 3));
     } catch (const wcns::CgnsError& error) {
-        WCNS_REQUIRE(
-            std::string(error.what()).find("has no reciprocal donor record")
-            != std::string::npos);
+        WCNS_REQUIRE(std::string(error.what()).find("has no reciprocal donor record")
+                     != std::string::npos);
         return;
     }
     throw std::runtime_error("one-sided CGNS connectivity was accepted");
@@ -232,9 +217,8 @@ void test_unknown_donor(const char* path)
     try {
         static_cast<void>(reader.read_mesh(path, 0, 3));
     } catch (const wcns::CgnsError& error) {
-        WCNS_REQUIRE(
-            std::string(error.what()).find("unknown donor zone: Missing2D")
-            != std::string::npos);
+        WCNS_REQUIRE(std::string(error.what()).find("unknown donor zone: Missing2D")
+                     != std::string::npos);
         return;
     }
     throw std::runtime_error("unknown CGNS donor zone was accepted");
@@ -251,10 +235,9 @@ void test_out_of_extent_connectivity(const char* path)
     try {
         static_cast<void>(reader.read_block(path, reduced_zone, 0, 3));
     } catch (const wcns::CgnsError& error) {
-        WCNS_REQUIRE(
-            std::string(error.what()).find(
-                "connectivity receiver vertex range end J index 3 is outside [0, 2]")
-            != std::string::npos);
+        WCNS_REQUIRE(std::string(error.what())
+                         .find("connectivity receiver vertex range end J index 3 is outside [0, 2]")
+                     != std::string::npos);
         return;
     }
     throw std::runtime_error("out-of-extent CGNS connectivity was accepted");
@@ -282,14 +265,11 @@ void test_partitioned_zone(const char* path)
     WCNS_REQUIRE(local.connectivities.size() == 1);
     WCNS_REQUIRE(local.connectivities.front().donor_block == 0);
     WCNS_REQUIRE(local.connectivities.front().donor_rank == 0);
-    WCNS_REQUIRE(
-        local.connectivities.front().receiver_face
-        == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Lower}));
-    WCNS_REQUIRE(
-        local.connectivities.front().receiver_vertex_range.untyped()
-        == (wcns::IndexRange3 {{0, 0, 0}, {0, 3, 0}}));
-    WCNS_REQUIRE(std::isnan(
-        partitioned.global_mesh.block(0).coordinates.x(0, 0, 0)));
+    WCNS_REQUIRE(local.connectivities.front().receiver_face
+                 == (wcns::FaceLocation {wcns::Axis::I, wcns::Side::Lower}));
+    WCNS_REQUIRE(local.connectivities.front().receiver_vertex_range.untyped()
+                 == (wcns::IndexRange3 {{0, 0, 0}, {0, 3, 0}}));
+    WCNS_REQUIRE(std::isnan(partitioned.global_mesh.block(0).coordinates.x(0, 0, 0)));
     partitioned.global_mesh.validate_connectivities(false);
 }
 
@@ -315,19 +295,13 @@ void test_partitioned_multiblock(const char* path)
     for (const auto& connection : first_interface) {
         if (connection.donor_block == 3) {
             found_axis_swapped_original = true;
-            WCNS_REQUIRE(
-                connection.transform == (IndexTransform {{{2, -1, 3}}}));
+            WCNS_REQUIRE(connection.transform == (IndexTransform {{{2, -1, 3}}}));
         }
     }
     WCNS_REQUIRE(found_axis_swapped_original);
 
-    const auto distribution = BlockDistribution::balanced(
-        {{0, 4}, {1, 8}, {2, 8}, {3, 4}},
-        1);
-    const auto topology = DistributedTopology::build(
-        partitioned.global_mesh,
-        distribution,
-        false);
+    const auto distribution = BlockDistribution::balanced({{0, 4}, {1, 8}, {2, 8}, {3, 4}}, 1);
+    const auto topology = DistributedTopology::build(partitioned.global_mesh, distribution, false);
     WCNS_REQUIRE(topology.exchanges().size() == 8);
 }
 
@@ -388,10 +362,8 @@ void test_periodic_rotation_3d(const char* path)
     for (int row = 0; row < 3; ++row) {
         for (int column = 0; column < 3; ++column) {
             WCNS_REQUIRE_NEAR(
-                reverse.rotation[static_cast<std::size_t>(row)]
-                                [static_cast<std::size_t>(column)],
-                inverse.rotation[static_cast<std::size_t>(row)]
-                                [static_cast<std::size_t>(column)],
+                reverse.rotation[static_cast<std::size_t>(row)][static_cast<std::size_t>(column)],
+                inverse.rotation[static_cast<std::size_t>(row)][static_cast<std::size_t>(column)],
                 1.0e-7);
         }
     }
@@ -403,11 +375,10 @@ void test_periodic_rotation_3d(const char* path)
 int main(int argc, char** argv)
 {
     if (argc != 10) {
-        std::cerr
-            << "usage: wcns_cgns_reader_tests <2d.cgns> <3d.cgns> "
-               "<invalid-2d.cgns> <multi-2d.cgns> <multi-3d.cgns> "
-               "<one-sided-2d.cgns> <unknown-donor-2d.cgns> "
-               "<periodic-2d.cgns> <periodic-3d.cgns>\n";
+        std::cerr << "usage: wcns_cgns_reader_tests <2d.cgns> <3d.cgns> "
+                     "<invalid-2d.cgns> <multi-2d.cgns> <multi-3d.cgns> "
+                     "<one-sided-2d.cgns> <unknown-donor-2d.cgns> "
+                     "<periodic-2d.cgns> <periodic-3d.cgns>\n";
         return EXIT_FAILURE;
     }
     try {

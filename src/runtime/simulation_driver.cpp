@@ -18,15 +18,13 @@ Real default_wall_clock()
     return std::chrono::duration<Real>(Clock::now() - origin).count();
 }
 
-void report_solver_exception(
-    const MpiRuntime& mpi, const char* phase, const std::exception& error)
+void report_solver_exception(const MpiRuntime& mpi, const char* phase, const std::exception& error)
 {
-    std::cerr << "WCNS numerical failure on rank " << mpi.rank()
-              << " during " << phase << ": " << error.what() << '\n';
+    std::cerr << "WCNS numerical failure on rank " << mpi.rank() << " during " << phase << ": "
+              << error.what() << '\n';
 }
 
-template <class Solver>
-SolverDiagnostics collect_diagnostics(const Solver& solver)
+template <class Solver> SolverDiagnostics collect_diagnostics(const Solver& solver)
 {
     const auto robustness = solver.global_robustness_diagnostics();
     return {
@@ -48,21 +46,19 @@ SolverDiagnostics collect_diagnostics(const Solver& solver)
 
 } // namespace
 
-InviscidSimulationSolver::InviscidSimulationSolver(
-    InviscidWcnsSolver& solver,
-    const MpiRuntime& mpi,
-    const LocalBlockSet& local_blocks,
-    const BlockMetricMap& metrics,
-    const StructuredPartitionPlan& partition,
-    AlgorithmProfile profile)
+InviscidSimulationSolver::InviscidSimulationSolver(InviscidWcnsSolver& solver,
+                                                   const MpiRuntime& mpi,
+                                                   const LocalBlockSet& local_blocks,
+                                                   const BlockMetricMap& metrics,
+                                                   const StructuredPartitionPlan& partition,
+                                                   AlgorithmProfile profile)
     : solver_(solver)
     , mpi_(mpi)
     , local_blocks_(local_blocks)
     , metrics_(metrics)
     , partition_(partition)
     , profile_(std::move(profile))
-{
-}
+{ }
 
 Real InviscidSimulationSolver::global_time_step(Real cfl)
 {
@@ -81,8 +77,7 @@ void InviscidSimulationSolver::refresh_residuals(Real time)
 
 ResidualNorms InviscidSimulationSolver::residual_norms() const
 {
-    return compute_global_residual_norms(
-        mpi_, local_blocks_, metrics_, partition_, profile_);
+    return compute_global_residual_norms(mpi_, local_blocks_, metrics_, partition_, profile_);
 }
 
 SolverDiagnostics InviscidSimulationSolver::diagnostics() const
@@ -90,21 +85,19 @@ SolverDiagnostics InviscidSimulationSolver::diagnostics() const
     return collect_diagnostics(solver_);
 }
 
-ViscousSimulationSolver::ViscousSimulationSolver(
-    ViscousWcnsSolver& solver,
-    const MpiRuntime& mpi,
-    const LocalBlockSet& local_blocks,
-    const BlockMetricMap& metrics,
-    const StructuredPartitionPlan& partition,
-    AlgorithmProfile profile)
+ViscousSimulationSolver::ViscousSimulationSolver(ViscousWcnsSolver& solver,
+                                                 const MpiRuntime& mpi,
+                                                 const LocalBlockSet& local_blocks,
+                                                 const BlockMetricMap& metrics,
+                                                 const StructuredPartitionPlan& partition,
+                                                 AlgorithmProfile profile)
     : solver_(solver)
     , mpi_(mpi)
     , local_blocks_(local_blocks)
     , metrics_(metrics)
     , partition_(partition)
     , profile_(std::move(profile))
-{
-}
+{ }
 
 Real ViscousSimulationSolver::global_time_step(Real cfl)
 {
@@ -123,8 +116,7 @@ void ViscousSimulationSolver::refresh_residuals(Real time)
 
 ResidualNorms ViscousSimulationSolver::residual_norms() const
 {
-    return compute_global_residual_norms(
-        mpi_, local_blocks_, metrics_, partition_, profile_);
+    return compute_global_residual_norms(mpi_, local_blocks_, metrics_, partition_, profile_);
 }
 
 SolverDiagnostics ViscousSimulationSolver::diagnostics() const
@@ -134,15 +126,13 @@ SolverDiagnostics ViscousSimulationSolver::diagnostics() const
 
 void CompositeSimulationObserver::add(ISimulationObserver& observer)
 {
-    if (std::find(observers_.begin(), observers_.end(), &observer)
-        != observers_.end()) {
+    if (std::find(observers_.begin(), observers_.end(), &observer) != observers_.end()) {
         throw std::invalid_argument("simulation observer was added twice");
     }
     observers_.push_back(&observer);
 }
 
-Real CompositeSimulationObserver::next_time_event(
-    const SimulationState& state) const
+Real CompositeSimulationObserver::next_time_event(const SimulationState& state) const
 {
     Real result = std::numeric_limits<Real>::infinity();
     for (const auto* observer : observers_) {
@@ -153,12 +143,11 @@ Real CompositeSimulationObserver::next_time_event(
 
 void CompositeSimulationObserver::on_initial(const SimulationState& state)
 {
-    for (auto* observer : observers_) observer->on_initial(state);
+    for (auto* observer : observers_)
+        observer->on_initial(state);
 }
 
-void CompositeSimulationObserver::on_step(
-    const SimulationState& state,
-    bool residual_checked)
+void CompositeSimulationObserver::on_step(const SimulationState& state, bool residual_checked)
 {
     for (auto* observer : observers_) {
         observer->on_step(state, residual_checked);
@@ -167,16 +156,16 @@ void CompositeSimulationObserver::on_step(
 
 void CompositeSimulationObserver::on_final(const SimulationState& state)
 {
-    for (auto* observer : observers_) observer->on_final(state);
+    for (auto* observer : observers_)
+        observer->on_final(state);
 }
 
-SimulationDriver::SimulationDriver(
-    const MpiRuntime& mpi,
-    ISimulationSolver& solver,
-    CaseRunConfig config,
-    ISimulationObserver& observer,
-    StopRequest stop_requested,
-    WallClock wall_clock)
+SimulationDriver::SimulationDriver(const MpiRuntime& mpi,
+                                   ISimulationSolver& solver,
+                                   CaseRunConfig config,
+                                   ISimulationObserver& observer,
+                                   StopRequest stop_requested,
+                                   WallClock wall_clock)
     : mpi_(mpi)
     , solver_(solver)
     , config_(std::move(config))
@@ -194,9 +183,7 @@ bool SimulationDriver::all_ranks_succeeded(bool local_success) const
     return mpi_.all_true(local_success);
 }
 
-Real SimulationDriver::limited_time_step(
-    Real proposed,
-    const SimulationState& state) const
+Real SimulationDriver::limited_time_step(Real proposed, const SimulationState& state) const
 {
     Real result = proposed;
     if (config_.mode == RunMode::Unsteady) {
@@ -216,8 +203,7 @@ Real SimulationDriver::limited_time_step(
 SimulationState SimulationDriver::run(SimulationInitialState initial)
 {
     if (!std::isfinite(initial.time) || initial.time < 0.0) {
-        throw CaseConfigurationError(
-            "simulation initial time must be finite and non-negative");
+        throw CaseConfigurationError("simulation initial time must be finite and non-negative");
     }
     StopController controller(config_);
     const auto notify = [&](const std::function<void()>& callback) {
@@ -233,17 +219,14 @@ SimulationState SimulationDriver::run(SimulationInitialState initial)
             local_error = "unknown non-standard exception";
         }
         if (!mpi_.all_true(local_observer_success)) {
-            const Real failure_candidate = local_observer_success
-                ? static_cast<Real>(mpi_.size())
-                : static_cast<Real>(mpi_.rank());
-            const auto failure_rank = static_cast<RankId>(
-                mpi_.min(failure_candidate));
+            const Real failure_candidate = local_observer_success ? static_cast<Real>(mpi_.size())
+                                                                  : static_cast<Real>(mpi_.rank());
+            const auto failure_rank = static_cast<RankId>(mpi_.min(failure_candidate));
             const std::string collective_error = mpi_.broadcast_string(
                 mpi_.rank() == failure_rank ? std::move(local_error) : std::string {},
                 failure_rank);
-            throw std::runtime_error(
-                "simulation output/observer failed on MPI rank "
-                + std::to_string(failure_rank) + ": " + collective_error);
+            throw std::runtime_error("simulation output/observer failed on MPI rank "
+                                     + std::to_string(failure_rank) + ": " + collective_error);
         }
     };
     controller.restore_steady_state(std::move(initial.steady));
@@ -273,17 +256,15 @@ SimulationState SimulationDriver::run(SimulationInitialState initial)
     }
 
     if (config_.mode == RunMode::Unsteady) {
-        const Real tolerance = 64.0 * std::numeric_limits<Real>::epsilon()
-            * std::max(Real {1.0}, config_.end_time);
+        const Real tolerance
+            = 64.0 * std::numeric_limits<Real>::epsilon() * std::max(Real {1.0}, config_.end_time);
         if (state.time + tolerance >= config_.end_time) {
             state.stop_reason = StopReason::PhysicalTimeReached;
             notify([&] { observer_.on_final(state); });
             return state;
         }
-    } else if (state.steady.reference_initialized
-        && state.step >= config_.steady.min_steps
-        && state.steady.consecutive_passes
-            >= config_.steady.consecutive_checks) {
+    } else if (state.steady.reference_initialized && state.step >= config_.steady.min_steps
+               && state.steady.consecutive_passes >= config_.steady.consecutive_checks) {
         state.stop_reason = StopReason::SteadyConverged;
         notify([&] { observer_.on_final(state); });
         return state;
@@ -309,12 +290,9 @@ SimulationState SimulationDriver::run(SimulationInitialState initial)
         }
         if (all_ranks_succeeded(local_success)) {
             try {
-                const Real accepted = solver_.advance(
-                    state.time_step, state.time);
-                if (!std::isfinite(accepted) || accepted <= 0.0
-                    || accepted > state.time_step) {
-                    throw PhysicsError(
-                        "solver returned an invalid accepted time step");
+                const Real accepted = solver_.advance(state.time_step, state.time);
+                if (!std::isfinite(accepted) || accepted <= 0.0 || accepted > state.time_step) {
+                    throw PhysicsError("solver returned an invalid accepted time step");
                 }
                 state.time_step = accepted;
             } catch (const std::exception& error) {
@@ -333,8 +311,7 @@ SimulationState SimulationDriver::run(SimulationInitialState initial)
                 local_success = false;
             }
         }
-        const bool residual_success = all_ranks_succeeded(
-            advance_success && local_success);
+        const bool residual_success = all_ranks_succeeded(advance_success && local_success);
         if (residual_success) {
             state.residuals = solver_.residual_norms();
             state.diagnostics = solver_.diagnostics();

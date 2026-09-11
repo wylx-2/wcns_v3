@@ -57,22 +57,19 @@ class CgnsReader {
 public:
     [[nodiscard]] CgnsMeshMetadata read_metadata(const std::string& path) const;
 
-    [[nodiscard]] StructuredBlock read_block(
-        const std::string& path,
-        const CgnsZoneMetadata& zone,
-        RankId owner_rank,
-        int ghost_width) const;
+    [[nodiscard]] StructuredBlock read_block(const std::string& path,
+                                             const CgnsZoneMetadata& zone,
+                                             RankId owner_rank,
+                                             int ghost_width) const;
 
-    [[nodiscard]] StructuredMesh read_mesh(
-        const std::string& path,
-        RankId owner_rank,
-        int ghost_width) const;
+    [[nodiscard]] StructuredMesh
+    read_mesh(const std::string& path, RankId owner_rank, int ghost_width) const;
 
-    [[nodiscard]] CgnsPartitionedMesh read_partitioned_mesh(
-        const std::string& path,
-        const std::vector<CgnsPartitionLeaf>& leaves,
-        RankId local_rank,
-        int ghost_width) const;
+    [[nodiscard]] CgnsPartitionedMesh
+    read_partitioned_mesh(const std::string& path,
+                          const std::vector<CgnsPartitionLeaf>& leaves,
+                          RankId local_rank,
+                          int ghost_width) const;
 };
 
 } // namespace wcns

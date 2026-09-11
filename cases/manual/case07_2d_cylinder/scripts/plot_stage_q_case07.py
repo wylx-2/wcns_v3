@@ -20,11 +20,7 @@ def read_history(path: Path) -> tuple[list[str], np.ndarray]:
     names = lines[0].removeprefix("# ").split()
     numeric_names = names[:-1]
     values = np.asarray(
-        [
-            [float(value) for value in line.split()[:-1]]
-            for line in lines[1:]
-            if line.strip()
-        ],
+        [[float(value) for value in line.split()[:-1]] for line in lines[1:] if line.strip()],
         dtype=float,
     )
     return numeric_names, values
@@ -34,9 +30,7 @@ def plot_robustness_history(path: Path, output: Path) -> None:
     names, values = read_history(path)
     column = {name: values[:, index] for index, name in enumerate(names)}
     total_faces = sum(column[f"robustness_level{level}_faces"] for level in range(4))
-    lower_order_faces = sum(
-        column[f"robustness_level{level}_faces"] for level in range(1, 4)
-    )
+    lower_order_faces = sum(column[f"robustness_level{level}_faces"] for level in range(1, 4))
     ratio = np.divide(
         100.0 * lower_order_faces,
         total_faces,
@@ -44,16 +38,12 @@ def plot_robustness_history(path: Path, output: Path) -> None:
         where=total_faces > 0.0,
     )
 
-    figure, axes = plt.subplots(
-        3, 1, figsize=(9.0, 8.0), sharex=True, constrained_layout=True
-    )
+    figure, axes = plt.subplots(3, 1, figsize=(9.0, 8.0), sharex=True, constrained_layout=True)
     axes[0].plot(column["time"], ratio, color="tab:red", lw=0.9)
     axes[0].set_ylabel("lower-order\nowner faces (%)")
     axes[0].set_ylim(bottom=0.0)
 
-    axes[1].plot(
-        column["time"], column["troubled_cells"], color="tab:purple", lw=0.9
-    )
+    axes[1].plot(column["time"], column["troubled_cells"], color="tab:purple", lw=0.9)
     axes[1].set_ylabel("troubled cells")
     axes[1].set_ylim(bottom=0.0)
 

@@ -37,14 +37,11 @@ struct Difference {
     {
         if (samples == 0) throw std::runtime_error("empty metric comparison");
         const double count = static_cast<double>(samples);
-        const double relative = maximum_absolute
-            / std::max(maximum_scale, std::numeric_limits<double>::min());
-        std::cout << "comparison=" << quantity
-                  << " samples=" << samples
-                  << " l1=" << sum_absolute / count
-                  << " l2=" << std::sqrt(sum_squared / count)
-                  << " linf=" << maximum_absolute
-                  << " relative_linf=" << relative << '\n';
+        const double relative
+            = maximum_absolute / std::max(maximum_scale, std::numeric_limits<double>::min());
+        std::cout << "comparison=" << quantity << " samples=" << samples
+                  << " l1=" << sum_absolute / count << " l2=" << std::sqrt(sum_squared / count)
+                  << " linf=" << maximum_absolute << " relative_linf=" << relative << '\n';
     }
 };
 
@@ -57,9 +54,7 @@ struct ProfileStatistics {
     std::size_t fallback_cells = 0;
     std::size_t cells = 0;
 
-    void add(
-        const wcns::MetricField& metric,
-        const wcns::GeometryDiagnostics& diagnostics)
+    void add(const wcns::MetricField& metric, const wcns::GeometryDiagnostics& diagnostics)
     {
         const auto extent = metric.jacobian().interior_extent();
         for (int k = 0; k < extent.nk; ++k) {
@@ -73,47 +68,43 @@ struct ProfileStatistics {
                     jacobian_maximum = std::max(jacobian_maximum, jacobian);
                     volume_sum += jacobian;
 
-                    const double closure_x
-                        = metric.i_faces().x(i + 1, j, k) - metric.i_faces().x(i, j, k)
-                        + metric.j_faces().x(i, j + 1, k) - metric.j_faces().x(i, j, k);
-                    const double closure_y
-                        = metric.i_faces().y(i + 1, j, k) - metric.i_faces().y(i, j, k)
-                        + metric.j_faces().y(i, j + 1, k) - metric.j_faces().y(i, j, k);
-                    const double closure_z
-                        = metric.i_faces().z(i + 1, j, k) - metric.i_faces().z(i, j, k)
-                        + metric.j_faces().z(i, j + 1, k) - metric.j_faces().z(i, j, k);
-                    gcl_closure_linf = std::max(
-                        gcl_closure_linf,
-                        std::sqrt(closure_x * closure_x
-                            + closure_y * closure_y + closure_z * closure_z));
+                    const double closure_x = metric.i_faces().x(i + 1, j, k)
+                        - metric.i_faces().x(i, j, k) + metric.j_faces().x(i, j + 1, k)
+                        - metric.j_faces().x(i, j, k);
+                    const double closure_y = metric.i_faces().y(i + 1, j, k)
+                        - metric.i_faces().y(i, j, k) + metric.j_faces().y(i, j + 1, k)
+                        - metric.j_faces().y(i, j, k);
+                    const double closure_z = metric.i_faces().z(i + 1, j, k)
+                        - metric.i_faces().z(i, j, k) + metric.j_faces().z(i, j + 1, k)
+                        - metric.j_faces().z(i, j, k);
+                    gcl_closure_linf
+                        = std::max(gcl_closure_linf,
+                                   std::sqrt(closure_x * closure_x + closure_y * closure_y
+                                             + closure_z * closure_z));
                     ++cells;
                 }
             }
         }
-        maximum_reference_relative_difference = std::max(
-            maximum_reference_relative_difference,
-            diagnostics.maximum_jacobian_relative_difference);
+        maximum_reference_relative_difference
+            = std::max(maximum_reference_relative_difference,
+                       diagnostics.maximum_jacobian_relative_difference);
         fallback_cells += diagnostics.fallback_cell_count;
     }
 
     void print(const char* profile) const
     {
-        std::cout << "profile=" << profile
-                  << " cells=" << cells
-                  << " jacobian_min=" << jacobian_minimum
-                  << " jacobian_max=" << jacobian_maximum
+        std::cout << "profile=" << profile << " cells=" << cells
+                  << " jacobian_min=" << jacobian_minimum << " jacobian_max=" << jacobian_maximum
                   << " volume_sum=" << volume_sum
-                  << " max_reference_relative_difference="
-                  << maximum_reference_relative_difference
+                  << " max_reference_relative_difference=" << maximum_reference_relative_difference
                   << " fallback_cells=" << fallback_cells
                   << " gcl_closure_linf=" << gcl_closure_linf << '\n';
     }
 };
 
-void compare_array(
-    const wcns::Array3D<wcns::Real>& lhs,
-    const wcns::Array3D<wcns::Real>& rhs,
-    Difference& difference)
+void compare_array(const wcns::Array3D<wcns::Real>& lhs,
+                   const wcns::Array3D<wcns::Real>& rhs,
+                   Difference& difference)
 {
     if (lhs.interior_extent() != rhs.interior_extent()) {
         throw std::runtime_error("metric arrays have different extents");
@@ -128,12 +119,11 @@ void compare_array(
     }
 }
 
-void compare_faces(
-    const wcns::FaceAreaVectors& lhs,
-    const wcns::FaceAreaVectors& rhs,
-    Difference& x,
-    Difference& y,
-    Difference& z)
+void compare_faces(const wcns::FaceAreaVectors& lhs,
+                   const wcns::FaceAreaVectors& rhs,
+                   Difference& x,
+                   Difference& y,
+                   Difference& z)
 {
     compare_array(lhs.x, rhs.x, x);
     compare_array(lhs.y, rhs.y, y);
@@ -150,10 +140,8 @@ int main(int argc, char** argv)
     }
     try {
         const std::string mesh_path = argv[1];
-        const auto phenglei_profile
-            = wcns::ProfileFactory::from_string("phenglei_wcns");
-        const auto scmm_profile
-            = wcns::ProfileFactory::from_string("scmm6_wcns");
+        const auto phenglei_profile = wcns::ProfileFactory::from_string("phenglei_wcns");
+        const auto scmm_profile = wcns::ProfileFactory::from_string("scmm6_wcns");
         wcns::CgnsReader reader;
         const auto metadata = reader.read_metadata(mesh_path);
         if (metadata.zones.empty()) {
@@ -176,29 +164,25 @@ int main(int argc, char** argv)
         for (const auto& zone : metadata.zones) {
             auto phenglei_block = reader.read_block(mesh_path, zone, 0, 0);
             auto scmm_block = reader.read_block(mesh_path, zone, 0, 0);
-            const auto phenglei
-                = wcns::initialize_metric_field(phenglei_block, phenglei_profile);
-            const auto scmm
-                = wcns::initialize_metric_field(scmm_block, scmm_profile);
+            const auto phenglei = wcns::initialize_metric_field(phenglei_block, phenglei_profile);
+            const auto scmm = wcns::initialize_metric_field(scmm_block, scmm_profile);
 
             phenglei_statistics.add(phenglei.metric, phenglei.diagnostics);
             scmm_statistics.add(scmm.metric, scmm.diagnostics);
-            compare_array(
-                phenglei.metric.cell_coordinates().x,
-                scmm.metric.cell_coordinates().x, coordinate_x);
-            compare_array(
-                phenglei.metric.cell_coordinates().y,
-                scmm.metric.cell_coordinates().y, coordinate_y);
-            compare_array(
-                phenglei.metric.cell_coordinates().z,
-                scmm.metric.cell_coordinates().z, coordinate_z);
+            compare_array(phenglei.metric.cell_coordinates().x,
+                          scmm.metric.cell_coordinates().x,
+                          coordinate_x);
+            compare_array(phenglei.metric.cell_coordinates().y,
+                          scmm.metric.cell_coordinates().y,
+                          coordinate_y);
+            compare_array(phenglei.metric.cell_coordinates().z,
+                          scmm.metric.cell_coordinates().z,
+                          coordinate_z);
             compare_array(phenglei.metric.jacobian(), scmm.metric.jacobian(), jacobian);
             compare_faces(
-                phenglei.metric.i_faces(), scmm.metric.i_faces(),
-                i_face_x, i_face_y, i_face_z);
+                phenglei.metric.i_faces(), scmm.metric.i_faces(), i_face_x, i_face_y, i_face_z);
             compare_faces(
-                phenglei.metric.j_faces(), scmm.metric.j_faces(),
-                j_face_x, j_face_y, j_face_z);
+                phenglei.metric.j_faces(), scmm.metric.j_faces(), j_face_x, j_face_y, j_face_z);
         }
 
         std::cout << std::setprecision(17)

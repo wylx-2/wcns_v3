@@ -22,10 +22,7 @@ public:
     explicit OutputSchedule(OutputScheduleConfig config = {});
 
     [[nodiscard]] Real next_time(Real current_time) const;
-    [[nodiscard]] bool consume(
-        const SimulationState& state,
-        bool initial,
-        bool final);
+    [[nodiscard]] bool consume(const SimulationState& state, bool initial, bool final);
 
 private:
     [[nodiscard]] bool scheduled(const SimulationState& state) const;
@@ -40,44 +37,34 @@ private:
 class RuntimeOutputManager final : public ISimulationObserver {
 public:
     using EventWriter = std::function<std::vector<std::string>(
-        OutputCategory,
-        const SimulationState&,
-        bool,
-        bool)>;
+        OutputCategory, const SimulationState&, bool, bool)>;
 
-    RuntimeOutputManager(
-        const MpiRuntime& mpi,
-        const CaseConfig& config,
-        const StructuredPartitionPlan& partition,
-        std::string mesh_signature = {},
-        const StatisticContext* statistic_context = nullptr,
-        EventWriter event_writer = {},
-        StatisticRegistry statistic_registry = StatisticRegistry::create_builtin());
+    RuntimeOutputManager(const MpiRuntime& mpi,
+                         const CaseConfig& config,
+                         const StructuredPartitionPlan& partition,
+                         std::string mesh_signature = {},
+                         const StatisticContext* statistic_context = nullptr,
+                         EventWriter event_writer = {},
+                         StatisticRegistry statistic_registry
+                         = StatisticRegistry::create_builtin());
     ~RuntimeOutputManager() override;
 
-    [[nodiscard]] Real next_time_event(
-        const SimulationState& state) const override;
+    [[nodiscard]] Real next_time_event(const SimulationState& state) const override;
     void on_initial(const SimulationState& state) override;
-    void on_step(
-        const SimulationState& state,
-        bool residual_checked) override;
+    void on_step(const SimulationState& state, bool residual_checked) override;
     void on_final(const SimulationState& state) override;
 
     void record_file(std::string path);
-    [[nodiscard]] const std::vector<std::string>& files() const noexcept
-    {
-        return files_;
-    }
+    [[nodiscard]] const std::vector<std::string>& files() const noexcept { return files_; }
 
 private:
     void prepare_directory();
-    void dispatch(
-        OutputCategory category,
-        OutputSchedule& schedule,
-        const SimulationState& state,
-        bool initial,
-        bool final,
-        bool enabled);
+    void dispatch(OutputCategory category,
+                  OutputSchedule& schedule,
+                  const SimulationState& state,
+                  bool initial,
+                  bool final,
+                  bool enabled);
     void write_history(const SimulationState& state, bool residual_checked);
     void finish_history();
     void write_statistics(const SimulationState& state);

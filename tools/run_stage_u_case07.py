@@ -35,8 +35,7 @@ def clean_work_directory(root: Path) -> None:
     marker = root / MARKER
     if root.exists():
         if not marker.is_file() or marker.read_text(encoding="utf-8") != MARKER + "\n":
-            raise RuntimeError(
-                f"refusing to clean unmarked Case07 work directory: {root}")
+            raise RuntimeError(f"refusing to clean unmarked Case07 work directory: {root}")
         for child in root.iterdir():
             if child == marker:
                 continue
@@ -55,7 +54,7 @@ def set_key(text: str, key: str, value: str) -> str:
     if len(matches) != 1:
         raise RuntimeError(f"expected exactly one {key}, found {len(matches)}")
     match = matches[0]
-    return text[:match.start()] + f"{key} = {value}" + text[match.end():]
+    return text[: match.start()] + f"{key} = {value}" + text[match.end() :]
 
 
 def key_value_file(path: Path) -> dict[str, str]:
@@ -115,8 +114,7 @@ def finite_numeric_series(path: Path) -> int:
 def one_file(root: Path, pattern: str) -> Path:
     matches = sorted(root.glob(pattern))
     if len(matches) != 1:
-        raise RuntimeError(
-            f"expected one {pattern} in {root}, found {len(matches)}")
+        raise RuntimeError(f"expected one {pattern} in {root}, found {len(matches)}")
     return matches[0]
 
 
@@ -135,8 +133,7 @@ def execute(command: list[str], log: Path, timeout: float) -> dict[str, object]:
     elapsed = time.perf_counter() - started
     log.write_text(completed.stdout, encoding="utf-8", newline="\n")
     if completed.returncode != 0:
-        raise RuntimeError(
-            f"Case07 command failed ({completed.returncode}); see {log}")
+        raise RuntimeError(f"Case07 command failed ({completed.returncode}); see {log}")
     return {
         "command": command,
         "return_code": completed.returncode,
@@ -205,11 +202,13 @@ def main() -> int:
     if len(final_fields) != 1:
         raise RuntimeError("Case07 final CGNS field is missing or duplicated")
     validate_log = root / "validate-final.log"
-    records.append(execute(
-        [str(validator), "finite", str(final_fields[0])],
-        validate_log,
-        min(args.timeout, 60.0),
-    ))
+    records.append(
+        execute(
+            [str(validator), "finite", str(final_fields[0])],
+            validate_log,
+            min(args.timeout, 60.0),
+        )
+    )
 
     history_path = one_file(output, "*.history.r4.txt")
     header, rows = series_rows(history_path)
@@ -234,29 +233,20 @@ def main() -> int:
             for name in minimum_names
             if row[header.index(name)].lower() != "nan"
         ]
-        if candidate and any(not math.isfinite(value) or value <= 0.0
-                             for value in candidate):
+        if candidate and any(not math.isfinite(value) or value <= 0.0 for value in candidate):
             invalid_candidate_rows += 1
             troubled = int(float(row[header.index("troubled_cells")]))
-            recomputations = int(float(
-                row[header.index("local_recomputations")]))
+            recomputations = int(float(row[header.index("local_recomputations")]))
             retries = int(float(row[header.index("step_retries")]))
             if troubled <= 0 or (recomputations <= 0 and retries <= 0):
-                raise RuntimeError(
-                    "non-positive attempted candidate lacks robustness recovery")
-    final_accepted_state = {
-        name: float(last[header.index(name)]) for name in minimum_names
-    }
-    if not all(math.isfinite(value) and value > 0.0
-               for value in final_accepted_state.values()):
+                raise RuntimeError("non-positive attempted candidate lacks robustness recovery")
+    final_accepted_state = {name: float(last[header.index(name)]) for name in minimum_names}
+    if not all(math.isfinite(value) and value > 0.0 for value in final_accepted_state.values()):
         raise RuntimeError("Case07 final accepted candidate is non-positive")
-    manifest_final_state = {
-        name: float(manifest[f"robustness_{name}"]) for name in minimum_names
-    }
-    if (not all(math.isfinite(value) and value > 0.0
-                for value in manifest_final_state.values())
-            or any(manifest_final_state[name] != final_accepted_state[name]
-                   for name in minimum_names)):
+    manifest_final_state = {name: float(manifest[f"robustness_{name}"]) for name in minimum_names}
+    if not all(
+        math.isfinite(value) and value > 0.0 for value in manifest_final_state.values()
+    ) or any(manifest_final_state[name] != final_accepted_state[name] for name in minimum_names):
         raise RuntimeError("Case07 manifest final robustness state mismatch")
 
     loads_path = one_file(output, "*.loads.r4.txt")
@@ -279,18 +269,12 @@ def main() -> int:
         "wall_seconds": records[0]["wall_seconds"],
         "program_version": manifest["program_version"],
         "source_commit": manifest.get("git_commit", "unknown"),
-        "maximum_level1_faces": maximum_column(
-            header, rows, "robustness_level1_faces"),
-        "maximum_level2_faces": maximum_column(
-            header, rows, "robustness_level2_faces"),
-        "maximum_level3_faces": maximum_column(
-            header, rows, "robustness_level3_faces"),
-        "maximum_troubled_cells": maximum_column(
-            header, rows, "troubled_cells"),
-        "maximum_local_recomputations": maximum_column(
-            header, rows, "local_recomputations"),
-        "maximum_step_retries": maximum_column(
-            header, rows, "step_retries"),
+        "maximum_level1_faces": maximum_column(header, rows, "robustness_level1_faces"),
+        "maximum_level2_faces": maximum_column(header, rows, "robustness_level2_faces"),
+        "maximum_level3_faces": maximum_column(header, rows, "robustness_level3_faces"),
+        "maximum_troubled_cells": maximum_column(header, rows, "troubled_cells"),
+        "maximum_local_recomputations": maximum_column(header, rows, "local_recomputations"),
+        "maximum_step_retries": maximum_column(header, rows, "step_retries"),
         "minimum_attempted_candidate_state": minimum_attempted_state,
         "recovered_invalid_candidate_rows": invalid_candidate_rows,
         "final_accepted_candidate_state": final_accepted_state,
@@ -303,8 +287,7 @@ def main() -> int:
         "records": records,
     }
     summary_path = root / "matrix-summary.json"
-    summary_path.write_text(
-        json.dumps(summary, indent=2) + "\n", encoding="utf-8", newline="\n")
+    summary_path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(f"stage U Case07 matrix passed: {summary_path}")
     return 0
 

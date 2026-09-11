@@ -24,49 +24,43 @@ struct OriginalFieldSnapshot {
     std::vector<OriginalZoneField> zones;
 };
 
-[[nodiscard]] OriginalFieldSnapshot gather_original_zone_fields(
-    const MpiRuntime& mpi,
-    const LocalBlockSet& local_blocks,
-    const BlockMetricMap& metrics,
-    const StructuredPartitionPlan& partition,
-    const FieldQuantityRegistry& registry,
-    const std::vector<std::string>& quantities,
-    const QuantityContext& context,
-    RankId root = 0);
+[[nodiscard]] OriginalFieldSnapshot
+gather_original_zone_fields(const MpiRuntime& mpi,
+                            const LocalBlockSet& local_blocks,
+                            const BlockMetricMap& metrics,
+                            const StructuredPartitionPlan& partition,
+                            const FieldQuantityRegistry& registry,
+                            const std::vector<std::string>& quantities,
+                            const QuantityContext& context,
+                            RankId root = 0);
 
-[[nodiscard]] std::vector<Real> gather_original_zone_quantity(
-    const MpiRuntime& mpi,
-    const LocalBlockSet& local_blocks,
-    const BlockMetricMap& metrics,
-    const StructuredPartitionPlan& partition,
-    const PartitionZone& zone,
-    const FieldQuantityRegistry& registry,
-    const std::string& quantity,
-    const QuantityContext& context,
-    RankId root = 0);
+[[nodiscard]] std::vector<Real>
+gather_original_zone_quantity(const MpiRuntime& mpi,
+                              const LocalBlockSet& local_blocks,
+                              const BlockMetricMap& metrics,
+                              const StructuredPartitionPlan& partition,
+                              const PartitionZone& zone,
+                              const FieldQuantityRegistry& registry,
+                              const std::string& quantity,
+                              const QuantityContext& context,
+                              RankId root = 0);
 
 class ProductionFieldWriter {
 public:
-    ProductionFieldWriter(
-        const MpiRuntime& mpi,
-        const CaseConfig& config,
-        const StructuredPartitionPlan& partition,
-        const LocalBlockSet& local_blocks,
-        const BlockMetricMap& metrics,
-        QuantityContext quantity_context,
-        std::string mesh_path,
-        FieldQuantityRegistry registry = FieldQuantityRegistry::create_builtin());
+    ProductionFieldWriter(const MpiRuntime& mpi,
+                          const CaseConfig& config,
+                          const StructuredPartitionPlan& partition,
+                          const LocalBlockSet& local_blocks,
+                          const BlockMetricMap& metrics,
+                          QuantityContext quantity_context,
+                          std::string mesh_path,
+                          FieldQuantityRegistry registry = FieldQuantityRegistry::create_builtin());
 
-    [[nodiscard]] std::vector<std::string> write(
-        const SimulationState& state) const;
+    [[nodiscard]] std::vector<std::string> write(const SimulationState& state) const;
 
 private:
-    void write_cgns(
-        const SimulationState& state,
-        const std::string& path) const;
-    void write_tecplot(
-        const SimulationState& state,
-        const std::string& path) const;
+    void write_cgns(const SimulationState& state, const std::string& path) const;
+    void write_tecplot(const SimulationState& state, const std::string& path) const;
 
     const MpiRuntime& mpi_;
     const CaseConfig& config_;

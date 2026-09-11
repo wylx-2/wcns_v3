@@ -27,12 +27,11 @@ struct FieldAccessPermissions {
 
 class FieldDomain {
 public:
-    FieldDomain(
-        Extent3 interior,
-        int ghost_width,
-        int dimension,
-        TopologyLocation location,
-        FieldAccessPermissions permissions = {})
+    FieldDomain(Extent3 interior,
+                int ghost_width,
+                int dimension,
+                TopologyLocation location,
+                FieldAccessPermissions permissions = {})
         : interior_(interior)
         , ghost_width_(ghost_width)
         , dimension_(dimension)
@@ -56,10 +55,7 @@ public:
         }
     }
 
-    [[nodiscard]] const Extent3& interior_extent() const noexcept
-    {
-        return interior_;
-    }
+    [[nodiscard]] const Extent3& interior_extent() const noexcept { return interior_; }
 
     [[nodiscard]] int ghost_width() const noexcept { return ghost_width_; }
     [[nodiscard]] int dimension() const noexcept { return dimension_; }
@@ -68,8 +64,7 @@ public:
     void validate(Index3 index, AccessRegion region) const
     {
         if (dimension_ == 2 && index.k != 0) {
-            throw std::out_of_range(
-                "2D field access cannot use a nonzero inactive K index");
+            throw std::out_of_range("2D field access cannot use a nonzero inactive K index");
         }
 
         int outside_active_axes = 0;
@@ -98,8 +93,7 @@ public:
             break;
         case AccessRegion::PhysicalBoundarySlab:
             if (!permissions_.physical_boundary_slab) {
-                throw std::logic_error(
-                    "physical-boundary ghost access is disabled for this field");
+                throw std::logic_error("physical-boundary ghost access is disabled for this field");
             }
             break;
         }
@@ -120,24 +114,17 @@ private:
     FieldAccessPermissions permissions_ {};
 };
 
-template<class T>
-class TopologyField {
+template <class T> class TopologyField {
 public:
     TopologyField(FieldDomain domain, int components)
         : domain_(domain)
         , storage_(domain.interior_extent(), components, domain.ghost_width())
-    {
-    }
+    { }
 
     TopologyField(FieldDomain domain, int components, const T& initial_value)
         : domain_(domain)
-        , storage_(
-              domain.interior_extent(),
-              components,
-              domain.ghost_width(),
-              initial_value)
-    {
-    }
+        , storage_(domain.interior_extent(), components, domain.ghost_width(), initial_value)
+    { }
 
     [[nodiscard]] const FieldDomain& domain() const noexcept { return domain_; }
     [[nodiscard]] int components() const noexcept { return storage_.components(); }

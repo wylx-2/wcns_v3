@@ -11,13 +11,12 @@ void require_finite_gradients(const PrimitiveGradients& gradients, int dimension
     for (int variable = 0; variable < viscous_primitive_components; ++variable) {
         for (int direction = 0; direction < 3; ++direction) {
             const Real value = gradients[static_cast<std::size_t>(variable)]
-                [static_cast<std::size_t>(direction)];
+                                        [static_cast<std::size_t>(direction)];
             if (!std::isfinite(value)) {
                 throw PhysicsError("viscous primitive gradient is non-finite");
             }
             if (dimension == 2
-                && (variable == static_cast<int>(ViscousPrimitive::VelocityZ)
-                    || direction == 2)
+                && (variable == static_cast<int>(ViscousPrimitive::VelocityZ) || direction == 2)
                 && value != 0.0) {
                 throw PhysicsError("two-dimensional viscous z gradients must be zero");
             }
@@ -27,13 +26,12 @@ void require_finite_gradients(const PrimitiveGradients& gradients, int dimension
 
 } // namespace
 
-ViscousCartesianFlux compute_viscous_cartesian_flux(
-    const ViscousFaceTrace& trace,
-    const TransportModel& transport,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors,
-    int dimension)
+ViscousCartesianFlux compute_viscous_cartesian_flux(const ViscousFaceTrace& trace,
+                                                    const TransportModel& transport,
+                                                    const GasModel& gas,
+                                                    const ReferenceScales& reference,
+                                                    const NumericalFloors& floors,
+                                                    int dimension)
 {
     // The conversion is also the authoritative finite/positivity/dimension check.
     (void)pressure_primitive(trace.state, gas, reference, floors, dimension);
@@ -44,8 +42,7 @@ ViscousCartesianFlux compute_viscous_cartesian_flux(
     const auto& gw = trace.gradients[static_cast<int>(ViscousPrimitive::VelocityZ)];
     const auto& gt = trace.gradients[static_cast<int>(ViscousPrimitive::Temperature)];
     const Real mu = transport.viscosity(trace.state[temperature_value]);
-    const Real chi = transport.thermal_coefficient(
-        trace.state[temperature_value], gas, reference);
+    const Real chi = transport.thermal_coefficient(trace.state[temperature_value], gas, reference);
     const Real theta = gu[0] + gv[1] + gw[2];
     const Real isotropic = (2.0 / 3.0) * mu * theta;
     const Real tau_xx = 2.0 * mu * gu[0] - isotropic;
@@ -61,12 +58,9 @@ ViscousCartesianFlux compute_viscous_cartesian_flux(
     ViscousCartesianFlux result;
     result.viscosity = mu;
     result.thermal_coefficient = chi;
-    result.x = {{0.0, tau_xx, tau_xy, tau_xz,
-        u * tau_xx + v * tau_xy + w * tau_xz + chi * gt[0]}};
-    result.y = {{0.0, tau_xy, tau_yy, tau_yz,
-        u * tau_xy + v * tau_yy + w * tau_yz + chi * gt[1]}};
-    result.z = {{0.0, tau_xz, tau_yz, tau_zz,
-        u * tau_xz + v * tau_yz + w * tau_zz + chi * gt[2]}};
+    result.x = {{0.0, tau_xx, tau_xy, tau_xz, u * tau_xx + v * tau_xy + w * tau_xz + chi * gt[0]}};
+    result.y = {{0.0, tau_xy, tau_yy, tau_yz, u * tau_xy + v * tau_yy + w * tau_yz + chi * gt[1]}};
+    result.z = {{0.0, tau_xz, tau_yz, tau_zz, u * tau_xz + v * tau_yz + w * tau_zz + chi * gt[2]}};
     for (const auto* flux : {&result.x, &result.y, &result.z}) {
         for (const Real value : *flux) {
             if (!std::isfinite(value)) {

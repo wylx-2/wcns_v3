@@ -54,9 +54,8 @@ FieldFile read_fields(const std::string& path)
         char base_name[33] = {};
         int dimension = 0;
         int physical_dimension = 0;
-        check_cgns(
-            cg_base_read(file, 1, base_name, &dimension, &physical_dimension),
-            "cg_base_read release field");
+        check_cgns(cg_base_read(file, 1, base_name, &dimension, &physical_dimension),
+                   "cg_base_read release field");
         if (dimension != 2 && dimension != 3) {
             throw std::runtime_error("release field dimension must be two or three");
         }
@@ -66,9 +65,7 @@ FieldFile read_fields(const std::string& path)
         for (int zone = 1; zone <= zone_count; ++zone) {
             char zone_name[33] = {};
             cgsize_t size[9] = {};
-            check_cgns(
-                cg_zone_read(file, 1, zone, zone_name, size),
-                "cg_zone_read release field");
+            check_cgns(cg_zone_read(file, 1, zone, zone_name, size), "cg_zone_read release field");
             ZoneFields values;
             values.dimension = dimension;
             std::size_t count = 1;
@@ -83,25 +80,30 @@ FieldFile read_fields(const std::string& path)
                 vertex_count *= static_cast<std::size_t>(extent);
             }
             std::array<std::vector<double>, 3> coordinates;
-            for (auto& coordinate : coordinates) coordinate.assign(vertex_count, 0.0);
+            for (auto& coordinate : coordinates)
+                coordinate.assign(vertex_count, 0.0);
             const std::array<const char*, 3> coordinate_names {{
-                "CoordinateX", "CoordinateY", "CoordinateZ",
+                "CoordinateX",
+                "CoordinateY",
+                "CoordinateZ",
             }};
             std::vector<cgsize_t> vertex_lower(static_cast<std::size_t>(dimension), 1);
             for (int axis = 0; axis < dimension; ++axis) {
-                check_cgns(
-                    cg_coord_read(
-                        file, 1, zone, coordinate_names[static_cast<std::size_t>(axis)],
-                        RealDouble, vertex_lower.data(), vertices.data(),
-                        coordinates[static_cast<std::size_t>(axis)].data()),
-                    "cg_coord_read release field");
+                check_cgns(cg_coord_read(file,
+                                         1,
+                                         zone,
+                                         coordinate_names[static_cast<std::size_t>(axis)],
+                                         RealDouble,
+                                         vertex_lower.data(),
+                                         vertices.data(),
+                                         coordinates[static_cast<std::size_t>(axis)].data()),
+                           "cg_coord_read release field");
             }
             values.cell_centers.resize(count);
             const auto vertex_index = [&](int i, int j, int k) {
                 const std::size_t ni = static_cast<std::size_t>(vertices[0]);
                 const std::size_t nj = static_cast<std::size_t>(vertices[1]);
-                return (static_cast<std::size_t>(k) * nj
-                    + static_cast<std::size_t>(j)) * ni
+                return (static_cast<std::size_t>(k) * nj + static_cast<std::size_t>(j)) * ni
                     + static_cast<std::size_t>(i);
             };
             const int cell_nk = dimension == 3 ? static_cast<int>(values.cells[2]) : 1;
@@ -127,30 +129,30 @@ FieldFile read_fields(const std::string& path)
                 }
             }
             int solutions = 0;
-            check_cgns(
-                cg_nsols(file, 1, zone, &solutions),
-                "cg_nsols release field");
+            check_cgns(cg_nsols(file, 1, zone, &solutions), "cg_nsols release field");
             if (solutions != 1) {
                 throw std::runtime_error("release field zone requires one solution");
             }
             int field_count = 0;
-            check_cgns(
-                cg_nfields(file, 1, zone, 1, &field_count),
-                "cg_nfields release field");
+            check_cgns(cg_nfields(file, 1, zone, 1, &field_count), "cg_nfields release field");
             std::vector<cgsize_t> lower(static_cast<std::size_t>(dimension), 1);
             std::vector<cgsize_t> upper = values.cells;
             for (int field = 1; field <= field_count; ++field) {
                 DataType_t data_type = DataTypeNull;
                 char field_name[33] = {};
-                check_cgns(
-                    cg_field_info(file, 1, zone, 1, field, &data_type, field_name),
-                    "cg_field_info release field");
+                check_cgns(cg_field_info(file, 1, zone, 1, field, &data_type, field_name),
+                           "cg_field_info release field");
                 std::vector<double> field_values(count);
-                check_cgns(
-                    cg_field_read(
-                        file, 1, zone, 1, field_name, RealDouble,
-                        lower.data(), upper.data(), field_values.data()),
-                    "cg_field_read release field");
+                check_cgns(cg_field_read(file,
+                                         1,
+                                         zone,
+                                         1,
+                                         field_name,
+                                         RealDouble,
+                                         lower.data(),
+                                         upper.data(),
+                                         field_values.data()),
+                           "cg_field_read release field");
                 values.fields.emplace(field_name, std::move(field_values));
             }
             if (!result.emplace(zone_name, std::move(values)).second) {
@@ -188,10 +190,7 @@ std::vector<std::string> quoted_values(const std::string& line)
     return result;
 }
 
-std::size_t tecplot_extent(
-    const std::string& line,
-    const std::string& label,
-    bool required)
+std::size_t tecplot_extent(const std::string& line, const std::string& label, bool required)
 {
     const auto position = line.find(label);
     if (position == std::string::npos) {
@@ -200,7 +199,8 @@ std::size_t tecplot_extent(
     }
     const auto begin = position + label.size();
     auto end = begin;
-    while (end < line.size() && line[end] >= '0' && line[end] <= '9') ++end;
+    while (end < line.size() && line[end] >= '0' && line[end] <= '9')
+        ++end;
     if (end == begin) throw std::runtime_error("invalid Tecplot zone extent");
     return static_cast<std::size_t>(std::stoull(line.substr(begin, end - begin)));
 }
@@ -226,8 +226,7 @@ TecplotFile read_tecplot(const std::string& path)
         TecplotZone zone;
         zone.dimension = variables.size() >= 3 && variables[2] == "Z" ? 3 : 2;
         zone.variables = variables;
-        const auto count = tecplot_extent(line, "I=", true)
-            * tecplot_extent(line, "J=", true)
+        const auto count = tecplot_extent(line, "I=", true) * tecplot_extent(line, "J=", true)
             * tecplot_extent(line, "K=", false);
         zone.rows.reserve(count);
         if (line.find("DATAPACKING=BLOCK") != std::string::npos) {
@@ -253,7 +252,8 @@ TecplotFile read_tecplot(const std::string& path)
                 std::istringstream values(line);
                 std::vector<double> record;
                 double value = 0.0;
-                while (values >> value) record.push_back(value);
+                while (values >> value)
+                    record.push_back(value);
                 if (record.size() != variables.size()) {
                     throw std::runtime_error("Tecplot row has the wrong column count");
                 }
@@ -273,19 +273,24 @@ TecplotFile read_tecplot(const std::string& path)
 std::string tecplot_cgns_field(const std::string& name)
 {
     static const std::map<std::string, std::string> names {
-        {"rho", "Density"}, {"u", "VelocityX"}, {"v", "VelocityY"},
-        {"w", "VelocityZ"}, {"p", "Pressure"}, {"T", "Temperature"},
-        {"rho_u", "MomentumX"}, {"rho_v", "MomentumY"},
-        {"rho_w", "MomentumZ"}, {"rho_E", "EnergyStagnationDensity"},
-        {"mach", "Mach"}, {"jacobian", "Jacobian"},
+        {"rho", "Density"},
+        {"u", "VelocityX"},
+        {"v", "VelocityY"},
+        {"w", "VelocityZ"},
+        {"p", "Pressure"},
+        {"T", "Temperature"},
+        {"rho_u", "MomentumX"},
+        {"rho_v", "MomentumY"},
+        {"rho_w", "MomentumZ"},
+        {"rho_E", "EnergyStagnationDensity"},
+        {"mach", "Mach"},
+        {"jacobian", "Jacobian"},
     };
     const auto iterator = names.find(name);
     return iterator == names.end() ? name : iterator->second;
 }
 
-const std::vector<double>& require_field(
-    const ZoneFields& zone,
-    const std::string& name)
+const std::vector<double>& require_field(const ZoneFields& zone, const std::string& name)
 {
     const auto iterator = zone.fields.find(name);
     if (iterator == zone.fields.end()) {
@@ -301,10 +306,9 @@ void require_tolerance(double tolerance)
     }
 }
 
-void validate_tecplot_consistency(
-    const std::string& cgns_path,
-    const std::string& tecplot_path,
-    double tolerance)
+void validate_tecplot_consistency(const std::string& cgns_path,
+                                  const std::string& tecplot_path,
+                                  double tolerance)
 {
     require_tolerance(tolerance);
     const auto cgns = read_fields(cgns_path);
@@ -333,15 +337,14 @@ void validate_tecplot_consistency(
                 maximum = std::max(
                     maximum,
                     std::abs(zone.rows[cell][static_cast<std::size_t>(axis)]
-                        - cgns_zone.cell_centers[cell][static_cast<std::size_t>(axis)]));
+                             - cgns_zone.cell_centers[cell][static_cast<std::size_t>(axis)]));
                 ++samples;
             }
-            for (std::size_t column = coordinate_columns;
-                 column < zone.variables.size(); ++column) {
+            for (std::size_t column = coordinate_columns; column < zone.variables.size();
+                 ++column) {
                 const auto field_name = tecplot_cgns_field(zone.variables[column]);
                 const auto& field = require_field(cgns_zone, field_name);
-                maximum = std::max(
-                    maximum, std::abs(zone.rows[cell][column] - field[cell]));
+                maximum = std::max(maximum, std::abs(zone.rows[cell][column] - field[cell]));
                 ++samples;
             }
         }
@@ -349,21 +352,17 @@ void validate_tecplot_consistency(
     if (maximum > tolerance) {
         throw std::runtime_error("CGNS/Tecplot values differ beyond tolerance");
     }
-    std::cout << std::setprecision(17)
-              << "check=tecplot_consistency samples=" << samples
-              << " max_abs=" << maximum
-              << " tolerance=" << tolerance << '\n';
+    std::cout << std::setprecision(17) << "check=tecplot_consistency samples=" << samples
+              << " max_abs=" << maximum << " tolerance=" << tolerance << '\n';
 }
 
-void validate_derived_fields(
-    const std::string& path,
-    double gamma,
-    double expected_viscosity,
-    double expected_jacobian,
-    double tolerance)
+void validate_derived_fields(const std::string& path,
+                             double gamma,
+                             double expected_viscosity,
+                             double expected_jacobian,
+                             double tolerance)
 {
-    if (!(gamma > 1.0) || !(expected_viscosity > 0.0)
-        || !(expected_jacobian > 0.0)) {
+    if (!(gamma > 1.0) || !(expected_viscosity > 0.0) || !(expected_jacobian > 0.0)) {
         throw std::invalid_argument("derived-field references must be positive");
     }
     require_tolerance(tolerance);
@@ -396,12 +395,10 @@ void validate_derived_fields(
         const auto& viscosity = require_field(zone, "viscosity");
         const auto& jacobian = require_field(zone, "Jacobian");
         for (std::size_t cell = 0; cell < rho.size(); ++cell) {
-            const double speed_squared = u[cell] * u[cell]
-                + v[cell] * v[cell] + w[cell] * w[cell];
-            const double expected_energy = pressure[cell] / (gamma - 1.0)
-                + 0.5 * rho[cell] * speed_squared;
-            const double expected_sound = std::sqrt(
-                gamma * pressure[cell] / rho[cell]);
+            const double speed_squared = u[cell] * u[cell] + v[cell] * v[cell] + w[cell] * w[cell];
+            const double expected_energy
+                = pressure[cell] / (gamma - 1.0) + 0.5 * rho[cell] * speed_squared;
+            const double expected_sound = std::sqrt(gamma * pressure[cell] / rho[cell]);
             check(rho_u[cell], rho[cell] * u[cell]);
             check(rho_v[cell], rho[cell] * v[cell]);
             check(rho_w[cell], rho[cell] * w[cell]);
@@ -418,16 +415,13 @@ void validate_derived_fields(
     if (maximum > tolerance) {
         throw std::runtime_error("derived field exceeds tolerance");
     }
-    std::cout << std::setprecision(17)
-              << "check=derived_fields samples=" << samples
-              << " max_abs=" << maximum
-              << " tolerance=" << tolerance << '\n';
+    std::cout << std::setprecision(17) << "check=derived_fields samples=" << samples
+              << " max_abs=" << maximum << " tolerance=" << tolerance << '\n';
 }
 
-void validate_nonzero_field(
-    const std::string& path,
-    const std::string& field_name,
-    double threshold)
+void validate_nonzero_field(const std::string& path,
+                            const std::string& field_name,
+                            double threshold)
 {
     require_tolerance(threshold);
     const auto file = read_fields(path);
@@ -446,17 +440,14 @@ void validate_nonzero_field(
     if (samples == 0 || maximum < threshold) {
         throw std::runtime_error("field does not reach the required nonzero magnitude");
     }
-    std::cout << std::setprecision(17)
-              << "check=nonzero field=" << field_name
-              << " samples=" << samples
-              << " max_abs=" << maximum
-              << " threshold=" << threshold << '\n';
+    std::cout << std::setprecision(17) << "check=nonzero field=" << field_name
+              << " samples=" << samples << " max_abs=" << maximum << " threshold=" << threshold
+              << '\n';
 }
 
-double validate_uniform(
-    const std::string& path,
-    const std::map<std::string, double>& expected,
-    double tolerance)
+double validate_uniform(const std::string& path,
+                        const std::map<std::string, double>& expected,
+                        double tolerance)
 {
     require_tolerance(tolerance);
     const auto file = read_fields(path);
@@ -475,12 +466,10 @@ double validate_uniform(
         }
     }
     if (maximum > tolerance) {
-        throw std::runtime_error(
-            "uniform maximum error " + std::to_string(maximum)
-            + " exceeds tolerance " + std::to_string(tolerance));
+        throw std::runtime_error("uniform maximum error " + std::to_string(maximum)
+                                 + " exceeds tolerance " + std::to_string(tolerance));
     }
-    std::cout << std::setprecision(17)
-              << "check=uniform samples=" << samples
+    std::cout << std::setprecision(17) << "check=uniform samples=" << samples
               << " max_abs=" << maximum << " tolerance=" << tolerance << '\n';
     return maximum;
 }
@@ -508,17 +497,15 @@ void validate_finite(const std::string& path)
             }
         }
     }
-    for (const auto& value : {
-             std::pair<const char*, double> {"density", minimum_density},
-             {"pressure", minimum_pressure}, {"temperature", minimum_temperature}}) {
+    for (const auto& value : {std::pair<const char*, double> {"density", minimum_density},
+                              {"pressure", minimum_pressure},
+                              {"temperature", minimum_temperature}}) {
         if (std::isfinite(value.second) && !(value.second > 0.0)) {
             throw std::runtime_error(std::string(value.first) + " is not positive");
         }
     }
-    std::cout << std::setprecision(17)
-              << "check=finite samples=" << samples
-              << " min_rho=" << minimum_density
-              << " min_p=" << minimum_pressure
+    std::cout << std::setprecision(17) << "check=finite samples=" << samples
+              << " min_rho=" << minimum_density << " min_p=" << minimum_pressure
               << " min_T=" << minimum_temperature << '\n';
 }
 
@@ -532,8 +519,8 @@ struct FieldErrorStatistics {
 
     void add(double reference, double value, double weight)
     {
-        if (!std::isfinite(reference) || !std::isfinite(value)
-            || !std::isfinite(weight) || !(weight > 0.0)) {
+        if (!std::isfinite(reference) || !std::isfinite(value) || !std::isfinite(weight)
+            || !(weight > 0.0)) {
             throw std::runtime_error("field-error comparison is non-finite");
         }
         const double error = std::abs(value - reference);
@@ -551,22 +538,15 @@ struct FieldErrorStatistics {
             throw std::runtime_error("field-error comparison has no samples");
         }
         const double l2 = std::sqrt(weighted_squared / weight_sum);
-        const double reference_l2
-            = std::sqrt(weighted_reference_squared / weight_sum);
-        std::cout << "check=field_error field=" << field_name
-                  << " samples=" << samples
-                  << " l1=" << weighted_absolute / weight_sum
-                  << " l2=" << l2
-                  << " linf=" << maximum
+        const double reference_l2 = std::sqrt(weighted_reference_squared / weight_sum);
+        std::cout << "check=field_error field=" << field_name << " samples=" << samples
+                  << " l1=" << weighted_absolute / weight_sum << " l2=" << l2 << " linf=" << maximum
                   << " relative_l2="
-                  << l2 / std::max(reference_l2, std::numeric_limits<double>::min())
-                  << '\n';
+                  << l2 / std::max(reference_l2, std::numeric_limits<double>::min()) << '\n';
     }
 };
 
-void report_field_errors(
-    const std::string& reference_path,
-    const std::string& value_path)
+void report_field_errors(const std::string& reference_path, const std::string& value_path)
 {
     const auto reference = read_fields(reference_path);
     const auto value = read_fields(value_path);
@@ -594,10 +574,9 @@ void report_field_errors(
                 throw std::runtime_error("field-error comparison array sizes differ");
             }
             for (std::size_t cell = 0; cell < values.size(); ++cell) {
-                const double weight = jacobian == reference_zone.fields.end()
-                    ? 1.0 : jacobian->second[cell];
-                statistics[field_name].add(
-                    reference_values[cell], values[cell], weight);
+                const double weight
+                    = jacobian == reference_zone.fields.end() ? 1.0 : jacobian->second[cell];
+                statistics[field_name].add(reference_values[cell], values[cell], weight);
             }
         }
         for (std::size_t cell = 0; cell < reference_zone.cell_centers.size(); ++cell) {
@@ -605,29 +584,24 @@ void report_field_errors(
                 maximum_coordinate_difference = std::max(
                     maximum_coordinate_difference,
                     std::abs(reference_zone.cell_centers[cell][static_cast<std::size_t>(axis)]
-                        - value_zone.cell_centers[cell][static_cast<std::size_t>(axis)]));
+                             - value_zone.cell_centers[cell][static_cast<std::size_t>(axis)]));
             }
         }
     }
     if (maximum_coordinate_difference > 1.0e-12) {
         throw std::runtime_error("field-error comparison coordinates differ");
     }
-    std::cout << std::setprecision(17)
-              << "check=field_error_header zones=" << reference.size()
-              << " max_coordinate_difference=" << maximum_coordinate_difference
-              << " weighting="
-              << (statistics.find("Jacobian") == statistics.end()
-                      ? "uniform" : "reference_jacobian")
+    std::cout << std::setprecision(17) << "check=field_error_header zones=" << reference.size()
+              << " max_coordinate_difference=" << maximum_coordinate_difference << " weighting="
+              << (statistics.find("Jacobian") == statistics.end() ? "uniform"
+                                                                  : "reference_jacobian")
               << '\n';
     for (const auto& [field_name, field_statistics] : statistics) {
         field_statistics.print(field_name);
     }
 }
 
-void compare_fields(
-    const std::string& lhs_path,
-    const std::string& rhs_path,
-    double tolerance)
+void compare_fields(const std::string& lhs_path, const std::string& rhs_path, double tolerance)
 {
     require_tolerance(tolerance);
     const auto lhs = read_fields(lhs_path);
@@ -643,8 +617,7 @@ void compare_fields(
             throw std::runtime_error("release field comparison zone names differ");
         }
         const auto& rhs_zone = rhs_iterator->second;
-        if (lhs_zone.dimension != rhs_zone.dimension
-            || lhs_zone.cells != rhs_zone.cells
+        if (lhs_zone.dimension != rhs_zone.dimension || lhs_zone.cells != rhs_zone.cells
             || lhs_zone.fields.size() != rhs_zone.fields.size()) {
             throw std::runtime_error("release field comparison metadata differs");
         }
@@ -654,23 +627,19 @@ void compare_fields(
                 throw std::runtime_error("release field comparison array sizes differ");
             }
             for (std::size_t index = 0; index < lhs_values.size(); ++index) {
-                if (!std::isfinite(lhs_values[index])
-                    || !std::isfinite(rhs_values[index])) {
+                if (!std::isfinite(lhs_values[index]) || !std::isfinite(rhs_values[index])) {
                     throw std::runtime_error("release field comparison is non-finite");
                 }
-                maximum = std::max(
-                    maximum, std::abs(lhs_values[index] - rhs_values[index]));
+                maximum = std::max(maximum, std::abs(lhs_values[index] - rhs_values[index]));
                 ++samples;
             }
         }
     }
     if (maximum > tolerance) {
-        throw std::runtime_error(
-            "field comparison maximum difference " + std::to_string(maximum)
-            + " exceeds tolerance " + std::to_string(tolerance));
+        throw std::runtime_error("field comparison maximum difference " + std::to_string(maximum)
+                                 + " exceeds tolerance " + std::to_string(tolerance));
     }
-    std::cout << std::setprecision(17)
-              << "check=compare samples=" << samples
+    std::cout << std::setprecision(17) << "check=compare samples=" << samples
               << " max_abs=" << maximum << " tolerance=" << tolerance << '\n';
 }
 
@@ -679,9 +648,8 @@ struct SpatialValue {
     std::vector<double> fields;
 };
 
-std::vector<SpatialValue> spatial_values(
-    const FieldFile& file,
-    const std::vector<std::string>& field_names)
+std::vector<SpatialValue> spatial_values(const FieldFile& file,
+                                         const std::vector<std::string>& field_names)
 {
     std::vector<SpatialValue> result;
     for (const auto& [zone_name, zone] : file) {
@@ -702,11 +670,10 @@ std::vector<SpatialValue> spatial_values(
     return result;
 }
 
-void compare_spatial_fields(
-    const std::string& lhs_path,
-    const std::string& rhs_path,
-    double field_tolerance,
-    double coordinate_tolerance)
+void compare_spatial_fields(const std::string& lhs_path,
+                            const std::string& rhs_path,
+                            double field_tolerance,
+                            double coordinate_tolerance)
 {
     require_tolerance(field_tolerance);
     require_tolerance(coordinate_tolerance);
@@ -744,10 +711,9 @@ void compare_spatial_fields(
     double maximum_field = 0.0;
     for (std::size_t cell = 0; cell < lhs_values.size(); ++cell) {
         for (std::size_t component = 0; component < 3; ++component) {
-            maximum_coordinate = std::max(
-                maximum_coordinate,
-                std::abs(lhs_values[cell].coordinates[component]
-                    - rhs_values[cell].coordinates[component]));
+            maximum_coordinate = std::max(maximum_coordinate,
+                                          std::abs(lhs_values[cell].coordinates[component]
+                                                   - rhs_values[cell].coordinates[component]));
         }
         for (std::size_t field = 0; field < fields.size(); ++field) {
             if (!std::isfinite(lhs_values[cell].fields[field])
@@ -756,19 +722,15 @@ void compare_spatial_fields(
             }
             maximum_field = std::max(
                 maximum_field,
-                std::abs(lhs_values[cell].fields[field]
-                    - rhs_values[cell].fields[field]));
+                std::abs(lhs_values[cell].fields[field] - rhs_values[cell].fields[field]));
         }
     }
-    if (maximum_coordinate > coordinate_tolerance
-        || maximum_field > field_tolerance) {
+    if (maximum_coordinate > coordinate_tolerance || maximum_field > field_tolerance) {
         throw std::runtime_error("spatial field comparison exceeds tolerance");
     }
-    std::cout << std::setprecision(17)
-              << "check=compare_spatial cells=" << lhs_values.size()
+    std::cout << std::setprecision(17) << "check=compare_spatial cells=" << lhs_values.size()
               << " max_coordinate=" << maximum_coordinate
-              << " coordinate_tolerance=" << coordinate_tolerance
-              << " max_field=" << maximum_field
+              << " coordinate_tolerance=" << coordinate_tolerance << " max_field=" << maximum_field
               << " field_tolerance=" << field_tolerance << '\n';
 }
 
@@ -784,7 +746,8 @@ void validate_constant_series(const std::string& path, double tolerance)
         std::istringstream values(line);
         std::vector<double> row;
         double value = 0.0;
-        while (values >> value) row.push_back(value);
+        while (values >> value)
+            row.push_back(value);
         if (!values.eof() || row.size() < 3) {
             throw std::runtime_error("release series contains an invalid data row");
         }
@@ -802,35 +765,30 @@ void validate_constant_series(const std::string& path, double tolerance)
             if (!std::isfinite(row[column])) {
                 throw std::runtime_error("release series contains a non-finite value");
             }
-            maximum = std::max(
-                maximum,
-                std::abs(row[column] - rows.front()[column])
-                    / std::max(1.0, std::abs(rows.front()[column])));
+            maximum = std::max(maximum,
+                               std::abs(row[column] - rows.front()[column])
+                                   / std::max(1.0, std::abs(rows.front()[column])));
         }
     }
     if (maximum > tolerance) {
-        throw std::runtime_error(
-            "series relative drift " + std::to_string(maximum)
-            + " exceeds tolerance " + std::to_string(tolerance));
+        throw std::runtime_error("series relative drift " + std::to_string(maximum)
+                                 + " exceeds tolerance " + std::to_string(tolerance));
     }
-    std::cout << std::setprecision(17)
-              << "check=series_constant rows=" << rows.size()
-              << " max_relative_drift=" << maximum
-              << " tolerance=" << tolerance << '\n';
+    std::cout << std::setprecision(17) << "check=series_constant rows=" << rows.size()
+              << " max_relative_drift=" << maximum << " tolerance=" << tolerance << '\n';
 }
 
-void validate_isentropic_vortex(
-    const std::string& path,
-    double time,
-    double length,
-    double x0,
-    double y0,
-    double beta,
-    double background_u,
-    double background_v,
-    double gamma,
-    double mach,
-    double l1_tolerance)
+void validate_isentropic_vortex(const std::string& path,
+                                double time,
+                                double length,
+                                double x0,
+                                double y0,
+                                double beta,
+                                double background_u,
+                                double background_v,
+                                double gamma,
+                                double mach,
+                                double l1_tolerance)
 {
     if (!(length > 0.0) || !(gamma > 1.0) || !(mach > 0.0)) {
         throw std::invalid_argument("vortex length, gamma and Mach are invalid");
@@ -852,22 +810,16 @@ void validate_isentropic_vortex(
         const auto& velocity_y = require_field(zone, "VelocityY");
         const auto& temperature = require_field(zone, "Temperature");
         for (std::size_t cell = 0; cell < zone.cell_centers.size(); ++cell) {
-            const double dx = std::remainder(
-                zone.cell_centers[cell][0] - center_x, length);
-            const double dy = std::remainder(
-                zone.cell_centers[cell][1] - center_y, length);
+            const double dx = std::remainder(zone.cell_centers[cell][0] - center_x, length);
+            const double dy = std::remainder(zone.cell_centers[cell][1] - center_y, length);
             const double radius_squared = dx * dx + dy * dy;
             const double exponential = std::exp(0.5 * (1.0 - radius_squared));
-            const double exact_u = background_u
-                - beta * exponential * dy / (2.0 * pi);
-            const double exact_v = background_v
-                + beta * exponential * dx / (2.0 * pi);
+            const double exact_u = background_u - beta * exponential * dy / (2.0 * pi);
+            const double exact_v = background_v + beta * exponential * dx / (2.0 * pi);
             const double exact_temperature = 1.0
-                - (gamma - 1.0) * mach * mach * beta * beta
-                    * std::exp(1.0 - radius_squared)
+                - (gamma - 1.0) * mach * mach * beta * beta * std::exp(1.0 - radius_squared)
                     / (8.0 * pi * pi);
-            const double exact_density
-                = std::pow(exact_temperature, 1.0 / (gamma - 1.0));
+            const double exact_density = std::pow(exact_temperature, 1.0 / (gamma - 1.0));
             const double density_error = std::abs(density[cell] - exact_density);
             density_l1 += density_error;
             density_l2 += density_error * density_error;
@@ -886,16 +838,12 @@ void validate_isentropic_vortex(
     density_l1 /= static_cast<double>(cells);
     density_l2 = std::sqrt(density_l2 / static_cast<double>(cells));
     if (density_l1 > l1_tolerance) {
-        throw std::runtime_error(
-            "vortex density L1 error " + std::to_string(density_l1)
-            + " exceeds tolerance " + std::to_string(l1_tolerance));
+        throw std::runtime_error("vortex density L1 error " + std::to_string(density_l1)
+                                 + " exceeds tolerance " + std::to_string(l1_tolerance));
     }
-    std::cout << std::setprecision(17)
-              << "check=isentropic_vortex cells=" << cells
-              << " rho_l1=" << density_l1
-              << " rho_l2=" << density_l2
-              << " rho_linf=" << density_linf
-              << " primitive_linf=" << maximum_primitive
+    std::cout << std::setprecision(17) << "check=isentropic_vortex cells=" << cells
+              << " rho_l1=" << density_l1 << " rho_l2=" << density_l2
+              << " rho_linf=" << density_linf << " primitive_linf=" << maximum_primitive
               << " tolerance=" << l1_tolerance << '\n';
 }
 
@@ -905,10 +853,7 @@ struct SodState {
     double pressure = 0.0;
 };
 
-std::pair<double, double> pressure_wave(
-    double pressure,
-    const SodState& state,
-    double gamma)
+std::pair<double, double> pressure_wave(double pressure, const SodState& state, double gamma)
 {
     const double sound = std::sqrt(gamma * state.pressure / state.density);
     if (pressure > state.pressure) {
@@ -917,41 +862,33 @@ std::pair<double, double> pressure_wave(
         const double root = std::sqrt(a / (pressure + b));
         return {
             (pressure - state.pressure) * root,
-            root * (1.0 - 0.5 * (pressure - state.pressure)
-                / (pressure + b)),
+            root * (1.0 - 0.5 * (pressure - state.pressure) / (pressure + b)),
         };
     }
     const double exponent = (gamma - 1.0) / (2.0 * gamma);
     const double ratio = pressure / state.pressure;
     return {
         2.0 * sound / (gamma - 1.0) * (std::pow(ratio, exponent) - 1.0),
-        std::pow(ratio, -(gamma + 1.0) / (2.0 * gamma))
-            / (state.density * sound),
+        std::pow(ratio, -(gamma + 1.0) / (2.0 * gamma)) / (state.density * sound),
     };
 }
 
-std::pair<double, double> sod_star(
-    const SodState& left,
-    const SodState& right,
-    double gamma)
+std::pair<double, double> sod_star(const SodState& left, const SodState& right, double gamma)
 {
     const double left_sound = std::sqrt(gamma * left.pressure / left.density);
     const double right_sound = std::sqrt(gamma * right.pressure / right.density);
-    double pressure = std::max(
-        1.0e-14,
-        0.5 * (left.pressure + right.pressure)
-            - 0.125 * (right.velocity - left.velocity)
-                * (left.density + right.density)
-                * (left_sound + right_sound));
+    double pressure
+        = std::max(1.0e-14,
+                   0.5 * (left.pressure + right.pressure)
+                       - 0.125 * (right.velocity - left.velocity) * (left.density + right.density)
+                           * (left_sound + right_sound));
     for (int iteration = 0; iteration < 50; ++iteration) {
         const auto left_wave = pressure_wave(pressure, left, gamma);
         const auto right_wave = pressure_wave(pressure, right, gamma);
-        const double update = (left_wave.first + right_wave.first
-            + right.velocity - left.velocity)
+        const double update = (left_wave.first + right_wave.first + right.velocity - left.velocity)
             / (left_wave.second + right_wave.second);
         const double next = std::max(1.0e-14, pressure - update);
-        if (std::abs(next - pressure)
-            <= 1.0e-13 * std::max(1.0, pressure)) {
+        if (std::abs(next - pressure) <= 1.0e-13 * std::max(1.0, pressure)) {
             pressure = next;
             break;
         }
@@ -959,18 +896,17 @@ std::pair<double, double> sod_star(
     }
     const auto left_wave = pressure_wave(pressure, left, gamma);
     const auto right_wave = pressure_wave(pressure, right, gamma);
-    const double velocity = 0.5 * (left.velocity + right.velocity
-        + right_wave.first - left_wave.first);
+    const double velocity
+        = 0.5 * (left.velocity + right.velocity + right_wave.first - left_wave.first);
     return {pressure, velocity};
 }
 
-SodState sample_sod(
-    double similarity,
-    const SodState& left,
-    const SodState& right,
-    double gamma,
-    double star_pressure,
-    double star_velocity)
+SodState sample_sod(double similarity,
+                    const SodState& left,
+                    const SodState& right,
+                    double gamma,
+                    double star_pressure,
+                    double star_velocity)
 {
     const double left_sound = std::sqrt(gamma * left.pressure / left.density);
     const double right_sound = std::sqrt(gamma * right.pressure / right.density);
@@ -986,70 +922,62 @@ SodState sample_sod(
     if (similarity <= star_velocity) {
         const double density = star_density(left);
         if (star_pressure > left.pressure) {
-            const double speed = left.velocity - left_sound * std::sqrt(
-                (gamma + 1.0) * star_pressure / (2.0 * gamma * left.pressure)
-                + (gamma - 1.0) / (2.0 * gamma));
-            return similarity <= speed ? left
-                                       : SodState {density, star_velocity, star_pressure};
+            const double speed = left.velocity
+                - left_sound
+                    * std::sqrt((gamma + 1.0) * star_pressure / (2.0 * gamma * left.pressure)
+                                + (gamma - 1.0) / (2.0 * gamma));
+            return similarity <= speed ? left : SodState {density, star_velocity, star_pressure};
         }
         const double head = left.velocity - left_sound;
-        const double star_sound = left_sound * std::pow(
-            star_pressure / left.pressure,
-            (gamma - 1.0) / (2.0 * gamma));
+        const double star_sound
+            = left_sound * std::pow(star_pressure / left.pressure, (gamma - 1.0) / (2.0 * gamma));
         const double tail = star_velocity - star_sound;
         if (similarity <= head) return left;
         if (similarity >= tail) return {density, star_velocity, star_pressure};
-        const double velocity = 2.0 / (gamma + 1.0)
-            * (left_sound + 0.5 * (gamma - 1.0) * left.velocity + similarity);
+        const double velocity
+            = 2.0 / (gamma + 1.0) * (left_sound + 0.5 * (gamma - 1.0) * left.velocity + similarity);
         const double sound = 2.0 / (gamma + 1.0)
-            * (left_sound + 0.5 * (gamma - 1.0)
-                * (left.velocity - similarity));
+            * (left_sound + 0.5 * (gamma - 1.0) * (left.velocity - similarity));
         return {
             left.density * std::pow(sound / left_sound, 2.0 / (gamma - 1.0)),
             velocity,
-            left.pressure * std::pow(
-                sound / left_sound, 2.0 * gamma / (gamma - 1.0)),
+            left.pressure * std::pow(sound / left_sound, 2.0 * gamma / (gamma - 1.0)),
         };
     }
 
     const double density = star_density(right);
     if (star_pressure > right.pressure) {
-        const double speed = right.velocity + right_sound * std::sqrt(
-            (gamma + 1.0) * star_pressure / (2.0 * gamma * right.pressure)
-            + (gamma - 1.0) / (2.0 * gamma));
-        return similarity >= speed ? right
-                                   : SodState {density, star_velocity, star_pressure};
+        const double speed = right.velocity
+            + right_sound
+                * std::sqrt((gamma + 1.0) * star_pressure / (2.0 * gamma * right.pressure)
+                            + (gamma - 1.0) / (2.0 * gamma));
+        return similarity >= speed ? right : SodState {density, star_velocity, star_pressure};
     }
     const double head = right.velocity + right_sound;
-    const double star_sound = right_sound * std::pow(
-        star_pressure / right.pressure,
-        (gamma - 1.0) / (2.0 * gamma));
+    const double star_sound
+        = right_sound * std::pow(star_pressure / right.pressure, (gamma - 1.0) / (2.0 * gamma));
     const double tail = star_velocity + star_sound;
     if (similarity >= head) return right;
     if (similarity <= tail) return {density, star_velocity, star_pressure};
-    const double velocity = 2.0 / (gamma + 1.0)
-        * (-right_sound + 0.5 * (gamma - 1.0) * right.velocity + similarity);
-    const double sound = 2.0 / (gamma + 1.0)
-        * (right_sound - 0.5 * (gamma - 1.0)
-            * (right.velocity - similarity));
+    const double velocity
+        = 2.0 / (gamma + 1.0) * (-right_sound + 0.5 * (gamma - 1.0) * right.velocity + similarity);
+    const double sound
+        = 2.0 / (gamma + 1.0) * (right_sound - 0.5 * (gamma - 1.0) * (right.velocity - similarity));
     return {
         right.density * std::pow(sound / right_sound, 2.0 / (gamma - 1.0)),
         velocity,
-        right.pressure * std::pow(
-            sound / right_sound, 2.0 * gamma / (gamma - 1.0)),
+        right.pressure * std::pow(sound / right_sound, 2.0 * gamma / (gamma - 1.0)),
     };
 }
 
-void validate_sod(
-    const std::string& path,
-    double time,
-    double discontinuity,
-    double gamma,
-    double density_l1_tolerance,
-    double position_cell_tolerance)
+void validate_sod(const std::string& path,
+                  double time,
+                  double discontinuity,
+                  double gamma,
+                  double density_l1_tolerance,
+                  double position_cell_tolerance)
 {
-    if (!(time > 0.0) || !(gamma > 1.0)
-        || !(position_cell_tolerance > 0.0)) {
+    if (!(time > 0.0) || !(gamma > 1.0) || !(position_cell_tolerance > 0.0)) {
         throw std::invalid_argument("Sod validation parameters are invalid");
     }
     require_tolerance(density_l1_tolerance);
@@ -1057,9 +985,10 @@ void validate_sod(
     const SodState right {0.125, 0.0, 0.1};
     const auto [star_pressure, star_velocity] = sod_star(left, right, gamma);
     const double right_sound = std::sqrt(gamma * right.pressure / right.density);
-    const double shock_speed = right.velocity + right_sound * std::sqrt(
-        (gamma + 1.0) * star_pressure / (2.0 * gamma * right.pressure)
-        + (gamma - 1.0) / (2.0 * gamma));
+    const double shock_speed = right.velocity
+        + right_sound
+            * std::sqrt((gamma + 1.0) * star_pressure / (2.0 * gamma * right.pressure)
+                        + (gamma - 1.0) / (2.0 * gamma));
     const double exact_contact = discontinuity + star_velocity * time;
     const double exact_shock = discontinuity + shock_speed * time;
 
@@ -1077,9 +1006,12 @@ void validate_sod(
         const auto& velocity = require_field(zone, "VelocityX");
         const auto& pressure = require_field(zone, "Pressure");
         for (std::size_t cell = 0; cell < zone.cell_centers.size(); ++cell) {
-            const auto exact = sample_sod(
-                (zone.cell_centers[cell][0] - discontinuity) / time,
-                left, right, gamma, star_pressure, star_velocity);
+            const auto exact = sample_sod((zone.cell_centers[cell][0] - discontinuity) / time,
+                                          left,
+                                          right,
+                                          gamma,
+                                          star_pressure,
+                                          star_velocity);
             density_l1 += std::abs(density[cell] - exact.density);
             velocity_l1 += std::abs(velocity[cell] - exact.velocity);
             pressure_l1 += std::abs(pressure[cell] - exact.pressure);
@@ -1125,31 +1057,21 @@ void validate_sod(
             observed_shock = midpoint;
         }
     }
-    const double position_error_cells = std::max(
-        std::abs(observed_contact - exact_contact),
-        std::abs(observed_shock - exact_shock)) / minimum_spacing;
-    if (density_l1 > density_l1_tolerance
-        || position_error_cells > position_cell_tolerance) {
-        throw std::runtime_error(
-            "Sod error exceeds the density or wave-position tolerance");
+    const double position_error_cells = std::max(std::abs(observed_contact - exact_contact),
+                                                 std::abs(observed_shock - exact_shock))
+        / minimum_spacing;
+    if (density_l1 > density_l1_tolerance || position_error_cells > position_cell_tolerance) {
+        throw std::runtime_error("Sod error exceeds the density or wave-position tolerance");
     }
-    std::cout << std::setprecision(17)
-              << "check=sod cells=" << cells
-              << " rho_l1=" << density_l1
-              << " u_l1=" << velocity_l1
-              << " p_l1=" << pressure_l1
-              << " contact=" << observed_contact
-              << " exact_contact=" << exact_contact
-              << " shock=" << observed_shock
-              << " exact_shock=" << exact_shock
-              << " position_error_cells=" << position_error_cells
-              << " min_rho=" << minimum_density
+    std::cout << std::setprecision(17) << "check=sod cells=" << cells << " rho_l1=" << density_l1
+              << " u_l1=" << velocity_l1 << " p_l1=" << pressure_l1
+              << " contact=" << observed_contact << " exact_contact=" << exact_contact
+              << " shock=" << observed_shock << " exact_shock=" << exact_shock
+              << " position_error_cells=" << position_error_cells << " min_rho=" << minimum_density
               << " min_p=" << minimum_pressure << '\n';
 }
 
-void validate_diagonal_symmetry(
-    const std::string& path,
-    double l1_tolerance)
+void validate_diagonal_symmetry(const std::string& path, double l1_tolerance)
 {
     require_tolerance(l1_tolerance);
     struct Sample {
@@ -1172,9 +1094,10 @@ void validate_diagonal_symmetry(
         const auto& velocity_y = require_field(zone, "VelocityY");
         const auto& pressure = require_field(zone, "Pressure");
         for (std::size_t cell = 0; cell < zone.cell_centers.size(); ++cell) {
-            if (!samples.emplace(
-                    key(zone.cell_centers[cell][0], zone.cell_centers[cell][1]),
-                    Sample {density[cell], velocity_x[cell], velocity_y[cell], pressure[cell]})
+            if (!samples
+                     .emplace(
+                         key(zone.cell_centers[cell][0], zone.cell_centers[cell][1]),
+                         Sample {density[cell], velocity_x[cell], velocity_y[cell], pressure[cell]})
                      .second) {
                 throw std::runtime_error("diagonal symmetry found duplicate cell centers");
             }
@@ -1201,18 +1124,15 @@ void validate_diagonal_symmetry(
     if (l1 > l1_tolerance) {
         throw std::runtime_error("diagonal symmetry L1 error exceeds tolerance");
     }
-    std::cout << std::setprecision(17)
-              << "check=diagonal_symmetry cells=" << samples.size()
-              << " l1=" << l1 << " linf=" << linf
-              << " tolerance=" << l1_tolerance << '\n';
+    std::cout << std::setprecision(17) << "check=diagonal_symmetry cells=" << samples.size()
+              << " l1=" << l1 << " linf=" << linf << " tolerance=" << l1_tolerance << '\n';
 }
 
-void validate_viscous_profile(
-    const std::string& path,
-    const std::string& mode,
-    double reynolds,
-    double l2_tolerance,
-    double pressure_tolerance)
+void validate_viscous_profile(const std::string& path,
+                              const std::string& mode,
+                              double reynolds,
+                              double l2_tolerance,
+                              double pressure_tolerance)
 {
     if (mode != "couette" && mode != "conduction") {
         throw std::invalid_argument("viscous profile mode must be couette or conduction");
@@ -1246,12 +1166,10 @@ void validate_viscous_profile(
             const double error = std::abs(value - exact);
             squared += error * error;
             maximum = std::max(maximum, error);
-            pressure_maximum = std::max(
-                pressure_maximum, std::abs(pressure[cell] - 1.0));
+            pressure_maximum = std::max(pressure_maximum, std::abs(pressure[cell] - 1.0));
             if (mode == "conduction") {
-                density_maximum = std::max(
-                    density_maximum,
-                    std::abs(density[cell] - 1.0 / (1.0 + y)));
+                density_maximum
+                    = std::max(density_maximum, std::abs(density[cell] - 1.0 / (1.0 + y)));
             }
             maximum = std::max(maximum, std::abs(velocity_y[cell]));
             if (mode == "conduction") {
@@ -1272,35 +1190,29 @@ void validate_viscous_profile(
     }
     const double slope = (count * sum_yq - sum_y * sum_q) / denominator;
     const double l2 = std::sqrt(squared / count);
-    if (l2 > l2_tolerance || maximum > 10.0 * l2_tolerance
-        || pressure_maximum > pressure_tolerance
+    if (l2 > l2_tolerance || maximum > 10.0 * l2_tolerance || pressure_maximum > pressure_tolerance
         || density_maximum > 10.0 * std::max(l2_tolerance, pressure_tolerance)) {
         throw std::runtime_error("viscous analytic profile exceeds tolerance");
     }
-    std::cout << std::setprecision(17)
-              << "check=viscous_profile mode=" << mode
-              << " cells=" << cells << " l2=" << l2
-              << " linf=" << maximum
-              << " pressure_linf=" << pressure_maximum
-              << " density_linf=" << density_maximum
+    std::cout << std::setprecision(17) << "check=viscous_profile mode=" << mode
+              << " cells=" << cells << " l2=" << l2 << " linf=" << maximum
+              << " pressure_linf=" << pressure_maximum << " density_linf=" << density_maximum
               << " slope=" << slope;
     if (mode == "couette") {
-        std::cout << " wall_shear=" << slope / reynolds
-                  << " exact_wall_shear=" << 1.0 / reynolds
+        std::cout << " wall_shear=" << slope / reynolds << " exact_wall_shear=" << 1.0 / reynolds
                   << " wall_shear_relative_error=" << std::abs(slope - 1.0);
     }
     std::cout << '\n';
 }
 
-void validate_poiseuille_profile(
-    const std::string& path,
-    double y0,
-    double y1,
-    double centerline_velocity,
-    double velocity_l2_tolerance,
-    double crossflow_tolerance,
-    double pressure_span_tolerance,
-    double homogeneity_tolerance)
+void validate_poiseuille_profile(const std::string& path,
+                                 double y0,
+                                 double y1,
+                                 double centerline_velocity,
+                                 double velocity_l2_tolerance,
+                                 double crossflow_tolerance,
+                                 double pressure_span_tolerance,
+                                 double homogeneity_tolerance)
 {
     if (!(y1 > y0) || !std::isfinite(centerline_velocity)) {
         throw std::invalid_argument("Poiseuille profile bounds and velocity are invalid");
@@ -1349,8 +1261,7 @@ void validate_poiseuille_profile(
             if (!(eta > 0.0 && eta < 1.0) || !(jacobian[cell] > 0.0)) {
                 throw std::runtime_error("Poiseuille cell center or Jacobian is invalid");
             }
-            const double exact_velocity
-                = 4.0 * centerline_velocity * eta * (1.0 - eta);
+            const double exact_velocity = 4.0 * centerline_velocity * eta * (1.0 - eta);
             const double error = velocity_x[cell] - exact_velocity;
             weighted_squared_error += error * error * jacobian[cell];
             weighted_velocity += velocity_x[cell] * jacobian[cell];
@@ -1369,17 +1280,19 @@ void validate_poiseuille_profile(
             maximum_temperature = std::max(maximum_temperature, temperature[cell]);
             auto& layer = layers[std::llround(zone.cell_centers[cell][1] * 1.0e12)];
             const std::array<double, 6> values {{
-                density[cell], velocity_x[cell], velocity_y[cell], velocity_z[cell],
-                pressure[cell], temperature[cell],
+                density[cell],
+                velocity_x[cell],
+                velocity_y[cell],
+                velocity_z[cell],
+                pressure[cell],
+                temperature[cell],
             }};
             for (std::size_t component = 0; component < values.size(); ++component) {
                 if (!std::isfinite(values[component])) {
                     throw std::runtime_error("Poiseuille field contains a non-finite value");
                 }
-                layer.minimum[component]
-                    = std::min(layer.minimum[component], values[component]);
-                layer.maximum[component]
-                    = std::max(layer.maximum[component], values[component]);
+                layer.minimum[component] = std::min(layer.minimum[component], values[component]);
+                layer.maximum[component] = std::max(layer.maximum[component], values[component]);
             }
             ++cells;
         }
@@ -1392,45 +1305,40 @@ void validate_poiseuille_profile(
         static_cast<void>(y);
         for (std::size_t component = 0; component < layer.minimum.size(); ++component) {
             maximum_homogeneity_span = std::max(
-                maximum_homogeneity_span,
-                layer.maximum[component] - layer.minimum[component]);
+                maximum_homogeneity_span, layer.maximum[component] - layer.minimum[component]);
         }
     }
     const double velocity_l2 = std::sqrt(weighted_squared_error / total_volume);
     const double bulk_velocity = weighted_velocity / total_volume;
     const double exact_bulk_velocity = (2.0 / 3.0) * centerline_velocity;
     const double pressure_span = maximum_pressure - minimum_pressure;
-    if (velocity_l2 > velocity_l2_tolerance
-        || maximum_crossflow > crossflow_tolerance
+    if (velocity_l2 > velocity_l2_tolerance || maximum_crossflow > crossflow_tolerance
         || pressure_span > pressure_span_tolerance
         || maximum_homogeneity_span > homogeneity_tolerance) {
         throw std::runtime_error("Poiseuille analytic profile exceeds tolerance");
     }
-    std::cout << std::setprecision(17)
-              << "check=poiseuille_profile cells=" << cells
-              << " layers=" << layers.size()
-              << " velocity_l2=" << velocity_l2
-              << " velocity_linf=" << maximum_velocity_error
-              << " bulk_velocity=" << bulk_velocity
+    std::cout << std::setprecision(17) << "check=poiseuille_profile cells=" << cells
+              << " layers=" << layers.size() << " velocity_l2=" << velocity_l2
+              << " velocity_linf=" << maximum_velocity_error << " bulk_velocity=" << bulk_velocity
               << " exact_bulk_velocity=" << exact_bulk_velocity
-              << " crossflow_linf=" << maximum_crossflow
-              << " pressure_span=" << pressure_span
+              << " crossflow_linf=" << maximum_crossflow << " pressure_span=" << pressure_span
               << " homogeneity_linf=" << maximum_homogeneity_span
               << " rho_range=" << minimum_density << ',' << maximum_density
-              << " T_range=" << minimum_temperature << ',' << maximum_temperature
-              << '\n';
+              << " T_range=" << minimum_temperature << ',' << maximum_temperature << '\n';
 }
 
-void validate_uniform_source(
-    const std::string& path,
-    double time,
-    const std::array<double, 5>& initial,
-    const std::array<double, 5>& source,
-    double tolerance)
+void validate_uniform_source(const std::string& path,
+                             double time,
+                             const std::array<double, 5>& initial,
+                             const std::array<double, 5>& source,
+                             double tolerance)
 {
     require_tolerance(tolerance);
     const std::array<const char*, 5> names {{
-        "Density", "MomentumX", "MomentumY", "MomentumZ",
+        "Density",
+        "MomentumX",
+        "MomentumY",
+        "MomentumZ",
         "EnergyStagnationDensity",
     }};
     std::array<double, 5> exact {};
@@ -1453,10 +1361,8 @@ void validate_uniform_source(
     if (samples == 0 || maximum > tolerance) {
         throw std::runtime_error("uniform-source response exceeds tolerance");
     }
-    std::cout << std::setprecision(17)
-              << "check=uniform_source samples=" << samples
-              << " max_abs=" << maximum
-              << " tolerance=" << tolerance << '\n';
+    std::cout << std::setprecision(17) << "check=uniform_source samples=" << samples
+              << " max_abs=" << maximum << " tolerance=" << tolerance << '\n';
 }
 
 } // namespace
@@ -1469,120 +1375,111 @@ int main(int argc, char** argv)
         } else if (argc == 4 && std::string(argv[1]) == "field-error") {
             report_field_errors(argv[2], argv[3]);
         } else if (argc == 4 && std::string(argv[1]) == "series-constant") {
-            validate_constant_series(
-                argv[2], parse_real(argv[3], "tolerance"));
+            validate_constant_series(argv[2], parse_real(argv[3], "tolerance"));
         } else if (argc == 5 && std::string(argv[1]) == "compare") {
             compare_fields(argv[2], argv[3], parse_real(argv[4], "tolerance"));
         } else if (argc == 6 && std::string(argv[1]) == "compare-spatial") {
-            compare_spatial_fields(
-                argv[2], argv[3],
-                parse_real(argv[4], "field tolerance"),
-                parse_real(argv[5], "coordinate tolerance"));
+            compare_spatial_fields(argv[2],
+                                   argv[3],
+                                   parse_real(argv[4], "field tolerance"),
+                                   parse_real(argv[5], "coordinate tolerance"));
         } else if (argc == 9 && std::string(argv[1]) == "uniform") {
-            validate_uniform(
-                argv[2],
-                {{"Density", parse_real(argv[3], "rho")},
-                 {"VelocityX", parse_real(argv[4], "u")},
-                 {"VelocityY", parse_real(argv[5], "v")},
-                 {"VelocityZ", parse_real(argv[6], "w")},
-                 {"Temperature", parse_real(argv[7], "temperature")}},
-                parse_real(argv[8], "tolerance"));
+            validate_uniform(argv[2],
+                             {{"Density", parse_real(argv[3], "rho")},
+                              {"VelocityX", parse_real(argv[4], "u")},
+                              {"VelocityY", parse_real(argv[5], "v")},
+                              {"VelocityZ", parse_real(argv[6], "w")},
+                              {"Temperature", parse_real(argv[7], "temperature")}},
+                             parse_real(argv[8], "tolerance"));
         } else if (argc == 13 && std::string(argv[1]) == "vortex") {
-            validate_isentropic_vortex(
-                argv[2],
-                parse_real(argv[3], "time"),
-                parse_real(argv[4], "length"),
-                parse_real(argv[5], "x0"),
-                parse_real(argv[6], "y0"),
-                parse_real(argv[7], "beta"),
-                parse_real(argv[8], "background_u"),
-                parse_real(argv[9], "background_v"),
-                parse_real(argv[10], "gamma"),
-                parse_real(argv[11], "Mach"),
-                parse_real(argv[12], "tolerance"));
+            validate_isentropic_vortex(argv[2],
+                                       parse_real(argv[3], "time"),
+                                       parse_real(argv[4], "length"),
+                                       parse_real(argv[5], "x0"),
+                                       parse_real(argv[6], "y0"),
+                                       parse_real(argv[7], "beta"),
+                                       parse_real(argv[8], "background_u"),
+                                       parse_real(argv[9], "background_v"),
+                                       parse_real(argv[10], "gamma"),
+                                       parse_real(argv[11], "Mach"),
+                                       parse_real(argv[12], "tolerance"));
         } else if (argc == 8 && std::string(argv[1]) == "sod") {
-            validate_sod(
-                argv[2],
-                parse_real(argv[3], "time"),
-                parse_real(argv[4], "discontinuity"),
-                parse_real(argv[5], "gamma"),
-                parse_real(argv[6], "density L1 tolerance"),
-                parse_real(argv[7], "position cell tolerance"));
+            validate_sod(argv[2],
+                         parse_real(argv[3], "time"),
+                         parse_real(argv[4], "discontinuity"),
+                         parse_real(argv[5], "gamma"),
+                         parse_real(argv[6], "density L1 tolerance"),
+                         parse_real(argv[7], "position cell tolerance"));
         } else if (argc == 4 && std::string(argv[1]) == "diagonal-symmetry") {
-            validate_diagonal_symmetry(
-                argv[2], parse_real(argv[3], "L1 tolerance"));
+            validate_diagonal_symmetry(argv[2], parse_real(argv[3], "L1 tolerance"));
         } else if (argc == 7 && std::string(argv[1]) == "viscous-profile") {
-            validate_viscous_profile(
-                argv[2], argv[3],
-                parse_real(argv[4], "Reynolds number"),
-                parse_real(argv[5], "L2 tolerance"),
-                parse_real(argv[6], "pressure tolerance"));
+            validate_viscous_profile(argv[2],
+                                     argv[3],
+                                     parse_real(argv[4], "Reynolds number"),
+                                     parse_real(argv[5], "L2 tolerance"),
+                                     parse_real(argv[6], "pressure tolerance"));
         } else if (argc == 10 && std::string(argv[1]) == "poiseuille-profile") {
-            validate_poiseuille_profile(
-                argv[2],
-                parse_real(argv[3], "lower wall coordinate"),
-                parse_real(argv[4], "upper wall coordinate"),
-                parse_real(argv[5], "centerline velocity"),
-                parse_real(argv[6], "velocity L2 tolerance"),
-                parse_real(argv[7], "crossflow tolerance"),
-                parse_real(argv[8], "pressure span tolerance"),
-                parse_real(argv[9], "homogeneity tolerance"));
+            validate_poiseuille_profile(argv[2],
+                                        parse_real(argv[3], "lower wall coordinate"),
+                                        parse_real(argv[4], "upper wall coordinate"),
+                                        parse_real(argv[5], "centerline velocity"),
+                                        parse_real(argv[6], "velocity L2 tolerance"),
+                                        parse_real(argv[7], "crossflow tolerance"),
+                                        parse_real(argv[8], "pressure span tolerance"),
+                                        parse_real(argv[9], "homogeneity tolerance"));
         } else if (argc == 15 && std::string(argv[1]) == "uniform-source") {
             std::array<double, 5> initial {};
             std::array<double, 5> source {};
             for (std::size_t component = 0; component < 5; ++component) {
-                initial[component] = parse_real(
-                    argv[4 + component], "initial conservative value");
-                source[component] = parse_real(
-                    argv[9 + component], "uniform source value");
+                initial[component] = parse_real(argv[4 + component], "initial conservative value");
+                source[component] = parse_real(argv[9 + component], "uniform source value");
             }
-            validate_uniform_source(
-                argv[2], parse_real(argv[3], "time"), initial, source,
-                parse_real(argv[14], "tolerance"));
+            validate_uniform_source(argv[2],
+                                    parse_real(argv[3], "time"),
+                                    initial,
+                                    source,
+                                    parse_real(argv[14], "tolerance"));
         } else if (argc == 5 && std::string(argv[1]) == "tecplot-consistency") {
-            validate_tecplot_consistency(
-                argv[2], argv[3], parse_real(argv[4], "tolerance"));
+            validate_tecplot_consistency(argv[2], argv[3], parse_real(argv[4], "tolerance"));
         } else if (argc == 5 && std::string(argv[1]) == "nonzero") {
-            validate_nonzero_field(
-                argv[2], argv[3], parse_real(argv[4], "threshold"));
+            validate_nonzero_field(argv[2], argv[3], parse_real(argv[4], "threshold"));
         } else if (argc == 7 && std::string(argv[1]) == "derived") {
-            validate_derived_fields(
-                argv[2], parse_real(argv[3], "gamma"),
-                parse_real(argv[4], "expected viscosity"),
-                parse_real(argv[5], "expected Jacobian"),
-                parse_real(argv[6], "tolerance"));
+            validate_derived_fields(argv[2],
+                                    parse_real(argv[3], "gamma"),
+                                    parse_real(argv[4], "expected viscosity"),
+                                    parse_real(argv[5], "expected Jacobian"),
+                                    parse_real(argv[6], "tolerance"));
         } else {
-            std::cerr
-                << "usage:\n"
-                   "  wcns_validate_release_case finite <field.cgns>\n"
-                   "  wcns_validate_release_case field-error "
-                   "<reference.cgns> <value.cgns>\n"
-                   "  wcns_validate_release_case series-constant <series.txt> <tol>\n"
-                   "  wcns_validate_release_case compare <lhs.cgns> <rhs.cgns> <tol>\n"
-                   "  wcns_validate_release_case compare-spatial <lhs.cgns> "
-                   "<rhs.cgns> <field-tol> <coordinate-tol>\n"
-                   "  wcns_validate_release_case uniform <field.cgns> "
-                   "<rho> <u> <v> <w> <T> <tol>\n"
-                   "  wcns_validate_release_case vortex <field.cgns> <time> "
-                   "<length> <x0> <y0> <beta> <u0> <v0> <gamma> <Mach> "
-                   "<L1-tol>\n"
-                   "  wcns_validate_release_case sod <field.cgns> <time> "
-                   "<x0> <gamma> <rho-L1-tol> <position-cell-tol>\n"
-                   "  wcns_validate_release_case diagonal-symmetry "
-                   "<field.cgns> <L1-tol>\n"
-                   "  wcns_validate_release_case viscous-profile <field.cgns> "
-                   "<couette|conduction> <Re> <L2-tol> <pressure-tol>\n"
-                   "  wcns_validate_release_case poiseuille-profile <field.cgns> "
-                   "<y0> <y1> <centerline-u> <velocity-L2-tol> "
-                   "<crossflow-tol> <pressure-span-tol> <homogeneity-tol>\n"
-                   "  wcns_validate_release_case uniform-source <field.cgns> "
-                   "<time> <U0[5]> <S[5]> <tol>\n"
-                   "  wcns_validate_release_case tecplot-consistency "
-                   "<field.cgns> <field.dat> <tol>\n"
-                   "  wcns_validate_release_case derived <field.cgns> "
-                   "<gamma> <viscosity> <Jacobian> <tol>\n"
-                   "  wcns_validate_release_case nonzero <field.cgns> "
-                   "<field-name> <minimum-maximum-absolute-value>\n";
+            std::cerr << "usage:\n"
+                         "  wcns_validate_release_case finite <field.cgns>\n"
+                         "  wcns_validate_release_case field-error "
+                         "<reference.cgns> <value.cgns>\n"
+                         "  wcns_validate_release_case series-constant <series.txt> <tol>\n"
+                         "  wcns_validate_release_case compare <lhs.cgns> <rhs.cgns> <tol>\n"
+                         "  wcns_validate_release_case compare-spatial <lhs.cgns> "
+                         "<rhs.cgns> <field-tol> <coordinate-tol>\n"
+                         "  wcns_validate_release_case uniform <field.cgns> "
+                         "<rho> <u> <v> <w> <T> <tol>\n"
+                         "  wcns_validate_release_case vortex <field.cgns> <time> "
+                         "<length> <x0> <y0> <beta> <u0> <v0> <gamma> <Mach> "
+                         "<L1-tol>\n"
+                         "  wcns_validate_release_case sod <field.cgns> <time> "
+                         "<x0> <gamma> <rho-L1-tol> <position-cell-tol>\n"
+                         "  wcns_validate_release_case diagonal-symmetry "
+                         "<field.cgns> <L1-tol>\n"
+                         "  wcns_validate_release_case viscous-profile <field.cgns> "
+                         "<couette|conduction> <Re> <L2-tol> <pressure-tol>\n"
+                         "  wcns_validate_release_case poiseuille-profile <field.cgns> "
+                         "<y0> <y1> <centerline-u> <velocity-L2-tol> "
+                         "<crossflow-tol> <pressure-span-tol> <homogeneity-tol>\n"
+                         "  wcns_validate_release_case uniform-source <field.cgns> "
+                         "<time> <U0[5]> <S[5]> <tol>\n"
+                         "  wcns_validate_release_case tecplot-consistency "
+                         "<field.cgns> <field.dat> <tol>\n"
+                         "  wcns_validate_release_case derived <field.cgns> "
+                         "<gamma> <viscosity> <Jacobian> <tol>\n"
+                         "  wcns_validate_release_case nonzero <field.cgns> "
+                         "<field-name> <minimum-maximum-absolute-value>\n";
             return EXIT_FAILURE;
         }
         return EXIT_SUCCESS;

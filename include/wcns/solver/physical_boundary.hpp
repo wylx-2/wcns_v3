@@ -31,20 +31,17 @@ struct PhysicalGhostFillResult {
 
 class PhysicalGhostStateOperator {
 public:
-    [[nodiscard]] static PhysicalGhostFillResult fill(
-        StructuredBlock& block,
-        const BoundaryDataMap& boundary_data,
-        const GasModel& gas,
-        const ReferenceScales& reference,
-        const NumericalFloors& floors,
-        std::uint64_t version,
-        Real time = 0.0);
+    [[nodiscard]] static PhysicalGhostFillResult fill(StructuredBlock& block,
+                                                      const BoundaryDataMap& boundary_data,
+                                                      const GasModel& gas,
+                                                      const ReferenceScales& reference,
+                                                      const NumericalFloors& floors,
+                                                      std::uint64_t version,
+                                                      Real time = 0.0);
 };
 
-[[nodiscard]] std::array<Real, 3> boundary_face_coordinates(
-    const StructuredBlock& block,
-    const BoundaryPatch& patch,
-    Index3 face);
+[[nodiscard]] std::array<Real, 3>
+boundary_face_coordinates(const StructuredBlock& block, const BoundaryPatch& patch, Index3 face);
 
 struct InviscidBoundaryOptions {
     bool strong_boundary_face_state = true;
@@ -53,31 +50,29 @@ struct InviscidBoundaryOptions {
     [[nodiscard]] std::string restart_signature() const;
 };
 
-[[nodiscard]] PressurePrimitiveState apply_inviscid_boundary_face_state(
-    const BoundaryPatch& patch,
-    const PressurePrimitiveState& interior_trace,
-    const PressurePrimitiveState& reconstructed_exterior_trace,
-    Normal3 outward_unit_normal,
-    const BoundaryData& data,
-    const InviscidBoundaryOptions& options,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors,
-    int dimension,
-    std::array<Real, 3> face_coordinates = {{0.0, 0.0, 0.0}},
-    Real time = 0.0);
+[[nodiscard]] PressurePrimitiveState
+apply_inviscid_boundary_face_state(const BoundaryPatch& patch,
+                                   const PressurePrimitiveState& interior_trace,
+                                   const PressurePrimitiveState& reconstructed_exterior_trace,
+                                   Normal3 outward_unit_normal,
+                                   const BoundaryData& data,
+                                   const InviscidBoundaryOptions& options,
+                                   const GasModel& gas,
+                                   const ReferenceScales& reference,
+                                   const NumericalFloors& floors,
+                                   int dimension,
+                                   std::array<Real, 3> face_coordinates = {{0.0, 0.0, 0.0}},
+                                   Real time = 0.0);
 
-void update_temperature_primitive_interior(
-    StructuredBlock& block,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors);
+void update_temperature_primitive_interior(StructuredBlock& block,
+                                           const GasModel& gas,
+                                           const ReferenceScales& reference,
+                                           const NumericalFloors& floors);
 
-void update_temperature_primitive_cell(
-    StructuredBlock& block,
-    Index3 index,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors);
+void update_temperature_primitive_cell(StructuredBlock& block,
+                                       Index3 index,
+                                       const GasModel& gas,
+                                       const ReferenceScales& reference,
+                                       const NumericalFloors& floors);
 
 } // namespace wcns

@@ -54,8 +54,7 @@ def run_git(*arguments: str) -> str:
         check=False,
     )
     if completed.returncode != 0:
-        raise RuntimeError(
-            f"git {' '.join(arguments)} failed: {completed.stderr.strip()}")
+        raise RuntimeError(f"git {' '.join(arguments)} failed: {completed.stderr.strip()}")
     return completed.stdout.strip()
 
 
@@ -79,37 +78,37 @@ def parse_args() -> argparse.Namespace:
 
 def tracked_payload() -> list[Path]:
     tracked = {
-        Path(line)
-        for line in run_git("ls-tree", "-r", "--name-only", "HEAD").splitlines()
-        if line
+        Path(line) for line in run_git("ls-tree", "-r", "--name-only", "HEAD").splitlines() if line
     }
     selected = set(EXPLICIT_FILES)
     for path in tracked:
-        if any(path == prefix or prefix in path.parents
-               for prefix in DIRECTORY_PREFIXES):
+        if any(path == prefix or prefix in path.parents for prefix in DIRECTORY_PREFIXES):
             selected.add(path)
 
     missing = sorted(path for path in selected if path not in tracked)
     if missing:
         raise RuntimeError(
             "release payload contains files not committed in HEAD: "
-            + ", ".join(path.as_posix() for path in missing))
+            + ", ".join(path.as_posix() for path in missing)
+        )
     absent = sorted(path for path in selected if not (REPOSITORY / path).is_file())
     if absent:
         raise RuntimeError(
             "release payload is missing from the worktree: "
-            + ", ".join(path.as_posix() for path in absent))
+            + ", ".join(path.as_posix() for path in absent)
+        )
 
     forbidden = [
-        path for path in selected
+        path
+        for path in selected
         if path == Path(".git")
         or Path("cases/manual") in path.parents
         or any(part.startswith("build-") for part in path.parts)
     ]
     if forbidden:
         raise RuntimeError(
-            "forbidden release payload entries: "
-            + ", ".join(path.as_posix() for path in forbidden))
+            "forbidden release payload entries: " + ", ".join(path.as_posix() for path in forbidden)
+        )
 
     return sorted(selected, key=lambda item: item.as_posix())
 
@@ -119,8 +118,7 @@ def require_clean_payload(paths: list[Path]) -> None:
     command.extend(path.as_posix() for path in paths)
     completed = subprocess.run(command, cwd=REPOSITORY, check=False)
     if completed.returncode == 1:
-        raise RuntimeError(
-            "selected release files differ from HEAD; commit them before packaging")
+        raise RuntimeError("selected release files differ from HEAD; commit them before packaging")
     if completed.returncode != 0:
         raise RuntimeError("unable to verify release payload against HEAD")
 
@@ -133,8 +131,7 @@ def require_version(cmake_text: str) -> None:
     )
     if match is None or match.group(1) != VERSION:
         observed = "missing" if match is None else match.group(1)
-        raise RuntimeError(
-            f"CMake project version is {observed}; expected {VERSION}")
+        raise RuntimeError(f"CMake project version is {observed}; expected {VERSION}")
 
 
 def sha256(path: Path) -> str:
@@ -150,7 +147,8 @@ def sha256_bytes(value: bytes) -> str:
 
 
 def normalized_tar_info(
-    info: tarfile.TarInfo, timestamp: int,
+    info: tarfile.TarInfo,
+    timestamp: int,
 ) -> tarfile.TarInfo:
     info.uid = 0
     info.gid = 0
@@ -168,16 +166,24 @@ def normalized_tar_info(
 
 
 def create_archive(
-    package_root: Path, archive: Path, timestamp: int,
+    package_root: Path,
+    archive: Path,
+    timestamp: int,
 ) -> None:
     entries = [package_root]
     entries.extend(sorted(package_root.rglob("*"), key=lambda path: path.as_posix()))
     with archive.open("wb") as raw:
         with gzip.GzipFile(
-            filename="", mode="wb", fileobj=raw, compresslevel=9, mtime=timestamp,
+            filename="",
+            mode="wb",
+            fileobj=raw,
+            compresslevel=9,
+            mtime=timestamp,
         ) as compressed:
             with tarfile.open(
-                fileobj=compressed, mode="w", format=tarfile.PAX_FORMAT,
+                fileobj=compressed,
+                mode="w",
+                format=tarfile.PAX_FORMAT,
             ) as tar:
                 for entry in entries:
                     relative = entry.relative_to(package_root)
@@ -201,12 +207,10 @@ def parse_contents_manifest(value: bytes) -> dict[PurePosixPath, str]:
     for line_number, line in enumerate(text.splitlines(), start=1):
         match = re.fullmatch(r"([0-9a-f]{64})  (.+)", line)
         if match is None:
-            raise RuntimeError(
-                f"invalid PACKAGE_CONTENTS.sha256 line {line_number}")
+            raise RuntimeError(f"invalid PACKAGE_CONTENTS.sha256 line {line_number}")
         path = PurePosixPath(match.group(2))
         if path.is_absolute() or ".." in path.parts or path in result:
-            raise RuntimeError(
-                f"unsafe or duplicate manifest path on line {line_number}")
+            raise RuntimeError(f"unsafe or duplicate manifest path on line {line_number}")
         result[path] = match.group(1)
     return result
 
@@ -223,8 +227,7 @@ def verify_archive(archive: Path, check_sidecar: bool = True) -> dict[str, objec
         seen: set[str] = set()
         for member in tar.getmembers():
             member_path = PurePosixPath(member.name)
-            if (member_path.is_absolute() or ".." in member_path.parts
-                    or member.name in seen):
+            if member_path.is_absolute() or ".." in member_path.parts or member.name in seen:
                 raise RuntimeError(f"unsafe or duplicate archive member: {member.name}")
             seen.add(member.name)
             if not member_path.parts:
@@ -243,32 +246,36 @@ def verify_archive(archive: Path, check_sidecar: bool = True) -> dict[str, objec
         raise RuntimeError("archive must contain exactly one top-level directory")
     root = next(iter(roots))
     if not root.startswith(expected_prefix) or not re.fullmatch(
-            re.escape(expected_prefix) + r"[0-9a-f]{12}", root):
+        re.escape(expected_prefix) + r"[0-9a-f]{12}", root
+    ):
         raise RuntimeError(f"unexpected archive root: {root}")
 
     for forbidden in regular:
-        if (".git" in forbidden.parts
-                or PurePosixPath("cases/manual") in forbidden.parents
-                or any(part.startswith("build-") for part in forbidden.parts)):
+        if (
+            ".git" in forbidden.parts
+            or PurePosixPath("cases/manual") in forbidden.parents
+            or any(part.startswith("build-") for part in forbidden.parts)
+        ):
             raise RuntimeError(f"forbidden archive member: {forbidden}")
 
     if PurePosixPath("PACKAGE_CONTENTS.sha256") not in regular:
         raise RuntimeError("archive lacks PACKAGE_CONTENTS.sha256")
-    manifest = parse_contents_manifest(
-        regular[PurePosixPath("PACKAGE_CONTENTS.sha256")])
+    manifest = parse_contents_manifest(regular[PurePosixPath("PACKAGE_CONTENTS.sha256")])
     expected_files = set(regular) - {PurePosixPath("PACKAGE_CONTENTS.sha256")}
     if set(manifest) != expected_files:
         missing = sorted(str(path) for path in expected_files - set(manifest))
         extra = sorted(str(path) for path in set(manifest) - expected_files)
-        raise RuntimeError(
-            f"content manifest mismatch; missing={missing}, extra={extra}")
+        raise RuntimeError(f"content manifest mismatch; missing={missing}, extra={extra}")
     for path, expected in manifest.items():
         observed = sha256_bytes(regular[path])
         if observed != expected:
             raise RuntimeError(f"content hash mismatch: {path}")
 
-    revision = regular.get(PurePosixPath("WCNS_SOURCE_REVISION"), b"").decode(
-        "ascii", errors="strict").strip()
+    revision = (
+        regular.get(PurePosixPath("WCNS_SOURCE_REVISION"), b"")
+        .decode("ascii", errors="strict")
+        .strip()
+    )
     if not re.fullmatch(r"[0-9a-f]{12}", revision):
         raise RuntimeError("invalid WCNS_SOURCE_REVISION")
     if root != f"{expected_prefix}{revision}":
@@ -311,7 +318,8 @@ def create_release(output_directory: Path) -> tuple[Path, Path]:
     sidecar = output_directory / f"{package_name}.tar.gz.sha256"
 
     with tempfile.TemporaryDirectory(
-        prefix="wcns-release-package-", dir=output_directory,
+        prefix="wcns-release-package-",
+        dir=output_directory,
     ) as temporary:
         package_root = Path(temporary) / package_name
         package_root.mkdir()
@@ -321,7 +329,8 @@ def create_release(output_directory: Path) -> tuple[Path, Path]:
             shutil.copyfile(REPOSITORY / relative, destination)
 
         (package_root / "WCNS_SOURCE_REVISION").write_text(
-            revision + "\n", encoding="utf-8", newline="\n")
+            revision + "\n", encoding="utf-8", newline="\n"
+        )
         manifest_paths = [Path("WCNS_SOURCE_REVISION"), *payload]
         manifest_lines = [
             f"{sha256(package_root / path)}  {path.as_posix()}"
@@ -338,8 +347,7 @@ def create_release(output_directory: Path) -> tuple[Path, Path]:
         shutil.copyfile(temporary_archive, archive)
 
     archive_hash = sha256(archive)
-    sidecar.write_text(
-        f"{archive_hash}  {archive.name}\n", encoding="utf-8", newline="\n")
+    sidecar.write_text(f"{archive_hash}  {archive.name}\n", encoding="utf-8", newline="\n")
     result = verify_archive(archive)
     print(f"created: {archive}")
     print(f"created: {sidecar}")

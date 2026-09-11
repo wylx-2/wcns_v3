@@ -26,8 +26,7 @@ void require_dimension(int dimension)
     }
 }
 
-template<class State>
-void require_finite_state(const State& state, const char* label)
+template <class State> void require_finite_state(const State& state, const char* label)
 {
     for (const auto value : state) {
         if (!std::isfinite(value)) {
@@ -51,10 +50,9 @@ std::string number(Real value)
     return stream.str();
 }
 
-void validate_temperature_state(
-    const TemperaturePrimitiveState& state,
-    const NumericalFloors& floors,
-    int dimension)
+void validate_temperature_state(const TemperaturePrimitiveState& state,
+                                const NumericalFloors& floors,
+                                int dimension)
 {
     floors.validate();
     require_finite_state(state, "temperature primitive state");
@@ -67,10 +65,9 @@ void validate_temperature_state(
     }
 }
 
-void validate_pressure_state(
-    const PressurePrimitiveState& state,
-    const NumericalFloors& floors,
-    int dimension)
+void validate_pressure_state(const PressurePrimitiveState& state,
+                             const NumericalFloors& floors,
+                             int dimension)
 {
     floors.validate();
     require_finite_state(state, "pressure primitive state");
@@ -112,9 +109,8 @@ GasModel GasModel::from_input(const GasModelInput& input)
 
 std::string GasModel::summary() const
 {
-    return "gas_model=calorically_perfect gamma=" + number(gamma_)
-        + " molar_mass=" + number(molar_mass_)
-        + " specific_gas_constant=" + number(specific_gas_constant_);
+    return "gas_model=calorically_perfect gamma=" + number(gamma_) + " molar_mass="
+        + number(molar_mass_) + " specific_gas_constant=" + number(specific_gas_constant_);
 }
 
 std::string GasModel::restart_signature() const
@@ -122,9 +118,7 @@ std::string GasModel::restart_signature() const
     return summary();
 }
 
-ReferenceScales ReferenceScales::derive(
-    const ReferenceInput& input,
-    const GasModel& gas)
+ReferenceScales ReferenceScales::derive(const ReferenceInput& input, const GasModel& gas)
 {
     if (input.reynolds || input.mach) {
         throw PhysicsConfigurationError("Re and Ma are derived values and must not be provided");
@@ -139,8 +133,7 @@ ReferenceScales ReferenceScales::derive(
     if (!std::all_of(values.begin(), values.end(), positive_finite)) {
         throw PhysicsConfigurationError("all five reference scales must be positive and finite");
     }
-    const Real sound = std::sqrt(
-        gas.gamma() * gas.specific_gas_constant() * input.temperature);
+    const Real sound = std::sqrt(gas.gamma() * gas.specific_gas_constant() * input.temperature);
     const Real reynolds = input.density * input.velocity * input.length / input.viscosity;
     const Real mach = input.velocity / sound;
     const Real dynamic_pressure = input.density * input.velocity * input.velocity;
@@ -166,9 +159,8 @@ std::string ReferenceScales::summary() const
 {
     return "U_ref=" + number(velocity_) + " rho_ref=" + number(density_)
         + " T_ref=" + number(temperature_) + " L_ref=" + number(length_)
-        + " mu_ref=" + number(viscosity_) + " Re=" + number(reynolds_)
-        + " Ma=" + number(mach_) + " dynamic_pressure_ref="
-        + number(dynamic_pressure_) + " time_ref=" + number(time_);
+        + " mu_ref=" + number(viscosity_) + " Re=" + number(reynolds_) + " Ma=" + number(mach_)
+        + " dynamic_pressure_ref=" + number(dynamic_pressure_) + " time_ref=" + number(time_);
 }
 
 std::string ReferenceScales::restart_signature() const
@@ -178,13 +170,10 @@ std::string ReferenceScales::restart_signature() const
 
 void NumericalFloors::validate() const
 {
-    if (!positive_finite(density) || !positive_finite(pressure)
-        || !positive_finite(temperature) || !nonnegative_finite(jacobian_absolute)
-        || !nonnegative_finite(jacobian_relative)
-        || !nonnegative_finite(face_area_absolute)
-        || !nonnegative_finite(face_area_relative)
-        || !positive_finite(reconstruction_scale)
-        || !positive_finite(reconstruction_epsilon)) {
+    if (!positive_finite(density) || !positive_finite(pressure) || !positive_finite(temperature)
+        || !nonnegative_finite(jacobian_absolute) || !nonnegative_finite(jacobian_relative)
+        || !nonnegative_finite(face_area_absolute) || !nonnegative_finite(face_area_relative)
+        || !positive_finite(reconstruction_scale) || !positive_finite(reconstruction_epsilon)) {
         throw PhysicsConfigurationError("numerical floors are invalid");
     }
 }
@@ -218,21 +207,18 @@ void ReconstructionScaling::validate() const
 Real ReconstructionScaling::normalized_smoothness(Real beta, int component_index) const
 {
     validate();
-    if (!nonnegative_finite(beta) || component_index < 0
-        || component_index >= fluid_components) {
+    if (!nonnegative_finite(beta) || component_index < 0 || component_index >= fluid_components) {
         throw PhysicsConfigurationError("smoothness input is invalid");
     }
-    const Real scale = std::max(
-        component[static_cast<std::size_t>(component_index)], scale_floor);
+    const Real scale = std::max(component[static_cast<std::size_t>(component_index)], scale_floor);
     return beta / (scale * scale);
 }
 
-PressurePrimitiveState pressure_primitive(
-    const TemperaturePrimitiveState& state,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors,
-    int dimension)
+PressurePrimitiveState pressure_primitive(const TemperaturePrimitiveState& state,
+                                          const GasModel& gas,
+                                          const ReferenceScales& reference,
+                                          const NumericalFloors& floors,
+                                          int dimension)
 {
     validate_temperature_state(state, floors, dimension);
     const Real pressure = state[temperature_density] * state[temperature_value]
@@ -249,33 +235,30 @@ PressurePrimitiveState pressure_primitive(
     };
 }
 
-TemperaturePrimitiveState temperature_primitive(
-    const PressurePrimitiveState& state,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors,
-    int dimension)
+TemperaturePrimitiveState temperature_primitive(const PressurePrimitiveState& state,
+                                                const GasModel& gas,
+                                                const ReferenceScales& reference,
+                                                const NumericalFloors& floors,
+                                                int dimension)
 {
     validate_pressure_state(state, floors, dimension);
-    const Real temperature = gas.gamma() * reference.mach() * reference.mach()
-        * state[4] / state[0];
+    const Real temperature
+        = gas.gamma() * reference.mach() * reference.mach() * state[4] / state[0];
     if (!std::isfinite(temperature) || temperature <= floors.temperature) {
         throw PhysicsConfigurationError("derived temperature is below its floor");
     }
     return {state[0], state[1], state[2], state[3], temperature};
 }
 
-ThermodynamicConservativeState thermodynamic_conservative(
-    const TemperaturePrimitiveState& state,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors,
-    int dimension)
+ThermodynamicConservativeState thermodynamic_conservative(const TemperaturePrimitiveState& state,
+                                                          const GasModel& gas,
+                                                          const ReferenceScales& reference,
+                                                          const NumericalFloors& floors,
+                                                          int dimension)
 {
     const auto primitive = pressure_primitive(state, gas, reference, floors, dimension);
     const Real kinetic = 0.5 * primitive[0]
-        * (primitive[1] * primitive[1] + primitive[2] * primitive[2]
-            + primitive[3] * primitive[3]);
+        * (primitive[1] * primitive[1] + primitive[2] * primitive[2] + primitive[3] * primitive[3]);
     return {
         primitive[0],
         primitive[0] * primitive[1],
@@ -285,12 +268,12 @@ ThermodynamicConservativeState thermodynamic_conservative(
     };
 }
 
-TemperaturePrimitiveState temperature_primitive_from_conservative(
-    const ThermodynamicConservativeState& state,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors,
-    int dimension)
+TemperaturePrimitiveState
+temperature_primitive_from_conservative(const ThermodynamicConservativeState& state,
+                                        const GasModel& gas,
+                                        const ReferenceScales& reference,
+                                        const NumericalFloors& floors,
+                                        int dimension)
 {
     floors.validate();
     require_finite_state(state, "thermodynamic conservative state");
@@ -305,34 +288,27 @@ TemperaturePrimitiveState temperature_primitive_from_conservative(
     const Real kinetic = 0.5 * rho * (u * u + v * v + w * w);
     const Real pressure = (gas.gamma() - 1.0) * (state[4] - kinetic);
     return temperature_primitive(
-        PressurePrimitiveState {rho, u, v, w, pressure},
-        gas,
-        reference,
-        floors,
-        dimension);
+        PressurePrimitiveState {rho, u, v, w, pressure}, gas, reference, floors, dimension);
 }
 
-Real thermodynamic_sound_speed(
-    const TemperaturePrimitiveState& state,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors,
-    int dimension)
+Real thermodynamic_sound_speed(const TemperaturePrimitiveState& state,
+                               const GasModel& gas,
+                               const ReferenceScales& reference,
+                               const NumericalFloors& floors,
+                               int dimension)
 {
     const auto primitive = pressure_primitive(state, gas, reference, floors, dimension);
     return std::sqrt(gas.gamma() * primitive[4] / primitive[0]);
 }
 
-Real thermodynamic_total_enthalpy(
-    const TemperaturePrimitiveState& state,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors,
-    int dimension)
+Real thermodynamic_total_enthalpy(const TemperaturePrimitiveState& state,
+                                  const GasModel& gas,
+                                  const ReferenceScales& reference,
+                                  const NumericalFloors& floors,
+                                  int dimension)
 {
     const auto primitive = pressure_primitive(state, gas, reference, floors, dimension);
-    const auto conservative = thermodynamic_conservative(
-        state, gas, reference, floors, dimension);
+    const auto conservative = thermodynamic_conservative(state, gas, reference, floors, dimension);
     return (conservative[4] + primitive[4]) / primitive[0];
 }
 

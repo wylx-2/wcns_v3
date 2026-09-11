@@ -58,9 +58,15 @@ def main() -> int:
     records.append(
         run(
             [
-                str(args.generator), str(mesh), str(args.dimension),
-                str(args.cells_i), str(args.cells_j), str(args.cells_k),
-                str(args.zones_i), str(args.warp), "true",
+                str(args.generator),
+                str(mesh),
+                str(args.dimension),
+                str(args.cells_i),
+                str(args.cells_j),
+                str(args.cells_k),
+                str(args.zones_i),
+                str(args.warp),
+                "true",
             ],
             root / "generate.log",
         )
@@ -109,8 +115,11 @@ def main() -> int:
         records.append(
             run(
                 [
-                    str(args.validator), "compare", str(fields[ranks[0]]),
-                    str(fields[rank_count]), "5e-10",
+                    str(args.validator),
+                    "compare",
+                    str(fields[ranks[0]]),
+                    str(fields[rank_count]),
+                    "5e-10",
                 ],
                 root / f"compare-r{ranks[0]}-r{rank_count}.log",
             )

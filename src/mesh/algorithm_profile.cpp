@@ -29,8 +29,7 @@ ProfileComponents expected_components(AlgorithmProfileKind kind)
 bool same_components(const ProfileComponents& lhs, const ProfileComponents& rhs)
 {
     return lhs.profile == rhs.profile && lhs.metric == rhs.metric
-        && lhs.interpolation == rhs.interpolation
-        && lhs.derivative == rhs.derivative
+        && lhs.interpolation == rhs.interpolation && lhs.derivative == rhs.derivative
         && lhs.physical_closure == rhs.physical_closure;
 }
 
@@ -39,10 +38,8 @@ bool same_components(const ProfileComponents& lhs, const ProfileComponents& rhs)
 std::string AlgorithmProfile::name() const
 {
     switch (kind()) {
-    case AlgorithmProfileKind::PhengleiWcns:
-        return "phenglei_wcns";
-    case AlgorithmProfileKind::Scmm6Wcns:
-        return "scmm6_wcns";
+    case AlgorithmProfileKind::PhengleiWcns: return "phenglei_wcns";
+    case AlgorithmProfileKind::Scmm6Wcns: return "scmm6_wcns";
     }
     throw ProfileError("unknown algorithm profile");
 }
@@ -52,8 +49,7 @@ std::string AlgorithmProfile::restart_signature() const
     return "algorithm_profile_v1;name=" + name();
 }
 
-void AlgorithmProfile::require_compatible(
-    const ProfileComponents& components) const
+void AlgorithmProfile::require_compatible(const ProfileComponents& components) const
 {
     ProfileFactory::validate_bundle(components);
     if (!same_components(components_, components)) {
@@ -80,7 +76,8 @@ AlgorithmProfile ProfileFactory::from_string(std::string_view name)
 void ProfileFactory::validate_bundle(const ProfileComponents& components)
 {
     if (!same_components(components, expected_components(components.profile))) {
-        throw ProfileError("metric, interpolation, derivative, and closure profiles cannot be mixed");
+        throw ProfileError(
+            "metric, interpolation, derivative, and closure profiles cannot be mixed");
     }
 }
 

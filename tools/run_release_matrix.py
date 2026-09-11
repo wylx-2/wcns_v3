@@ -21,9 +21,7 @@ def clean_work_directory(path: Path) -> None:
         raise RuntimeError(f"refusing broad release work directory: {resolved}")
     if resolved.exists():
         if not (resolved / MARKER).is_file():
-            raise RuntimeError(
-                f"refusing to replace unmarked release work directory: {resolved}"
-            )
+            raise RuntimeError(f"refusing to replace unmarked release work directory: {resolved}")
         shutil.rmtree(resolved)
     resolved.mkdir(parents=True)
     (resolved / MARKER).write_text("wcns release matrix\n", encoding="utf-8")
@@ -33,8 +31,7 @@ def run(command: list[str], log_path: Path) -> dict[str, object]:
     return_code, output, elapsed, peak_rss = run_measured(command, log_path)
     if return_code != 0:
         raise RuntimeError(
-            f"command failed ({return_code}): {' '.join(command)}\n"
-            f"see {log_path}"
+            f"command failed ({return_code}): {' '.join(command)}\n" f"see {log_path}"
         )
     return {
         "command": command,
@@ -42,9 +39,7 @@ def run(command: list[str], log_path: Path) -> dict[str, object]:
         "wall_seconds": elapsed,
         "peak_process_tree_rss_bytes": peak_rss,
         "log": str(log_path),
-        "last_line": output.strip().splitlines()[-1]
-        if output.strip()
-        else "",
+        "last_line": output.strip().splitlines()[-1] if output.strip() else "",
     }
 
 
@@ -70,9 +65,7 @@ def one_field(directory: Path) -> Path:
 def one_file(directory: Path, pattern: str) -> Path:
     matches = sorted(directory.glob(pattern))
     if len(matches) != 1:
-        raise RuntimeError(
-            f"expected exactly one {pattern} in {directory}, found {len(matches)}"
-        )
+        raise RuntimeError(f"expected exactly one {pattern} in {directory}, found {len(matches)}")
     return matches[0]
 
 

@@ -33,12 +33,11 @@ struct ResidualNorms {
     [[nodiscard]] Real total_l2() const;
 };
 
-[[nodiscard]] ResidualNorms compute_global_residual_norms(
-    const MpiRuntime& mpi,
-    const LocalBlockSet& local_blocks,
-    const BlockMetricMap& metrics,
-    const StructuredPartitionPlan& partition,
-    const AlgorithmProfile& profile);
+[[nodiscard]] ResidualNorms compute_global_residual_norms(const MpiRuntime& mpi,
+                                                          const LocalBlockSet& local_blocks,
+                                                          const BlockMetricMap& metrics,
+                                                          const StructuredPartitionPlan& partition,
+                                                          const AlgorithmProfile& profile);
 
 struct SteadyConvergenceState {
     bool reference_initialized = false;

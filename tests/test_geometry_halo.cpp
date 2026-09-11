@@ -75,28 +75,46 @@ wcns::StructuredMesh make_periodic_geometry_mesh()
             left.coordinates.x(i, j, 0) = static_cast<Real>(i);
             left.coordinates.y(i, j, 0) = static_cast<Real>(j);
             left.coordinates.z(i, j, 0) = 0.0;
-            const auto mapped = periodic.apply_point(
-                {{static_cast<Real>(i + 6), static_cast<Real>(j), 0.0}});
+            const auto mapped
+                = periodic.apply_point({{static_cast<Real>(i + 6), static_cast<Real>(j), 0.0}});
             right.coordinates.x(i, j, 0) = mapped[0];
             right.coordinates.y(i, j, 0) = mapped[1];
             right.coordinates.z(i, j, 0) = mapped[2];
         }
     }
     left.connectivities.push_back({
-        "periodic-forward", 0, 1, 1,
-        {Axis::I, Side::Upper}, {Axis::I, Side::Lower},
-        {{6, 0, 0}, {6, 6, 0}}, {{0, 0, 0}, {0, 6, 0}},
-        {{5, 0, 0}, {5, 5, 0}}, {{0, 0, 0}, {0, 5, 0}},
-        {{6, 0, 0}, {6, 5, 0}}, {{{1, 2, 3}}}, 3,
-        invalid_connection_id, periodic,
+        "periodic-forward",
+        0,
+        1,
+        1,
+        {Axis::I, Side::Upper},
+        {Axis::I, Side::Lower},
+        {{6, 0, 0}, {6, 6, 0}},
+        {{0, 0, 0}, {0, 6, 0}},
+        {{5, 0, 0}, {5, 5, 0}},
+        {{0, 0, 0}, {0, 5, 0}},
+        {{6, 0, 0}, {6, 5, 0}},
+        {{{1, 2, 3}}},
+        3,
+        invalid_connection_id,
+        periodic,
     });
     right.connectivities.push_back({
-        "periodic-reverse", 1, 0, 0,
-        {Axis::I, Side::Lower}, {Axis::I, Side::Upper},
-        {{0, 0, 0}, {0, 6, 0}}, {{6, 0, 0}, {6, 6, 0}},
-        {{0, 0, 0}, {0, 5, 0}}, {{5, 0, 0}, {5, 5, 0}},
-        {{0, 0, 0}, {0, 5, 0}}, {{{1, 2, 3}}}, 3,
-        invalid_connection_id, periodic.inverse(),
+        "periodic-reverse",
+        1,
+        0,
+        0,
+        {Axis::I, Side::Lower},
+        {Axis::I, Side::Upper},
+        {{0, 0, 0}, {0, 6, 0}},
+        {{6, 0, 0}, {6, 6, 0}},
+        {{0, 0, 0}, {0, 5, 0}},
+        {{5, 0, 0}, {5, 5, 0}},
+        {{0, 0, 0}, {0, 5, 0}},
+        {{{1, 2, 3}}},
+        3,
+        invalid_connection_id,
+        periodic.inverse(),
     });
     std::vector<StructuredBlock> blocks;
     blocks.push_back(std::move(left));
@@ -122,9 +140,7 @@ void test_geometry_halo_plan()
         if (exchange.kind == GeometryMessageKind::GeometryVertex) {
             WCNS_REQUIRE(exchange.halo_width == 2);
             if (exchange.receiver_block == 0) {
-                WCNS_REQUIRE(
-                    exchange.index_transform
-                    == (IndexTransform {{{2, -1, 3}}}));
+                WCNS_REQUIRE(exchange.index_transform == (IndexTransform {{{2, -1, 3}}}));
             }
         } else {
             WCNS_REQUIRE(exchange.halo_width == 3);
@@ -172,8 +188,7 @@ void test_periodic_shared_metric_synchronization()
     mesh.validate_connectivities();
     const auto profile = ProfileFactory::create(AlgorithmProfileKind::Scmm6Wcns);
     const auto plan = GeometryHaloPlan::build(mesh, profile);
-    const auto rotated
-        = plan.exchanges().front().periodic.apply_vector({{1.0, 0.0, 0.0}});
+    const auto rotated = plan.exchanges().front().periodic.apply_vector({{1.0, 0.0, 0.0}});
     WCNS_REQUIRE_NEAR(rotated[0], 0.0, 0.0);
     WCNS_REQUIRE_NEAR(rotated[1], 1.0, 0.0);
 
@@ -197,9 +212,7 @@ void test_global_conservation_weights()
 {
     using namespace wcns;
     const auto mesh = make_geometry_mesh();
-    for (const auto kind : {
-             AlgorithmProfileKind::PhengleiWcns,
-             AlgorithmProfileKind::Scmm6Wcns}) {
+    for (const auto kind : {AlgorithmProfileKind::PhengleiWcns, AlgorithmProfileKind::Scmm6Wcns}) {
         const auto profile = ProfileFactory::create(kind);
         const auto weights = GlobalConservationWeights::build(mesh, profile);
         const auto composite = build_line_conservation_weights(profile, 12);

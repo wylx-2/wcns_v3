@@ -14,23 +14,17 @@ struct CheckpointRestoreResult {
 
 class CheckpointService {
 public:
-    CheckpointService(
-        const MpiRuntime& mpi,
-        const CaseConfig& config,
-        const StructuredPartitionPlan& partition,
-        LocalBlockSet& local_blocks,
-        const BlockMetricMap& metrics,
-        QuantityContext quantity_context,
-        std::string mesh_path);
+    CheckpointService(const MpiRuntime& mpi,
+                      const CaseConfig& config,
+                      const StructuredPartitionPlan& partition,
+                      LocalBlockSet& local_blocks,
+                      const BlockMetricMap& metrics,
+                      QuantityContext quantity_context,
+                      std::string mesh_path);
 
-    [[nodiscard]] std::vector<std::string> write(
-        const SimulationState& state) const;
-    [[nodiscard]] CheckpointRestoreResult restore(
-        const std::string& path) const;
-    [[nodiscard]] const std::string& mesh_signature() const noexcept
-    {
-        return mesh_signature_;
-    }
+    [[nodiscard]] std::vector<std::string> write(const SimulationState& state) const;
+    [[nodiscard]] CheckpointRestoreResult restore(const std::string& path) const;
+    [[nodiscard]] const std::string& mesh_signature() const noexcept { return mesh_signature_; }
 
 private:
     const MpiRuntime& mpi_;

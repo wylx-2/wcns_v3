@@ -61,11 +61,10 @@ class IFieldQuantity {
 public:
     virtual ~IFieldQuantity() = default;
     [[nodiscard]] virtual const QuantityDescriptor& descriptor() const = 0;
-    [[nodiscard]] virtual Real evaluate_cell(
-        const StructuredBlock& block,
-        const MetricField& metric,
-        Index3 index,
-        const QuantityContext& context) const = 0;
+    [[nodiscard]] virtual Real evaluate_cell(const StructuredBlock& block,
+                                             const MetricField& metric,
+                                             Index3 index,
+                                             const QuantityContext& context) const = 0;
 };
 
 class FieldQuantityRegistry {
@@ -75,13 +74,11 @@ public:
 
     void register_quantity(std::shared_ptr<const IFieldQuantity> quantity);
     [[nodiscard]] bool contains(const std::string& name) const noexcept;
-    [[nodiscard]] const QuantityDescriptor& descriptor(
-        const std::string& name) const;
-    [[nodiscard]] QuantityField evaluate(
-        const std::string& name,
-        const StructuredBlock& block,
-        const MetricField& metric,
-        const QuantityContext& context) const;
+    [[nodiscard]] const QuantityDescriptor& descriptor(const std::string& name) const;
+    [[nodiscard]] QuantityField evaluate(const std::string& name,
+                                         const StructuredBlock& block,
+                                         const MetricField& metric,
+                                         const QuantityContext& context) const;
     void validate_selection(const std::vector<std::string>& names) const;
 
 private:
@@ -116,43 +113,34 @@ public:
 
     void register_quantity(std::shared_ptr<const IStatisticQuantity> quantity);
     [[nodiscard]] bool contains(const std::string& name) const noexcept;
-    [[nodiscard]] Real evaluate(
-        const std::string& name,
-        const StatisticContext& context) const;
+    [[nodiscard]] Real evaluate(const std::string& name, const StatisticContext& context) const;
     void validate_selection(const std::vector<std::string>& names) const;
 
 private:
     std::unordered_map<std::string, std::shared_ptr<const IStatisticQuantity>> quantities_;
 };
 
-[[nodiscard]] std::vector<std::string> xz_plane_statistic_names(
-    const std::vector<int>& cell_j_indices);
-void validate_xz_plane_statistics(
-    const std::vector<int>& cell_j_indices,
-    const StructuredPartitionPlan& partition);
-void register_xz_plane_statistics(
-    StatisticRegistry& registry,
-    const std::vector<int>& cell_j_indices);
+[[nodiscard]] std::vector<std::string>
+xz_plane_statistic_names(const std::vector<int>& cell_j_indices);
+void validate_xz_plane_statistics(const std::vector<int>& cell_j_indices,
+                                  const StructuredPartitionPlan& partition);
+void register_xz_plane_statistics(StatisticRegistry& registry,
+                                  const std::vector<int>& cell_j_indices);
 
-[[nodiscard]] std::vector<std::string> yz_plane_statistic_names(
-    std::size_t plane_count);
-void validate_yz_plane_statistics(
-    const std::vector<Real>& target_x_coordinates,
-    const StructuredPartitionPlan& partition);
-void register_yz_plane_statistics(
-    StatisticRegistry& registry,
-    const std::vector<Real>& target_x_coordinates);
+[[nodiscard]] std::vector<std::string> yz_plane_statistic_names(std::size_t plane_count);
+void validate_yz_plane_statistics(const std::vector<Real>& target_x_coordinates,
+                                  const StructuredPartitionPlan& partition);
+void register_yz_plane_statistics(StatisticRegistry& registry,
+                                  const std::vector<Real>& target_x_coordinates);
 
 [[nodiscard]] std::vector<std::string> channel_wall_statistic_names();
-void register_channel_wall_statistics(
-    StatisticRegistry& registry,
-    std::string lower_patch,
-    std::string upper_patch,
-    Real half_height);
+void register_channel_wall_statistics(StatisticRegistry& registry,
+                                      std::string lower_patch,
+                                      std::string upper_patch,
+                                      Real half_height);
 
-[[nodiscard]] Real quantity_scale_factor(
-    const QuantityDescriptor& descriptor,
-    const QuantityContext& context,
-    int dimension);
+[[nodiscard]] Real quantity_scale_factor(const QuantityDescriptor& descriptor,
+                                         const QuantityContext& context,
+                                         int dimension);
 
 } // namespace wcns
