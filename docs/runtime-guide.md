@@ -86,7 +86,31 @@ Riemann 求解器；发生非法中间状态时按冻结的确定性回退链处
 `Re = rho_ref U_ref L_ref / mu_ref` 与
 `Ma = U_ref / sqrt(gamma R T_ref)`。
 
-### 2.3 分区
+### 2.3 层流输运
+
+不写任何 `transport.*` 键时保持 v1.0 默认：常黏度 `mu/mu_ref=1`、`Pr=0.72`。显式常黏度为：
+
+```text
+transport.model = constant
+transport.prandtl = 0.72
+transport.constant.viscosity_ratio = 1.0
+```
+
+Sutherland 模型必须显式给出参考温度黏度比，并以 K 或无量纲比值二选一给常数：
+
+```text
+transport.model = sutherland
+transport.prandtl = 0.72
+transport.sutherland.reference_viscosity_ratio = 1.0
+transport.sutherland.temperature = 110.4
+# 或 transport.sutherland.temperature_ratio = 0.38313378448724628
+```
+
+模型专属键不可交叉使用；两个温度键不可并存。程序启动时报告 `mu(T_ref)/mu_ref`、Pr、
+`S/T_ref`、真实单元温度范围及对应黏度范围。规范化后的全部输运参数进入 restart signature，
+等价的 K/比值表示产生相同签名。
+
+### 2.4 分区
 
 | 键 | 含义 |
 |---|---|
