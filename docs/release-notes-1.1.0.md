@@ -70,9 +70,9 @@ rank 数和叶块划分。缺省输运的 v1.0 检查点按固定的常黏度 `P
 
 P--T 阶段候选均通过各自冻结自动卡口并有可追溯验收报告。U 阶段从空目录执行 Windows
 Release 串行、Intel MPI、多类发布算例、错误路径、安装/解包复现和 T 性能复验。Linux
-GCC/Clang、OpenMPI 及 ASan/UBSan 已配置为 CI 作业；当前候选是否取得远端结果以
-[`v1.1.0/stage-u-acceptance.md`](v1.1.0/stage-u-acceptance.md) 为准，未实际运行的平台不会
-标为通过。
+GCC/Clang、OpenMPI 及 ASan/UBSan 已配置为 CI 作业；当前候选是否取得远端结果以开发仓库的
+阶段 U 验收报告为准，未实际运行的平台不会标为通过。验收报告属于候选签署证据，不作为
+源码包自引用的一部分。
 
 ## 已知限制和许可
 
