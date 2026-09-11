@@ -185,6 +185,7 @@ add_library(wcns::solver ALIAS wcns_solver)
 target_link_libraries(wcns_solver PUBLIC wcns::parallel wcns::physics)
 
 add_library(wcns_runtime STATIC
+    src/runtime/boundary_output.cpp
     src/runtime/case_config.cpp
     src/runtime/flow_initializer.cpp
     src/runtime/output_manager.cpp

@@ -4,6 +4,7 @@
 #include <wcns/parallel/distributed_topology.hpp>
 #include <wcns/parallel/mpi_runtime.hpp>
 #include <wcns/runtime/case_config.hpp>
+#include <wcns/runtime/boundary_output.hpp>
 #include <wcns/runtime/checkpoint.hpp>
 #include <wcns/runtime/field_output.hpp>
 #include <wcns/runtime/flow_initializer.hpp>
@@ -512,6 +513,18 @@ int main(int argc, char** argv)
             metrics,
             quantity_context,
             mesh_name);
+        wcns::BoundaryOutputWriter boundary_writer(
+            mpi,
+            config,
+            plan,
+            local_blocks,
+            partitioned.global_mesh,
+            topology,
+            metrics,
+            boundary_data,
+            conservation_weights,
+            profile,
+            quantity_context);
         auto statistic_registry = wcns::StatisticRegistry::create_builtin();
         if (config.output.xz_planes.enabled) {
             wcns::register_xz_plane_statistics(
@@ -545,6 +558,9 @@ int main(int argc, char** argv)
                 }
                 if (category == wcns::OutputCategory::Checkpoint) {
                     return checkpoint.write(state);
+                }
+                if (category == wcns::OutputCategory::Boundary) {
+                    return boundary_writer.write(state);
                 }
                 return {};
             },
