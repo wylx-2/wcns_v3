@@ -43,7 +43,7 @@ public:
         std::string value,
         RankId root = 0) const;
     [[nodiscard]] std::vector<Real> gather_reals(
-        const std::vector<Real>& local_values,
+        std::vector<Real> local_values,
         RankId root = 0) const;
     [[nodiscard]] std::vector<Real> scatter_reals(
         const std::vector<Real>& root_values,

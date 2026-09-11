@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <exception>
 #include <iostream>
+#include <utility>
+#include <vector>
 
 // 验收 MPI 生命周期、rank/size 和全局归约封装。
 int main(int argc, char** argv)
@@ -42,6 +44,29 @@ int main(int argc, char** argv)
             }
         } else {
             WCNS_REQUIRE(gathered.empty());
+        }
+        std::vector<wcns::Real> moved_values(
+            static_cast<std::size_t>(mpi.rank() + 1));
+        for (std::size_t index = 0; index < moved_values.size(); ++index) {
+            moved_values[index] = static_cast<wcns::Real>(10 * mpi.rank())
+                + static_cast<wcns::Real>(index);
+        }
+        const auto nonzero_root = mpi.size() - 1;
+        const auto moved_gather = mpi.gather_reals(
+            std::move(moved_values), nonzero_root);
+        if (mpi.rank() == nonzero_root) {
+            std::size_t offset = 0;
+            for (int rank = 0; rank < mpi.size(); ++rank) {
+                for (int index = 0; index <= rank; ++index) {
+                    WCNS_REQUIRE_NEAR(
+                        moved_gather[offset++],
+                        static_cast<wcns::Real>(10 * rank + index),
+                        1.0e-15);
+                }
+            }
+            WCNS_REQUIRE(offset == moved_gather.size());
+        } else {
+            WCNS_REQUIRE(moved_gather.empty());
         }
         std::vector<wcns::Real> scatter_values;
         std::vector<std::size_t> scatter_counts;

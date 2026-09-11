@@ -207,7 +207,7 @@ std::vector<Real> gather_zone_component(
             }
         }
     }
-    auto gathered = mpi.gather_reals(local_payload, root);
+    auto gathered = mpi.gather_reals(std::move(local_payload), root);
     std::string status;
     if (mpi.rank() == root) {
         try {
@@ -360,7 +360,7 @@ OriginalFieldSnapshot gather_original_zone_fields(
                 local_payload.end(), values.values.begin(), values.values.end());
         }
     }
-    const auto gathered = mpi.gather_reals(local_payload, root);
+    const auto gathered = mpi.gather_reals(std::move(local_payload), root);
     if (mpi.rank() != root) return {};
 
     OriginalFieldSnapshot result;

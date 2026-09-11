@@ -727,7 +727,7 @@ std::vector<std::string> BoundaryOutputWriter::write(
         }
     }
 
-    const auto gathered = mpi_.gather_reals(local_payload, 0);
+    const auto gathered = mpi_.gather_reals(std::move(local_payload), 0);
     if (mpi_.rank() != 0) return {};
     if (gathered.size() % sample_width != 0) {
         throw std::runtime_error("boundary gather payload is truncated");
