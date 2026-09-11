@@ -238,6 +238,11 @@ const std::set<std::string>& fixed_keys()
         "robustness.enabled", "robustness.max_local_recomputations",
         "robustness.max_step_retries", "robustness.time_step_reduction",
         "robustness.minimum_time_step",
+        "transport.model", "transport.prandtl",
+        "transport.constant.viscosity_ratio",
+        "transport.sutherland.reference_viscosity_ratio",
+        "transport.sutherland.temperature",
+        "transport.sutherland.temperature_ratio",
         "gas.gamma", "gas.molar_mass", "gas.specific_gas_constant",
         "reference.velocity", "reference.density", "reference.temperature",
         "reference.length", "reference.viscosity",
@@ -1204,6 +1209,58 @@ CaseConfig CaseConfig::from_text(const std::string& text)
     result.reference.viscosity = parse_real(
         require(entries, "reference.viscosity"), "reference.viscosity");
 
+    const auto transport_model = optional_string(
+        entries, "transport.model", "constant");
+    result.transport.prandtl = optional_real(
+        entries, "transport.prandtl", result.transport.prandtl);
+    const bool has_constant = entries.find(
+        "transport.constant.viscosity_ratio") != entries.end();
+    const bool has_sutherland_mu = entries.find(
+        "transport.sutherland.reference_viscosity_ratio") != entries.end();
+    const bool has_sutherland_temperature = entries.find(
+        "transport.sutherland.temperature") != entries.end();
+    const bool has_sutherland_ratio = entries.find(
+        "transport.sutherland.temperature_ratio") != entries.end();
+    if (transport_model == "constant") {
+        if (has_sutherland_mu || has_sutherland_temperature
+            || has_sutherland_ratio) {
+            throw CaseConfigurationError(
+                "Sutherland transport keys require transport.model=sutherland");
+        }
+        result.transport.viscosity = ConstantViscosity {optional_real(
+            entries, "transport.constant.viscosity_ratio", 1.0)};
+    } else if (transport_model == "sutherland") {
+        if (has_constant) {
+            throw CaseConfigurationError(
+                "constant viscosity key requires transport.model=constant");
+        }
+        if (!has_sutherland_mu) {
+            throw CaseConfigurationError(
+                "Sutherland transport requires reference_viscosity_ratio");
+        }
+        if (has_sutherland_temperature == has_sutherland_ratio) {
+            throw CaseConfigurationError(
+                "Sutherland transport requires exactly one temperature or "
+                "temperature_ratio key");
+        }
+        const Real ratio = has_sutherland_ratio
+            ? parse_real(
+                  entries.at("transport.sutherland.temperature_ratio"),
+                  "transport.sutherland.temperature_ratio")
+            : parse_real(
+                  entries.at("transport.sutherland.temperature"),
+                  "transport.sutherland.temperature") / result.reference.temperature;
+        result.transport.viscosity = SutherlandViscosity {
+            parse_real(
+                entries.at("transport.sutherland.reference_viscosity_ratio"),
+                "transport.sutherland.reference_viscosity_ratio"),
+            ratio,
+        };
+    } else {
+        throw CaseConfigurationError(
+            "unknown transport model: " + transport_model);
+    }
+
     result.partition.mode = parse_partition_mode(require(entries, "partition.mode"));
     result.partition.allow_idle_ranks = parse_bool(
         require(entries, "partition.allow_idle_ranks"),
@@ -1493,6 +1550,7 @@ void CaseConfig::validate() const
     }
     const auto gas_model = make_gas_model();
     static_cast<void>(make_reference_scales(gas_model));
+    transport.validate();
     static_cast<void>(make_profile());
     partition.validate(profile);
     initial.validate();
@@ -1598,6 +1656,12 @@ InviscidWcnsConfig CaseConfig::make_inviscid_config() const
     return result;
 }
 
+TransportConfig CaseConfig::make_transport_config() const
+{
+    transport.validate();
+    return transport;
+}
+
 std::string CaseConfig::summary() const
 {
     const auto gas_model = make_gas_model();
@@ -1614,7 +1678,7 @@ std::string CaseConfig::summary() const
            << ",mesh=" << mesh_path << ",profile=" << make_profile().name()
            << ",flux_difference=" << flux_difference_mode_name(flux_difference)
            << "," << reconstruction.summary() << ',' << riemann.summary()
-           << ',' << robustness.summary()
+           << ',' << robustness.summary() << ',' << transport.summary()
            << ',' << gas_model.summary() << ',' << reference_scales.summary()
            << ',' << partition.summary() << ',' << initial.summary()
            << ",boundary.default=" << boundary_type_name(default_boundary);
@@ -1631,7 +1695,7 @@ std::string CaseConfig::summary() const
     return result.str();
 }
 
-std::string CaseConfig::restart_signature() const
+std::string CaseConfig::legacy_v1_restart_signature() const
 {
     std::vector<std::pair<std::string, BoundaryType>> boundaries(
         boundary_overrides.begin(), boundary_overrides.end());
@@ -1665,6 +1729,12 @@ std::string CaseConfig::restart_signature() const
                       .restart_signature();
     }
     return result.str();
+}
+
+std::string CaseConfig::restart_signature() const
+{
+    return legacy_v1_restart_signature()
+        + ";transport=" + transport.restart_signature();
 }
 
 } // namespace wcns

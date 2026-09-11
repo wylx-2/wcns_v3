@@ -237,6 +237,7 @@ struct CaseConfig {
     ReconstructionConfig reconstruction {};
     RiemannConfig riemann {};
     RobustnessConfig robustness {};
+    TransportConfig transport {};
     GasModelInput gas;
     ReferenceInput reference;
     PartitionConfig partition;
@@ -258,8 +259,10 @@ struct CaseConfig {
         const GasModel& gas_model) const;
     [[nodiscard]] AlgorithmProfile make_profile() const;
     [[nodiscard]] InviscidWcnsConfig make_inviscid_config() const;
+    [[nodiscard]] TransportConfig make_transport_config() const;
     [[nodiscard]] std::string summary() const;
     [[nodiscard]] std::string restart_signature() const;
+    [[nodiscard]] std::string legacy_v1_restart_signature() const;
     [[nodiscard]] std::uint64_t digest() const noexcept { return digest_; }
 
 private:

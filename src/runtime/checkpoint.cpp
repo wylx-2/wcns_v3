@@ -472,9 +472,16 @@ CheckpointRestoreResult CheckpointService::restore(
             if (required(descriptors, "WCNS_MeshSignature") != mesh_signature_) {
                 throw std::runtime_error("checkpoint mesh signature differs");
             }
-            if (required(descriptors, "WCNS_RestartSignature")
-                != config_.restart_signature()) {
-                throw std::runtime_error("checkpoint numerical signature differs");
+            const auto stored_signature = required(
+                descriptors, "WCNS_RestartSignature");
+            const bool legacy_default_transport
+                = config_.transport.restart_signature()
+                == TransportConfig {}.restart_signature();
+            if (stored_signature != config_.restart_signature()
+                && !(legacy_default_transport
+                    && stored_signature == config_.legacy_v1_restart_signature())) {
+                throw std::runtime_error(
+                    "checkpoint numerical signature differs (including transport)");
             }
             root.restored.initial.step = parse_size(
                 required(descriptors, "WCNS_Step"), "step");
