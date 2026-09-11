@@ -85,6 +85,10 @@ Q 阶段回滚契约；优化不能使被拒绝步污染接受状态。
 只允许保留当前块、CGNS 必需坐标和固定元数据。最终仍由 root 使用 ADF 串行原子提交，不称为
 并行 CGNS。独立重读必须与内存值及旧 schema 一致。
 
+rank 拼接次序到原 zone 线性次序使用 partition 定义的置换在 gathered payload 内原地完成；
+CGNS 和 checkpoint 每写完一个 field 即释放该 payload。Tecplot 使用标准 BLOCK 布局逐变量写入，
+校验器同时保留旧 POINT 布局的读取兼容。root 异常在下一次集合调用前广播给所有 rank。
+
 ### T6/T7：计时和性能证据
 
 `tools/run_stage_t_performance.py` 生成可选 JSON manifest，记录提交、机器、编译器、命令、预热、

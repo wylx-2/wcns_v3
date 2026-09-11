@@ -94,7 +94,7 @@ int main(int argc, char** argv)
             = "output-freestream.field.step00000000.time0p000000000eP00";
         validate_cgns(join(directory, stem + ".cgns"));
         const auto tecplot = read_text(join(directory, stem + ".dat"));
-        WCNS_REQUIRE(tecplot.find("DATAPACKING=POINT") != std::string::npos);
+        WCNS_REQUIRE(tecplot.find("DATAPACKING=BLOCK") != std::string::npos);
         WCNS_REQUIRE(tecplot.find("\"rho\"") != std::string::npos);
         const std::string history_format = argv[3];
         const auto history = read_text(join(
