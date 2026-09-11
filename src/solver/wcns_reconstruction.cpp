@@ -513,61 +513,6 @@ Normal3 normalized(Normal3 vector, const char* label)
     return {vector.x / magnitude, vector.y / magnitude, vector.z / magnitude};
 }
 
-CharacteristicMatrix invert_matrix(const CharacteristicMatrix& matrix)
-{
-    std::array<std::array<Real, 2 * euler_components>, euler_components> work {};
-    for (int row = 0; row < euler_components; ++row) {
-        for (int column = 0; column < euler_components; ++column) {
-            work[static_cast<std::size_t>(row)][static_cast<std::size_t>(column)]
-                = matrix[static_cast<std::size_t>(row)][static_cast<std::size_t>(column)];
-        }
-        work[static_cast<std::size_t>(row)][static_cast<std::size_t>(euler_components + row)]
-            = 1.0;
-    }
-    for (int column = 0; column < euler_components; ++column) {
-        int pivot = column;
-        Real pivot_magnitude = std::abs(
-            work[static_cast<std::size_t>(pivot)][static_cast<std::size_t>(column)]);
-        for (int row = column + 1; row < euler_components; ++row) {
-            const Real candidate = std::abs(
-                work[static_cast<std::size_t>(row)][static_cast<std::size_t>(column)]);
-            if (candidate > pivot_magnitude) {
-                pivot = row;
-                pivot_magnitude = candidate;
-            }
-        }
-        if (!std::isfinite(pivot_magnitude) || pivot_magnitude <= 1.0e-14) {
-            throw PhysicsError("Euler characteristic matrix is singular");
-        }
-        if (pivot != column) {
-            std::swap(work[static_cast<std::size_t>(pivot)],
-                work[static_cast<std::size_t>(column)]);
-        }
-        const Real divisor
-            = work[static_cast<std::size_t>(column)][static_cast<std::size_t>(column)];
-        for (auto& value : work[static_cast<std::size_t>(column)]) value /= divisor;
-        for (int row = 0; row < euler_components; ++row) {
-            if (row == column) continue;
-            const Real factor
-                = work[static_cast<std::size_t>(row)][static_cast<std::size_t>(column)];
-            for (int entry = 0; entry < 2 * euler_components; ++entry) {
-                work[static_cast<std::size_t>(row)][static_cast<std::size_t>(entry)]
-                    -= factor
-                    * work[static_cast<std::size_t>(column)][static_cast<std::size_t>(entry)];
-            }
-        }
-    }
-    CharacteristicMatrix inverse {};
-    for (int row = 0; row < euler_components; ++row) {
-        for (int column = 0; column < euler_components; ++column) {
-            inverse[static_cast<std::size_t>(row)][static_cast<std::size_t>(column)]
-                = work[static_cast<std::size_t>(row)]
-                    [static_cast<std::size_t>(euler_components + column)];
-        }
-    }
-    return inverse;
-}
-
 ConservativeState matrix_vector(
     const CharacteristicMatrix& matrix,
     const ConservativeState& vector)
@@ -766,7 +711,31 @@ EulerCharacteristicBasis make_roe_characteristic_basis(
                 = columns[static_cast<std::size_t>(column)][static_cast<std::size_t>(row)];
         }
     }
-    result.left = invert_matrix(result.right);
+    const Real beta = (gas.gamma() - 1.0) / sound_squared;
+    const Real inverse_sound = 1.0 / sound;
+    result.left[0] = {{
+        0.5 * (beta * kinetic + un * inverse_sound),
+        -0.5 * (beta * un + inverse_sound),
+        -0.5 * beta * ut1,
+        -0.5 * beta * ut2,
+        0.5 * beta,
+    }};
+    result.left[1] = {{
+        1.0 - beta * kinetic,
+        beta * un,
+        beta * ut1,
+        beta * ut2,
+        -beta,
+    }};
+    result.left[2] = {{-ut1, 0.0, 1.0, 0.0, 0.0}};
+    result.left[3] = {{-ut2, 0.0, 0.0, 1.0, 0.0}};
+    result.left[4] = {{
+        0.5 * (beta * kinetic - un * inverse_sound),
+        -0.5 * (beta * un - inverse_sound),
+        -0.5 * beta * ut1,
+        -0.5 * beta * ut2,
+        0.5 * beta,
+    }};
     for (int row = 0; row < euler_components; ++row) {
         for (int column = 0; column < euler_components; ++column) {
             Real product = 0.0;

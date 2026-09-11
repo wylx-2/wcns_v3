@@ -261,6 +261,32 @@ void test_stage_l_characteristic_reconstruction()
             conservative[static_cast<std::size_t>(component)], 3.0e-14);
     }
 
+    const PressurePrimitiveState left_3d {1.1, 0.7, -0.4, 0.2, 0.9};
+    const PressurePrimitiveState right_3d {0.75, -0.2, 0.5, -0.3, 0.65};
+    const auto basis_3d = make_roe_characteristic_basis(
+        left_3d, right_3d, {1.0 / 3.0, 2.0 / 3.0, 2.0 / 3.0},
+        gas, floors, 3);
+    for (int row = 0; row < euler_components; ++row) {
+        for (int column = 0; column < euler_components; ++column) {
+            Real product = 0.0;
+            for (int inner = 0; inner < euler_components; ++inner) {
+                product += basis_3d.left[static_cast<std::size_t>(row)]
+                    [static_cast<std::size_t>(inner)]
+                    * basis_3d.right[static_cast<std::size_t>(inner)]
+                        [static_cast<std::size_t>(column)];
+            }
+            WCNS_REQUIRE_NEAR(product, row == column ? 1.0 : 0.0, 3.0e-14);
+        }
+    }
+    const auto conservative_3d = to_conservative(left_3d);
+    const auto restored_3d = restore_characteristic(
+        project_characteristic(conservative_3d, basis_3d), basis_3d);
+    for (int component = 0; component < euler_components; ++component) {
+        WCNS_REQUIRE_NEAR(
+            restored_3d[static_cast<std::size_t>(component)],
+            conservative_3d[static_cast<std::size_t>(component)], 4.0e-14);
+    }
+
     Field<Real> conservative_field({4, 1, 1}, euler_components, 3);
     Field<Real> primitive_field({4, 1, 1}, euler_components, 3);
     for (int i = -3; i < 7; ++i) {
