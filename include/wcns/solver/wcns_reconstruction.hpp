@@ -197,7 +197,8 @@ struct EulerCharacteristicBasis {
     Normal3 unit_normal,
     const GasModel& gas,
     const NumericalFloors& floors,
-    int dimension);
+    int dimension,
+    bool inputs_prevalidated = false);
 
 [[nodiscard]] ConservativeState project_characteristic(
     const ConservativeState& conservative,
@@ -258,6 +259,7 @@ struct EulerCharacteristicBasis {
     ReconstructionDiagnostics& diagnostics,
     int dimension,
     Normal3 unit_normal = {1.0, 0.0, 0.0},
-    FaceDiagnosticLocation location = {});
+    FaceDiagnosticLocation location = {},
+    bool inputs_prevalidated = false);
 
 } // namespace wcns

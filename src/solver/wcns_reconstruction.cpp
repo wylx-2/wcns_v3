@@ -213,11 +213,9 @@ std::array<Real, 3> weno_candidates(const std::array<Real, 6>& q)
     }};
 }
 
-std::array<Real, 3> weno_smoothness(const std::array<Real, 6>& q, Real scale)
+std::array<Real, 3> weno_smoothness_unchecked(
+    const std::array<Real, 6>& q, Real scale)
 {
-    if (!std::isfinite(scale) || scale <= 0.0) {
-        throw std::invalid_argument("reconstruction scale must be positive and finite");
-    }
     std::array<Real, 6> normalized {};
     for (std::size_t index = 0; index < q.size(); ++index) {
         normalized[index] = q[index] / scale;
@@ -230,6 +228,22 @@ std::array<Real, 3> weno_smoothness(const std::array<Real, 6>& q, Real scale)
         (13.0 / 12.0) * square(normalized[2] - 2.0 * normalized[3] + normalized[4])
             + 0.25 * square(3.0 * normalized[2] - 4.0 * normalized[3] + normalized[4]),
     }};
+}
+
+std::array<Real, 3> weno_smoothness(const std::array<Real, 6>& q, Real scale)
+{
+    if (!std::isfinite(scale) || scale <= 0.0) {
+        throw std::invalid_argument("reconstruction scale must be positive and finite");
+    }
+    return weno_smoothness_unchecked(q, scale);
+}
+
+Real positive_integer_power(Real value, int power)
+{
+    // The configured WCNS powers are normally two.  Expressing that exact
+    // integer case directly avoids a libm call without changing the formula.
+    if (power == 2) return square(value);
+    return std::pow(value, power);
 }
 
 Real checked_weighted_sum(
@@ -253,26 +267,51 @@ Real checked_weighted_sum(
     return result / sum;
 }
 
-Real weno_z_left_scaled(
+Real weno_z_left_scaled_unchecked(
     const std::array<Real, 6>& q,
     Real scale,
     const WcnsParameters& parameters)
 {
-    parameters.validate();
     const auto candidates3 = weno_candidates(q);
-    const auto beta = weno_smoothness(q, scale);
+    const auto beta = weno_smoothness_unchecked(q, scale);
     const Real tau5 = std::abs(beta[0] - beta[2]);
     constexpr std::array<Real, 3> optimal {{1.0 / 16.0, 10.0 / 16.0, 5.0 / 16.0}};
     std::array<Real, 4> alpha {};
     std::array<Real, 4> candidates {};
     for (std::size_t index = 0; index < 3; ++index) {
         alpha[index] = optimal[index]
-            * (1.0 + std::pow(
+            * (1.0 + positive_integer_power(
                 tau5 / (parameters.epsilon + beta[index]),
                 parameters.weno_z_power));
         candidates[index] = candidates3[index];
     }
     return checked_weighted_sum(alpha, candidates, 3, "WENO-Z");
+}
+
+Real weno_z_left_scaled(
+    const std::array<Real, 6>& q,
+    Real scale,
+    const WcnsParameters& parameters)
+{
+    parameters.validate();
+    if (!std::isfinite(scale) || scale <= 0.0) {
+        throw std::invalid_argument("reconstruction scale must be positive and finite");
+    }
+    return weno_z_left_scaled_unchecked(q, scale, parameters);
+}
+
+ScalarFaceStates weno_z_pair_prevalidated(
+    ScalarStencilView stencil,
+    const ReconstructionContext& context)
+{
+    const auto values = checked_stencil(stencil);
+    return {
+        weno_z_left_scaled_unchecked(
+            values, context.scale, context.parameters),
+        weno_z_left_scaled_unchecked(
+            orient_stencil(values, TraceSide::Right),
+            context.scale, context.parameters),
+    };
 }
 
 Real mdcd_linear_left(
@@ -490,6 +529,17 @@ void WcnsParameters::validate() const
     }
 }
 
+ConservativeState load_euler_field_unchecked(
+    const Field<Real>& field, Index3 index)
+{
+    ConservativeState result {};
+    for (int component = 0; component < euler_components; ++component) {
+        result[static_cast<std::size_t>(component)]
+            = field(index.i, index.j, index.k, component);
+    }
+    return result;
+}
+
 Real dot(Normal3 left, Normal3 right)
 {
     return left.x * right.x + left.y * right.y + left.z * right.z;
@@ -635,12 +685,13 @@ EulerCharacteristicBasis make_roe_characteristic_basis(
     Normal3 unit_normal,
     const GasModel& gas,
     const NumericalFloors& floors,
-    int dimension)
+    int dimension,
+    bool inputs_prevalidated)
 {
     if (dimension != 2 && dimension != 3) {
         throw std::invalid_argument("Euler characteristic basis requires dimension 2 or 3");
     }
-    floors.validate();
+    if (!inputs_prevalidated) floors.validate();
     EulerCharacteristicBasis result;
     result.normal = normalized(unit_normal, "characteristic normal");
     if (std::abs(dot(result.normal, unit_normal) - 1.0) > 1.0e-12) {
@@ -986,14 +1037,15 @@ EulerFaceStates reconstruct_thermodynamic_face(
     ReconstructionDiagnostics& diagnostics,
     int dimension,
     Normal3 unit_normal,
-    FaceDiagnosticLocation location)
+    FaceDiagnosticLocation location,
+    bool inputs_prevalidated)
 {
     // This routine is called once per face and Runge--Kutta residual
     // evaluation.  Building the complete registry (including probing every
     // factory) and allocating the selected strategy here made production
     // cases spend most of their time in invariant setup.  Built-in strategy
     // objects are stateless and can be reused safely.
-    config.validate();
+    if (!inputs_prevalidated) config.validate();
     if (conservative.components() != euler_components
         || pressure_primitive_field.components() != euler_components
         || conservative.ghost_width() < 3
@@ -1011,10 +1063,18 @@ EulerFaceStates reconstruct_thermodynamic_face(
                 config.scaling.component[static_cast<std::size_t>(component)],
                 config.scaling.scale_floor);
             context.parameters = config.nonlinear;
-            left[static_cast<std::size_t>(component)] = scheme.reconstruct_scalar(
-                stencil, TraceSide::Left, context);
-            right[static_cast<std::size_t>(component)] = scheme.reconstruct_scalar(
-                stencil, TraceSide::Right, context);
+            if (inputs_prevalidated && config.scheme == "weno_z") {
+                const auto states = weno_z_pair_prevalidated(stencil, context);
+                left[static_cast<std::size_t>(component)] = states.left;
+                right[static_cast<std::size_t>(component)] = states.right;
+            } else {
+                left[static_cast<std::size_t>(component)]
+                    = scheme.reconstruct_scalar(
+                        stencil, TraceSide::Left, context);
+                right[static_cast<std::size_t>(component)]
+                    = scheme.reconstruct_scalar(
+                        stencil, TraceSide::Right, context);
+            }
         }
     };
 
@@ -1038,14 +1098,17 @@ EulerFaceStates reconstruct_thermodynamic_face(
             const auto left_index = shifted(face, axis, -1);
             const auto right_index = face;
             const auto basis = make_roe_characteristic_basis(
-                load_primitive(pressure_primitive_field, left_index),
-                load_primitive(pressure_primitive_field, right_index),
-                unit_normal, gas, config.floors, dimension);
+                load_euler_field_unchecked(
+                    pressure_primitive_field, left_index),
+                load_euler_field_unchecked(
+                    pressure_primitive_field, right_index),
+                unit_normal, gas, config.floors, dimension,
+                inputs_prevalidated);
             std::array<std::array<Real, 6>, euler_components> stencils {};
             for (int point = 0; point < 6; ++point) {
                 const auto index = shifted(left_index, axis, point - 2);
                 const auto characteristic = project_characteristic(
-                    load_conservative(conservative, index), basis);
+                    load_euler_field_unchecked(conservative, index), basis);
                 for (int component = 0; component < euler_components; ++component) {
                     stencils[static_cast<std::size_t>(component)]
                         [static_cast<std::size_t>(point)]
@@ -1060,14 +1123,23 @@ EulerFaceStates reconstruct_thermodynamic_face(
                     config.scaling.component[static_cast<std::size_t>(component)],
                     config.scaling.scale_floor);
                 context.parameters = config.nonlinear;
-                left_characteristic[static_cast<std::size_t>(component)]
-                    = scheme.reconstruct_scalar(
-                        stencils[static_cast<std::size_t>(component)],
-                        TraceSide::Left, context);
-                right_characteristic[static_cast<std::size_t>(component)]
-                    = scheme.reconstruct_scalar(
-                        stencils[static_cast<std::size_t>(component)],
-                        TraceSide::Right, context);
+                if (inputs_prevalidated && config.scheme == "weno_z") {
+                    const auto states = weno_z_pair_prevalidated(
+                        stencils[static_cast<std::size_t>(component)], context);
+                    left_characteristic[static_cast<std::size_t>(component)]
+                        = states.left;
+                    right_characteristic[static_cast<std::size_t>(component)]
+                        = states.right;
+                } else {
+                    left_characteristic[static_cast<std::size_t>(component)]
+                        = scheme.reconstruct_scalar(
+                            stencils[static_cast<std::size_t>(component)],
+                            TraceSide::Left, context);
+                    right_characteristic[static_cast<std::size_t>(component)]
+                        = scheme.reconstruct_scalar(
+                            stencils[static_cast<std::size_t>(component)],
+                            TraceSide::Right, context);
+                }
             }
             left = restore_characteristic(left_characteristic, basis);
             right = restore_characteristic(right_characteristic, basis);

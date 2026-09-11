@@ -49,6 +49,9 @@ Q 阶段回滚契约；优化不能使被拒绝步污染接受状态。
 ### T1：离散算子与拓扑计划
 
 - 给残差装配和梯度算子提供已构造的轴向 `LineOperators`；公开单点 stencil API 保持兼容。
+- 离散支持传播保留公开 stencil 查询；生产残差按同一 profile 行表引用，避免每单元构造
+  `StencilRow`。WENO-Z 的默认平方幂使用乘法求值，块级不变量只验证一次，逐面有限性、权重
+  和正性检查保留。
 - halo plan 增加受校验的 `set_version`/等价接口，只更新描述符版本，不改变 pairs、owner、tag、
   消息长度或周期变换。
 - 增加测试证明同一缓存跨版本的 pairs/tag/owner 不变、旧版本字段被拒绝、错误 profile/extent

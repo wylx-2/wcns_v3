@@ -587,6 +587,7 @@ void compute_inviscid_face_fluxes_into(
     if (rk_stage < 0 || rk_stage > 3) {
         throw std::invalid_argument("inviscid flux RK stage must lie in [0,3]");
     }
+    reconstruction.validate();
     const bool robustness_enabled = robustness_levels != nullptr;
     if (robustness_enabled != (robustness_ladder != nullptr)
         || robustness_enabled != (robust_riemann != nullptr)) {
@@ -637,7 +638,7 @@ void compute_inviscid_face_fluxes_into(
                         block.flow.conservative, block.flow.primitive,
                         axis, face, *face_reconstruction, gas, reference,
                         diagnostics, block.cell_dimension(), normal,
-                        diagnostic_location);
+                        diagnostic_location, !robustness_enabled);
                     if (const auto* patch = physical_patch(block, axis, face)) {
                         const auto data_iterator = boundary_data.find(patch->name);
                         if (data_iterator == boundary_data.end()) {
@@ -763,19 +764,66 @@ void compute_wcns_inviscid_residual(
             return;
         }
 
+        const int count = cells[static_cast<std::size_t>(axis)];
+        const auto& rows
+            = cached_line_operators(profile, count).derivative_rows();
+        const int boundary_width
+            = profile.kind() == AlgorithmProfileKind::PhengleiWcns ? 1 : 2;
+        constexpr std::array<int, 4> ph_offsets {{-1, 0, 1, 2}};
+        constexpr std::array<Real, 4> ph_coefficients {{
+            1.0 / 24.0, -27.0 / 24.0, 27.0 / 24.0, -1.0 / 24.0}};
+        constexpr std::array<int, 6> scmm_offsets {{-2, -1, 0, 1, 2, 3}};
+        constexpr std::array<Real, 6> scmm_coefficients {{
+            -9.0 / 1920.0, 125.0 / 1920.0, -2250.0 / 1920.0,
+            2250.0 / 1920.0, -125.0 / 1920.0, 9.0 / 1920.0}};
         for (int k = 0; k < cells.nk; ++k) {
             for (int j = 0; j < cells.nj; ++j) {
                 for (int i = 0; i < cells.ni; ++i) {
                     const Index3 cell {i, j, k};
-                    const auto row = inviscid_residual_stencil(
-                        block, profile, mode, axis, cell);
+                    const int normal = cell[static_cast<std::size_t>(axis)];
+                    Index3 lower_face = cell;
+                    lower_face[static_cast<std::size_t>(axis)] = 0;
+                    Index3 upper_face = cell;
+                    upper_face[static_cast<std::size_t>(axis)] = count;
+                    const bool use_centered_connection_stencil
+                        = (normal < boundary_width
+                              && connection_covers(
+                                  block, axis, Side::Lower, lower_face))
+                        || (normal >= count - boundary_width
+                              && connection_covers(
+                                  block, axis, Side::Upper, upper_face));
                     for (int component = 0; component < euler_components; ++component) {
                         Real derivative = 0.0;
-                        for (const auto [face_index, coefficient] : row) {
-                            auto face = cell;
-                            face[static_cast<std::size_t>(axis)] = face_index;
-                            derivative += coefficient
-                                * values(face.i, face.j, face.k, component);
+                        if (use_centered_connection_stencil) {
+                            if (profile.kind()
+                                == AlgorithmProfileKind::PhengleiWcns) {
+                                for (std::size_t entry = 0;
+                                     entry < ph_offsets.size(); ++entry) {
+                                    auto face = cell;
+                                    face[static_cast<std::size_t>(axis)]
+                                        = normal + ph_offsets[entry];
+                                    derivative += ph_coefficients[entry]
+                                        * values(face.i, face.j, face.k, component);
+                                }
+                            } else {
+                                for (std::size_t entry = 0;
+                                     entry < scmm_offsets.size(); ++entry) {
+                                    auto face = cell;
+                                    face[static_cast<std::size_t>(axis)]
+                                        = normal + scmm_offsets[entry];
+                                    derivative += scmm_coefficients[entry]
+                                        * values(face.i, face.j, face.k, component);
+                                }
+                            }
+                        } else {
+                            const auto& row
+                                = rows[static_cast<std::size_t>(normal)];
+                            for (const auto [face_index, coefficient] : row) {
+                                auto face = cell;
+                                face[static_cast<std::size_t>(axis)] = face_index;
+                                derivative += coefficient
+                                    * values(face.i, face.j, face.k, component);
+                            }
                         }
                         const Real jacobian = metric.jacobian()(i, j, k);
                         if (!std::isfinite(derivative) || !std::isfinite(jacobian)
