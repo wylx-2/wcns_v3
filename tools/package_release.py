@@ -40,7 +40,6 @@ EXPLICIT_FILES = (
     Path("THIRD_PARTY_NOTICES.md"),
     Path("pyproject.toml"),
     Path("\u7b97\u6cd5\u8865\u5145.md"),
-    Path(".github/workflows/ci.yml"),
 )
 
 GENERATED_FILES = (

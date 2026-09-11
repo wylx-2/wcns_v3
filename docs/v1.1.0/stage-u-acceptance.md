@@ -115,6 +115,10 @@ bin/include/lib/share = 11/8/3/64，含 README、LICENSE、第三方通知、算
 Linux Clang、Linux OpenMPI、Windows MSVC 和 Clang ASan+UBSan。当前机器没有 Clang，本机
 WSL 枚举被系统拒绝，且阶段分支未同步到 origin，因此这些外部结果是**待执行**，不是通过。
 
+发布后说明：上述内容记录 RC 形成时的历史状态。首次远程同步后，项目决定继续本机独立开发
+并从 `main` 移除外部 CI 工作流；详见
+[`post-release-ci-removal.md`](post-release-ci-removal.md)。
+
 WCNS 自有代码尚未选择对外许可证；RC 只能私有/内部使用。包已包含 `LICENSE.md` 和
 `THIRD_PARTY_NOTICES.md`，没有声称可以自由再分发。并行 CGNS、弱扩展/8-rank 强扩展、低 Mach、
 湍流/转捩等限制继续按 [`../known-limitations.md`](../known-limitations.md) 公开。

@@ -86,9 +86,14 @@ rank 数和叶块划分。缺省输运的 v1.0 检查点按固定的常黏度 `P
 P--T 阶段候选均通过各自冻结自动卡口并有可追溯验收报告。U 阶段从空目录执行 Windows
 Release 串行、Intel MPI、多类发布算例、错误路径、安装/解包复现和 T 性能复验。清理后又从
 两个新目录完成无警告的串行/MPI Release 构建，CTest 为 60/60 和 108/108，算法规格为 6/6。
-Linux GCC/Clang、OpenMPI 及 ASan/UBSan 作业仍保留在 CI 配置中，但依据本机独立开发决定，
-其远端结果不作为 v1.1.0 内部版本完成条件；未实际运行的平台不会标为通过或受支持。
+历史候选曾配置 Linux GCC/Clang、OpenMPI、Windows MSVC 及 ASan/UBSan 作业，但其结果不属于
+v1.1.0 内部版本完成条件；未实际完成验证的平台不会标为通过或受支持。
 内部源码包经双次生成逐字节一致性检查，并从全新解压目录通过独立构建和 60/60 串行 CTest。
+
+首次同步多个阶段分支后，原工作流同时触发多次非阻断 Actions 运行。项目决定继续采用本机
+独立开发，因此发布后从 `main` 移除 GitHub Actions 工作流，但完整保留 CMake、CTest、算法
+规格和发布矩阵入口。处理记录见
+[`v1.1.0/post-release-ci-removal.md`](v1.1.0/post-release-ci-removal.md)。
 
 ## 已知限制和许可
 
