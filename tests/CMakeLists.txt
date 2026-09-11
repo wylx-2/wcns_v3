@@ -728,10 +728,13 @@ if(WCNS_ENABLE_CGNS)
         NAME wcns.checkpoint_file
         COMMAND wcns_checkpoint_file_tests
             ${CMAKE_CURRENT_BINARY_DIR}/checkpoint-validation/checkpoint-freestream.checkpoint.latest.cgns
+            --strip-default-transport
     )
     set_tests_properties(
         wcns.checkpoint_file
-        PROPERTIES FIXTURES_REQUIRED checkpoint_file
+        PROPERTIES
+            FIXTURES_REQUIRED checkpoint_file
+            FIXTURES_SETUP checkpoint_legacy_transport
     )
     add_test(
         NAME wcns.run.restart.serial
@@ -741,7 +744,7 @@ if(WCNS_ENABLE_CGNS)
     set_tests_properties(
         wcns.run.restart.serial
         PROPERTIES
-            FIXTURES_REQUIRED checkpoint_file
+            FIXTURES_REQUIRED checkpoint_legacy_transport
             RESOURCE_LOCK wcns_checkpoint_validation
     )
     add_test(
@@ -775,7 +778,7 @@ if(WCNS_ENABLE_CGNS)
     )
     set_tests_properties(
         wcns.run.incompatible_restart
-        PROPERTIES FIXTURES_REQUIRED checkpoint_file
+        PROPERTIES FIXTURES_REQUIRED checkpoint_legacy_transport
     )
     add_test(
         NAME wcns.run.incompatible_transport_restart
@@ -787,7 +790,7 @@ if(WCNS_ENABLE_CGNS)
     )
     set_tests_properties(
         wcns.run.incompatible_transport_restart
-        PROPERTIES FIXTURES_REQUIRED checkpoint_file
+        PROPERTIES FIXTURES_REQUIRED checkpoint_legacy_transport
     )
     add_test(
         NAME wcns.run.existing_output_rejection
@@ -1341,7 +1344,7 @@ if(WCNS_ENABLE_CGNS)
         set_tests_properties(
             wcns.run.restart.2
             PROPERTIES
-                FIXTURES_REQUIRED checkpoint_file
+                FIXTURES_REQUIRED checkpoint_legacy_transport
                 RESOURCE_LOCK wcns_checkpoint_validation
         )
         add_test(
