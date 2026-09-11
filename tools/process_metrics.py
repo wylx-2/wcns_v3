@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -107,6 +108,60 @@ def _windows_rss(process_id: int) -> int:
         kernel32.CloseHandle(handle)
 
 
+def _windows_set_high_priority(process_id: int) -> bool:
+    import ctypes
+    from ctypes import wintypes
+
+    process_set_information = 0x0200
+    query_limited_information = 0x1000
+    high_priority_class = 0x00000080
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.SetPriorityClass.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel32.SetPriorityClass.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+
+    handle = kernel32.OpenProcess(
+        process_set_information | query_limited_information, False, process_id
+    )
+    if not handle:
+        return False
+    try:
+        return bool(kernel32.SetPriorityClass(handle, high_priority_class))
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def _raise_new_windows_workers(
+    executable_names: set[str],
+    excluded_processes: set[int],
+    expected_processes: int,
+) -> None:
+    deadline = time.perf_counter() + 2.0
+    raised: set[int] = set()
+    while time.perf_counter() < deadline:
+        table = _windows_process_table()
+        candidates = {
+            process_id
+            for process_id, (_, executable) in table.items()
+            if executable in executable_names and process_id not in excluded_processes
+        }
+        for process_id in candidates - raised:
+            if not _windows_set_high_priority(process_id):
+                raise RuntimeError(
+                    f"could not set high priority for process {process_id}"
+                )
+            raised.add(process_id)
+        if len(raised) >= expected_processes:
+            return
+        time.sleep(0.01)
+    raise RuntimeError(
+        "could not find all performance workers before the priority deadline: "
+        f"expected {expected_processes}, found {len(raised)}"
+    )
+
+
 def _linux_process_table() -> dict[int, tuple[int, str]]:
     result: dict[int, tuple[int, str]] = {}
     proc = Path("/proc")
@@ -175,7 +230,9 @@ def _sample_tree(
 def run_measured(
     command: list[str],
     log_path: Path,
-    sample_seconds: float = 0.01,
+    sample_seconds: float | None = 0.01,
+    high_priority_names: set[str] | None = None,
+    expected_high_priority_processes: int = 0,
 ) -> tuple[int, str, float, int | None]:
     """Run a command and return exit, captured text, wall seconds and peak tree RSS."""
     started = time.perf_counter()
@@ -205,18 +262,54 @@ def run_measured(
             stdout=log,
             stderr=subprocess.STDOUT,
         )
-        while process.poll() is None:
+        if high_priority_names:
+            if os.name != "nt":
+                raise RuntimeError("high-priority worker selection is Windows-only")
+            if expected_high_priority_processes <= 0:
+                process.terminate()
+                process.wait()
+                raise RuntimeError("expected high-priority process count must be positive")
+            try:
+                _raise_new_windows_workers(
+                    {value.lower() for value in high_priority_names},
+                    excluded_processes,
+                    expected_high_priority_processes,
+                )
+            except BaseException:
+                process.terminate()
+                process.wait()
+                raise
+        sampler_error: list[BaseException] = []
+        stop_sampler = threading.Event()
+        sampler: threading.Thread | None = None
+        if sample_seconds is not None:
+            def sample_until_stopped() -> None:
+                nonlocal peak_rss
+                try:
+                    while not stop_sampler.is_set():
+                        current = _sample_tree(
+                            process.pid, known, executable_names, excluded_processes
+                        )
+                        if current is not None:
+                            peak_rss = max(peak_rss or 0, current)
+                        stop_sampler.wait(sample_seconds)
+                except BaseException as error:
+                    sampler_error.append(error)
+
+            sampler = threading.Thread(target=sample_until_stopped, daemon=True)
+            sampler.start()
+        return_code = process.wait()
+        finished = time.perf_counter()
+        stop_sampler.set()
+        if sampler is not None:
+            sampler.join()
+        if sampler_error:
+            raise RuntimeError("process sampler failed") from sampler_error[0]
+        if sample_seconds is not None:
             current = _sample_tree(
                 process.pid, known, executable_names, excluded_processes
             )
             if current is not None:
                 peak_rss = max(peak_rss or 0, current)
-            time.sleep(sample_seconds)
-        return_code = process.wait()
-        current = _sample_tree(
-            process.pid, known, executable_names, excluded_processes
-        )
-        if current is not None:
-            peak_rss = max(peak_rss or 0, current)
-    elapsed = time.perf_counter() - started
+    elapsed = finished - started
     return return_code, log_path.read_text(encoding="utf-8"), elapsed, peak_rss

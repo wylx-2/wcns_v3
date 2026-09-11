@@ -31,8 +31,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--detailed", action="store_true")
     parser.add_argument("--mpiexec", type=Path)
     parser.add_argument("--mpi-run", type=Path)
+    parser.add_argument(
+        "--mpi-pin-processor-list",
+        help=(
+            "Intel MPI logical-processor list used for every scaling launch; "
+            "ranks consume entries from left to right"
+        ),
+    )
+    parser.add_argument(
+        "--mpi-high-priority",
+        action="store_true",
+        help="run each Windows MPI worker at High priority",
+    )
     parser.add_argument("--scaling-repetitions", type=int, default=5)
     parser.add_argument("--scaling-warmups", type=int, default=1)
+    parser.add_argument("--scaling-steps", type=int, default=2)
     parser.add_argument("--skip-scaling", action="store_true")
     parser.add_argument(
         "--reuse-serial-manifest", type=Path,
@@ -93,6 +106,8 @@ def measure_case(
     cells: int,
     steps: int,
     detailed: bool,
+    high_priority_names: set[str] | None = None,
+    expected_high_priority_processes: int = 0,
 ) -> dict[str, object]:
     samples: list[float] = []
     rss_samples: list[int | None] = []
@@ -112,7 +127,9 @@ def measure_case(
         code, output, elapsed, peak_rss = run_measured(
             command,
             run_root / "run.log",
-            sample_seconds=0.002 if detailed else 0.01,
+            sample_seconds=0.01 if detailed else None,
+            high_priority_names=high_priority_names,
+            expected_high_priority_processes=expected_high_priority_processes,
         )
         if code != 0 and "reason=maximum_steps" not in output:
             raise RuntimeError(f"performance run failed; see {run_root / 'run.log'}")
@@ -242,6 +259,9 @@ def scaling_matrix(
     warmups: int,
     repetitions: int,
     detailed: bool,
+    steps: int = 2,
+    pin_processor_list: str | None = None,
+    high_priority: bool = False,
     prior: dict[str, object] | None = None,
     rerun_strong: set[int] | None = None,
     rerun_weak: set[int] | None = None,
@@ -255,21 +275,31 @@ def scaling_matrix(
          "2", "2", "2.0", "1.0", "2.0", "1.5"],
         root / "generate-strong.log",
     )
-    strong_config = viscous_config(repository, strong_mesh, "t-strong", 2)
+    strong_config = viscous_config(repository, strong_mesh, "t-strong", steps)
     prior_strong = {
         int(item["ranks"]): item
         for item in ([] if prior is None else prior["strong"])
     }
     strong_by_rank: dict[int, dict[str, object]] = dict(prior_strong)
+    mpi_prefix = [str(mpiexec)]
+    if pin_processor_list is not None:
+        if re.fullmatch(r"[0-9,-]+", pin_processor_list) is None:
+            raise RuntimeError("MPI processor list may contain only digits, commas, and hyphens")
+        mpi_prefix.extend([
+            "-genv", "I_MPI_PIN", "1",
+            "-genv", "I_MPI_PIN_PROCESSOR_LIST", pin_processor_list,
+        ])
     for rank_count in ranks:
         if rerun_strong is not None and rank_count not in rerun_strong:
             if rank_count not in strong_by_rank:
                 raise RuntimeError(f"no reused strong result for r{rank_count}")
             continue
         measured = measure_case(
-            [str(mpiexec), "-n", str(rank_count)], executable, strong_config,
+            [*mpi_prefix, "-n", str(rank_count)], executable, strong_config,
             root / "strong" / f"r{rank_count}", warmups, repetitions,
-            math.prod(strong_grid), 2, detailed,
+            math.prod(strong_grid), steps, detailed,
+            {executable.name} if high_priority else None,
+            rank_count if high_priority else 0,
         )
         strong_by_rank[rank_count] = {
             "ranks": rank_count,
@@ -303,11 +333,13 @@ def scaling_matrix(
              "2", "2", "2.0", "1.0", "2.0", "1.5"],
             root / f"generate-weak-r{rank_count}.log",
         )
-        config = viscous_config(repository, mesh, f"t-weak-r{rank_count}", 2)
+        config = viscous_config(repository, mesh, f"t-weak-r{rank_count}", steps)
         measured = measure_case(
-            [str(mpiexec), "-n", str(rank_count)], executable, config,
+            [*mpi_prefix, "-n", str(rank_count)], executable, config,
             root / "weak" / f"r{rank_count}", warmups, repetitions,
-            local_cells * rank_count, 2, detailed,
+            local_cells * rank_count, steps, detailed,
+            {executable.name} if high_priority else None,
+            rank_count if high_priority else 0,
         )
         weak_by_rank[rank_count] = {
             "ranks": rank_count,
@@ -328,6 +360,10 @@ def main() -> int:
         raise RuntimeError("stage T requires at least one warmup and five samples")
     if not args.skip_scaling and args.scaling_repetitions < 5:
         raise RuntimeError("stage T scaling requires five samples per rank")
+    if not args.skip_scaling and args.scaling_warmups < 1:
+        raise RuntimeError("stage T scaling requires at least one warmup per rank")
+    if not args.skip_scaling and args.scaling_steps < 2:
+        raise RuntimeError("stage T scaling requires at least two time steps")
     root = args.work_dir.resolve()
     clean_work_directory(root)
     repository = Path(__file__).resolve().parents[1]
@@ -344,6 +380,12 @@ def main() -> int:
         )
         if prior.get("stage") != "T" or not prior.get("serial"):
             raise RuntimeError("reused serial manifest is not a stage-T result")
+        prior_protocol = prior.get("protocol", {})
+        if prior_protocol.get("detailed_timing") != args.detailed:
+            raise RuntimeError("reused serial manifest has a different timing mode")
+        if prior_protocol.get("warmups") != args.warmups \
+                or prior_protocol.get("repetitions") != args.repetitions:
+            raise RuntimeError("reused serial manifest has a different sample protocol")
         serial = prior["serial"]
         allocation = prior["allocation"]
     else:
@@ -377,6 +419,20 @@ def main() -> int:
             prior_scaling = prior_manifest.get("scaling")
             if prior_scaling is None:
                 raise RuntimeError("reused manifest has no scaling results")
+            prior_protocol = prior_manifest.get("protocol", {})
+            expected_protocol = {
+                "detailed_timing": args.detailed,
+                "scaling_warmups": args.scaling_warmups,
+                "scaling_repetitions": args.scaling_repetitions,
+                "scaling_steps": args.scaling_steps,
+                "mpi_pin_processor_list": args.mpi_pin_processor_list,
+                "mpi_high_priority": args.mpi_high_priority,
+            }
+            for key, expected in expected_protocol.items():
+                if prior_protocol.get(key) != expected:
+                    raise RuntimeError(
+                        f"reused scaling manifest has a different {key} protocol"
+                    )
         parse_ranks = lambda text: {
             int(value) for value in text.split(",") if value.strip()
         }
@@ -388,8 +444,13 @@ def main() -> int:
         scaling = scaling_matrix(
             repository, root / "scaling", generator, args.mpiexec.resolve(),
             args.mpi_run.resolve(), args.scaling_warmups,
-            args.scaling_repetitions, args.detailed, prior_scaling,
-            rerun_strong, rerun_weak,
+            args.scaling_repetitions, args.detailed,
+            steps=args.scaling_steps,
+            pin_processor_list=args.mpi_pin_processor_list,
+            high_priority=args.mpi_high_priority,
+            prior=prior_scaling,
+            rerun_strong=rerun_strong,
+            rerun_weak=rerun_weak,
         )
 
     try:
@@ -417,6 +478,11 @@ def main() -> int:
             "maximum_cv": 0.05,
             "detailed_timing": args.detailed,
             "intermediate_output": False,
+            "scaling_warmups": args.scaling_warmups,
+            "scaling_repetitions": args.scaling_repetitions,
+            "scaling_steps": args.scaling_steps,
+            "mpi_pin_processor_list": args.mpi_pin_processor_list,
+            "mpi_high_priority": args.mpi_high_priority,
         },
         "allocation": allocation,
         "serial": serial,
