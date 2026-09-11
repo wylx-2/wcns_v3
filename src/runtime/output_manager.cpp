@@ -208,6 +208,7 @@ RuntimeOutputManager::RuntimeOutputManager(
     , field_schedule_(config.output.field.schedule)
     , history_schedule_(config.output.history.schedule)
     , statistics_schedule_(config.output.statistics.schedule)
+    , boundary_schedule_(config.output.boundary.schedule)
     , checkpoint_schedule_(config.output.checkpoint.schedule)
     , output_directory_(config.output.directory)
 {
@@ -364,6 +365,9 @@ Real RuntimeOutputManager::next_time_event(
     if (config_.output.statistics.enabled) {
         result = std::min(result, statistics_schedule_.next_time(state.time));
     }
+    if (config_.output.boundary.enabled) {
+        result = std::min(result, boundary_schedule_.next_time(state.time));
+    }
     if (config_.output.checkpoint.enabled) {
         result = std::min(result, checkpoint_schedule_.next_time(state.time));
     }
@@ -467,6 +471,8 @@ void RuntimeOutputManager::on_initial(const SimulationState& state)
         && statistics_schedule_.consume(state, true, false)) {
         write_statistics(state);
     }
+    dispatch(OutputCategory::Boundary, boundary_schedule_, state, true, false,
+        config_.output.boundary.enabled);
     dispatch(OutputCategory::Checkpoint, checkpoint_schedule_, state, true, false,
         config_.output.checkpoint.enabled);
 }
@@ -486,6 +492,8 @@ void RuntimeOutputManager::on_step(
         && statistics_schedule_.consume(state, false, false)) {
         write_statistics(state);
     }
+    dispatch(OutputCategory::Boundary, boundary_schedule_, state, false, false,
+        config_.output.boundary.enabled);
     dispatch(OutputCategory::Checkpoint, checkpoint_schedule_, state, false, false,
         config_.output.checkpoint.enabled);
 }
@@ -624,6 +632,8 @@ void RuntimeOutputManager::on_final(const SimulationState& state)
             && statistics_schedule_.consume(state, false, true)) {
             write_statistics(state);
         }
+        dispatch(OutputCategory::Boundary, boundary_schedule_, state, false, true,
+            config_.output.boundary.enabled);
         const bool safety_checkpoint
             = state.stop_reason == StopReason::WallTimeCheckpoint
             || state.stop_reason == StopReason::UserSignalCheckpoint;

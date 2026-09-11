@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <array>
 #include <optional>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -127,6 +128,38 @@ struct SeriesOutputConfig {
     [[nodiscard]] std::string summary(const char* label) const;
 };
 
+struct BoundaryOutputConfig {
+    bool enabled = false;
+    SeriesOutputFormat format = SeriesOutputFormat::Text;
+    OutputScheduleConfig schedule;
+    std::vector<std::string> patches;
+    std::vector<std::string> quantities;
+    Real reference_pressure = std::numeric_limits<Real>::quiet_NaN();
+    Real reference_density = std::numeric_limits<Real>::quiet_NaN();
+    std::array<Real, 3> reference_velocity {{
+        std::numeric_limits<Real>::quiet_NaN(),
+        std::numeric_limits<Real>::quiet_NaN(),
+        std::numeric_limits<Real>::quiet_NaN()}};
+    Real reference_area = std::numeric_limits<Real>::quiet_NaN();
+    Real reference_length = std::numeric_limits<Real>::quiet_NaN();
+    std::array<Real, 3> moment_center {{0.0, 0.0, 0.0}};
+    std::array<Real, 3> drag_direction {{
+        std::numeric_limits<Real>::quiet_NaN(),
+        std::numeric_limits<Real>::quiet_NaN(),
+        std::numeric_limits<Real>::quiet_NaN()}};
+    std::array<Real, 3> lift_direction {{
+        std::numeric_limits<Real>::quiet_NaN(),
+        std::numeric_limits<Real>::quiet_NaN(),
+        std::numeric_limits<Real>::quiet_NaN()}};
+    std::array<Real, 3> tangent_direction {{
+        std::numeric_limits<Real>::quiet_NaN(),
+        std::numeric_limits<Real>::quiet_NaN(),
+        std::numeric_limits<Real>::quiet_NaN()}};
+
+    void validate(bool viscous) const;
+    [[nodiscard]] std::string summary() const;
+};
+
 struct XzPlaneStatisticsConfig {
     bool enabled = false;
     std::vector<int> cell_j_indices;
@@ -170,12 +203,13 @@ struct OutputConfig {
     FieldOutputConfig field;
     SeriesOutputConfig history;
     SeriesOutputConfig statistics;
+    BoundaryOutputConfig boundary;
     XzPlaneStatisticsConfig xz_planes;
     YzPlaneStatisticsConfig yz_planes;
     ChannelWallStatisticsConfig channel_walls;
     CheckpointOutputConfig checkpoint;
 
-    void validate() const;
+    void validate(bool viscous) const;
     [[nodiscard]] std::string summary() const;
 };
 

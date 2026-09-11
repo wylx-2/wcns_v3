@@ -14,8 +14,8 @@ Case07 用同一套四块结构 O 网格和 WCNS 正式生产入口 `wcns_run` �
 - 低速算例采用可压缩层流 Navier--Stokes，来流 `Ma=0.2`，而引用的经典数据通常采用
   不可压缩方程；
 - 实际低速网格只有 `32 x 20` 个周向/径向单元，远低于参考计算；
-- 程序还没有通用真实壁面力输出。本算例的 `Cp`、阻力和升力由第一层单元中心值近似恢复，
-  只用于观察量级与时间变化；
+- v1.1 配置启用真实边界面 `Cp`、压力/黏性牵引、热流及力/力矩积分；逐面量来自与求解器
+  一致的高阶壁面迹，面积使用全局守恒边界权重，并支持切分后的确定性 MPI 汇总；
 - `Re=200` 仍按二维方程计算，只用于清楚显示数值涡街，不能代替真实三维转捩尾迹；
 - Mach 5 算例是 Euler 滑移壁计算，因此没有黏性阻力、边界层或气动热。
 
@@ -160,7 +160,9 @@ ctest --test-dir build-case07 -R "cylinder_o" --output-on-failure
 新增回归包含：
 
 - `wcns.generate_cylinder_o_mesh`：实际写出四块 ADF-CGNS O 网格；
-- `wcns.run.cylinder_o.dry_run.serial`：正式 reader 读取网格、建立连接、计算 SCMM6 度量。
+- `wcns.run.cylinder_o.dry_run.serial`：正式 reader 读取网格、建立连接、计算 SCMM6 度量；
+- `wcns.run.cylinder_o.boundary.serial`：输出闭合圆柱的真实面量和载荷历史；
+- `wcns.check.cylinder_o.boundary.mpi_equivalence`：核对 1/2/4-rank 面键、逐面量和载荷等价。
 
 ### 6.2 重新生成网格
 
@@ -200,7 +202,8 @@ python cases\manual\case07_2d_cylinder\scripts\analyze_case07.py `
   --case-root cases\manual\case07_2d_cylinder
 ```
 
-需要 Python、NumPy 和 Matplotlib。脚本读取正式 Tecplot 单元中心流场，输出：
+需要 Python、NumPy 和 Matplotlib。脚本读取正式 Tecplot 单元中心流场、边界面文件和
+`*.loads.rN.txt`，输出：
 
 - `results/analysis-summary.json`；
 - 各算例 `surface-history.csv` 和 `surface-final.csv`；
@@ -214,17 +217,22 @@ python cases\manual\case07_2d_cylinder\scripts\analyze_case07.py `
 C_p=\frac{p-p_\infty}{\tfrac12\rho_\infty U_\infty^2}.
 \]
 
-由于正式程序尚无通用 face-based 气动力输出，脚本用第一层单元中心压力近似壁压。黏性组还用
+程序直接从当前算法 profile 的真实边界迹输出 $p_w,T_w,\mu_w$；黏性壁使用强修正后的
+$\nabla\boldsymbol u_w$ 和 $\nabla T_w$。每个离散面使用
 
 \[
-\tau_t\approx\frac{\mu}{Re_D}\frac{u_t(r_1)}{r_1-D/2}
+\Delta A_f=w_{b,f}|\boldsymbol S_f|,
+\qquad
+\Delta\boldsymbol F_f=
+\left[p_w\boldsymbol I-\frac{1}{Re}\boldsymbol\tau_w\right]
+\boldsymbol n_{\Omega,f}\Delta A_f
 \]
 
-估计壁面切应力，并沿圆周积分得到 `cd_pressure`、`cd_viscous_estimate` 和 `cd_estimate`。
-该近似没有使用 WCNS 的真实壁面导数闭合，所以表中的升阻力必须标记为 estimate。
+积分得到 `Cd_pressure`、`Cd_viscous`、`Cd_total` 及对应升力、力矩。分析脚本不再从第一层
+单元重建壁压或剪切；单元中心流场只用于体场图、尾迹长度和探针。
 
 尾迹长度指标 `reverse_flow_x_max` 是中心线附近 `u<0` 单元的最大 `x/D`，从圆柱中心起算。
-Re=100/200 的频率分别从估计升力与 `(x/D,y/D)≈(2,0.5)` 的横向速度探针计算：
+Re=100/200 的频率分别从真实边界载荷升力与 `(x/D,y/D)≈(2,0.5)` 的横向速度探针计算：
 
 \[
 St=\frac{fD}{U_\infty}.
@@ -292,7 +300,10 @@ Riemann fallback。实际串行运行汇总如下；`Residual` 是最后一步�
 
 ### 9.1 低速黏性圆柱绕流
 
-| Re | `u_min`（尾迹） | 回流终点 `x/D` | `Cd_p` | `Cd_v` 估计 | `Cd` 估计 | 晚期 `Cl_rms` | `St(Cl)` | `St(probe)` |
+以下数值是 v1.0 已归档运行的历史表，仍保留旧的第一层估算标签；用 v1.1 配置重新运行后，
+后处理会以真实边界面输出重建同名报告，不能把下表作为 R 阶段新算法的量化证据。
+
+| Re | `u_min`（尾迹） | 回流终点 `x/D` | `Cd_p` 历史估算 | `Cd_v` 历史估算 | `Cd` 历史估算 | 晚期 `Cl_rms` | `St(Cl)` | `St(probe)` |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | 20 | -0.0263 | 1.158 | 1.348 | 0.807 | 2.156 | -- | -- | -- |
 | 40 | -0.0877 | 1.761 | 1.134 | 0.513 | 1.647 | -- | -- | -- |
@@ -328,12 +339,12 @@ Re=100 和 Re=200 的升力与尾迹横向速度都出现一致的周期信号�
 | `Ma_min / Ma_max` | 0.1081 / 5.0000 | 驻点附近显著减速 |
 | 弓形激波迎风轴位置 | `x/D=-0.7094` | 由轴线上最大密度梯度估计 |
 | 激波脱体距离 | `0.2094D` | 相对圆柱迎风点 `x/D=-0.5` |
-| 压力阻力估计 | 1.2172 | 第一层单元近似，仅供定性参考 |
-| 升力估计 | 1.4e-5 | 验证上下对称性 |
+| 历史压力阻力估算 | 1.2172 | v1.0 第一层单元归档值，仅供定性参考 |
+| 历史升力估算 | 1.4e-5 | v1.0 归档值，用于观察上下对称性 |
 
 计算的 `p_max/p_inf=28.73` 是正激波理论值 29 的 99.1%，而全场最大密度 4.279 是理论
 密度比 5 的 85.6%。压力跃迁量级很好，密度和脱体距离则明显受 48x32 粗网格、零阶耗散和
-曲面第一层取样影响。图像见 [`Mach 5 密度`](figures/mach5-density.png) 与
+粗网格与激波数值厚度影响。图像见 [`Mach 5 密度`](figures/mach5-density.png) 与
 [`Mach 5 马赫数`](figures/mach5-mach.png)。
 
 机器可读的全精度汇总见 [`results/analysis-summary.json`](results/analysis-summary.json)，每个
@@ -389,12 +400,12 @@ M_2\approx0.4152.
 
 1. 用 48x32、96x48 以及更细网格做系统网格收敛；
 2. 把外边界从 8--10D 推到 20--40D，检查低速尾迹长度和阻力的域敏感性；
-3. 在运行时增加通用曲面 face quantity、真实壁压/壁面切应力和 MPI 气动力积分；
+3. 用 v1.1 真实边界面输出重新完成全部长时算例，并对升阻力做独立守恒复核；
 4. Re=100 至少计算多个饱和周期，并同时由升力和尾迹探针验证 Strouhal 数；
 5. 在更细网格上评估 v1.1 局部受控降阶的空间分布，并继续研究严格保正通量或缩放器；
 6. Mach 5 使用更细的迎风区域网格，复核弓形激波脱体距离；
 7. 若研究高雷诺数真实圆柱尾迹，需要三维网格、足够展向长度以及 DNS/LES/RANS 能力。
 
-v1.0 的 Case07 建模没有修改求解器核心方程或边界实现；v1.1 阶段 Q 只增加候选态验收、局部
-面策略和时间步事务控制，没有改变 Euler/NS 方程、几何 profile 或边界公式。所有失败、局部
-降阶和结果精度边界均在本文明确记录。
+v1.0 的 Case07 建模没有修改求解器核心方程或边界实现；v1.1 阶段 Q 增加候选态验收、局部
+面策略和时间步事务控制，阶段 R 增加只读边界工程量输出，均没有改变 Euler/NS 方程、几何
+profile 或边界公式。所有失败、局部降阶和结果精度边界均在本文明确记录。

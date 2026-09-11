@@ -13,6 +13,7 @@ namespace wcns {
 enum class OutputCategory {
     Field,
     Statistics,
+    Boundary,
     Checkpoint,
 };
 
@@ -93,6 +94,7 @@ private:
     OutputSchedule field_schedule_;
     OutputSchedule history_schedule_;
     OutputSchedule statistics_schedule_;
+    OutputSchedule boundary_schedule_;
     OutputSchedule checkpoint_schedule_;
     bool prepared_ = false;
     bool finalized_ = false;

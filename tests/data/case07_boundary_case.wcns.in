@@ -1,12 +1,10 @@
 schema_version = 1
-case.name = case07-cylinder-mach5-euler
-mesh.path = ../grid/cylinder_o_48x32_r8.cgns
-
+case.name = case07-boundary-smoke
+mesh.path = @CMAKE_SOURCE_DIR@/cases/manual/case07_2d_cylinder/grid/cylinder_o_48x32_r8.cgns
 algorithm.profile = scmm6_wcns
-algorithm.reconstruction = zero_order
-algorithm.reconstruction_variables = conservative
+algorithm.reconstruction = weno_z
+algorithm.reconstruction_variables = characteristic
 algorithm.riemann = rusanov
-
 gas.gamma = 1.4
 gas.molar_mass = 0.029
 reference.velocity = 1735.00471934
@@ -14,67 +12,38 @@ reference.density = 1.0
 reference.temperature = 300.0
 reference.length = 1.0
 reference.viscosity = 0.00173500471934
-
 partition.mode = auto_split
 partition.allow_idle_ranks = false
 partition.max_load_ratio = 1.2
 partition.min_cells_per_active_direction = 12
-
 initial.type = uniform
 initial.rho = 1.0
 initial.u = 1.0
 initial.v = 0.0
 initial.w = 0.0
 initial.temperature = 1.0
-
 boundary.default = farfield
+boundary.cylinder.type = slip_wall
 boundary.farfield.type = farfield
 boundary.farfield.rho = 1.0
 boundary.farfield.u = 1.0
 boundary.farfield.v = 0.0
 boundary.farfield.w = 0.0
 boundary.farfield.temperature = 1.0
-boundary.cylinder.type = slip_wall
-
 source.enabled = false
-
 run.mode = unsteady
 run.viscous = false
 run.cfl = 0.02
-run.max_steps = 30000
-run.t_end = 8.0
-run.max_wall_time = 0
-
-output.directory = cases/manual/case07_2d_cylinder/results/mach5-euler
-output.allow_existing = false
+run.max_steps = 2
+run.t_end = 1.0e-6
+output.directory = @CMAKE_CURRENT_BINARY_DIR@/case07-boundary-smoke
+output.allow_existing = true
 output.dimensional = false
-
-output.field.enabled = true
-output.field.format = tecplot
-output.field.every_steps = 0
-output.field.every_time = 0.5
-output.field.write_initial = true
-output.field.write_final = true
-output.field.quantities = rho,u,v,p,T,mach,entropy_proxy,jacobian
-
-output.history.enabled = true
-output.history.format = txt
-output.history.every_steps = 10
-output.history.every_time = 0
-output.history.write_initial = true
-output.history.write_final = true
-
-output.statistics.enabled = true
-output.statistics.format = txt
-output.statistics.every_steps = 100
-output.statistics.every_time = 0
-output.statistics.write_initial = true
-output.statistics.write_final = true
-output.statistics.quantities = total_mass,total_momentum_x,total_momentum_y,total_energy
-
+output.field.enabled = false
+output.history.enabled = false
+output.statistics.enabled = false
 output.boundary.enabled = true
-output.boundary.format = tecplot
-output.boundary.every_time = 0.5
+output.boundary.format = txt
 output.boundary.write_initial = true
 output.boundary.write_final = true
 output.boundary.patches = cylinder
@@ -98,9 +67,4 @@ output.boundary.lift_direction_z = 0.0
 output.boundary.tangent_direction_x = 0.0
 output.boundary.tangent_direction_y = 1.0
 output.boundary.tangent_direction_z = 0.0
-
-output.checkpoint.enabled = true
-output.checkpoint.every_steps = 5000
-output.checkpoint.every_time = 5.0
-output.checkpoint.write_initial = false
-output.checkpoint.write_final = true
+output.checkpoint.enabled = false

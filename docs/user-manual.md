@@ -812,7 +812,7 @@ write_initial = false
 write_final = true
 ```
 
-在键前加对应前缀 `output.field|history|statistics|checkpoint`。四种事件取并集；同一`(step,time)` 去重。`explicit_times` 必须非负、严格递增。`every_time` 和显式时刻会让时间步裁剪到事件时刻；定常时这里的 time 是伪时间。
+在键前加对应前缀 `output.field|history|statistics|boundary|checkpoint`。五种事件取并集；同一`(step,time)` 去重。`explicit_times` 必须非负、严格递增。`every_time` 和显式时刻会让时间步裁剪到事件时刻；定常时这里的 time 是伪时间。
 
 ## 9. 输出文件逐项说明
 
@@ -917,7 +917,51 @@ J-lower/J-upper 的 `no_slip_isothermal_wall`，网格必须为三维平面 x-z 
 `run.viscous=true`。壁切应力是面积加权的流向切应力绝对值；摩擦速度用面平均壁密度，
 `channel_re_tau` 还使用壁温对应黏性和所配半高。这些列是瞬时空间统计，不是累积时间平均。
 
-### 9.4 检查点
+### 9.4 边界面与载荷
+
+```text
+output.boundary.enabled = true
+output.boundary.format = tecplot
+output.boundary.every_steps = 100
+output.boundary.write_initial = true
+output.boundary.write_final = true
+output.boundary.patches = cylinder
+output.boundary.quantities = p_w,T_w,mu_w,Cp,Cf,q_wall,traction_x,traction_y
+output.boundary.reference_pressure = 17.8571428759968
+output.boundary.reference_density = 1.0
+output.boundary.reference_velocity_x = 1.0
+output.boundary.reference_velocity_y = 0.0
+output.boundary.reference_velocity_z = 0.0
+output.boundary.reference_area = 1.0
+output.boundary.reference_length = 1.0
+output.boundary.moment_center_x = 0.0
+output.boundary.moment_center_y = 0.0
+output.boundary.moment_center_z = 0.0
+output.boundary.drag_direction_x = 1.0
+output.boundary.drag_direction_y = 0.0
+output.boundary.drag_direction_z = 0.0
+output.boundary.lift_direction_x = 0.0
+output.boundary.lift_direction_y = 1.0
+output.boundary.lift_direction_z = 0.0
+output.boundary.tangent_direction_x = 1.0
+output.boundary.tangent_direction_y = 0.0
+output.boundary.tangent_direction_z = 0.0
+```
+
+`patches` 和 `quantities` 均为禁止重复的逗号列表。逐面内建量还包括
+`pressure_traction_x/y/z`、`viscous_traction_x/y/z` 和 `traction_x/y/z`。`Cp/Cf` 使用配置中的
+`q_inf=0.5*rho_inf*|u_inf|^2`；参考动压必须大于统一阈值，方向必须为单位向量且 drag/lift
+正交。无粘运行请求 `Cf,q_wall` 或黏性牵引会在写文件前失败。
+
+面面积元使用全局守恒权重，不按面数平均；运行时切分通过原 zone 索引恢复后，在 root 进行
+确定性排序和查重。逐面文件名为 `<case>.boundary.r<ranks>.step....txt|dat`，几何列固定包含
+原 patch/zone 索引、全局面索引、面心、面积和流体域外法向。固定载荷历史
+`<case>.loads.r<ranks>.txt` 保存压力、黏性、总力/力矩以及 `Cd/Cl/Cm`。二维力按单位展向长度
+解释并在文件头写 `force_per_unit_span=true`。`output.dimensional=true` 时坐标、面积、牵引、
+力和力矩分别按 `L_ref`、`L_ref^(d-1)`、`rho_ref U_ref^2`、
+`rho_ref U_ref^2 L_ref^(d-1)` 和 `rho_ref U_ref^2 L_ref^d` 恢复量纲；系数不变。
+
+### 9.5 检查点
 
 检查点固定保存五个无量纲守恒量，不使用 `quantities` 键。每次事件生成：
 
@@ -928,7 +972,7 @@ my_case.checkpoint.latest.cgns
 
 带 step/time 的文件是事件快照；`latest` 是滚动副本。还保存格式版本、step/time/dt、网格签名、数值签名、定常参考残差与连续计数。
 
-### 9.5 manifest 与临时文件
+### 9.6 manifest 与临时文件
 
 正常进入最终化后，rank 0 写 `<case>.manifest.r<ranks>.txt`，其中包含程序版本、Git 提交、编译器、Release/Debug、MPI 数、配置/分区摘要、网格/重启签名、最终状态、停止原因、末个接受步的稳健化级别/重试/最小状态诊断和成功提交的文件列表。审查结果时先看 manifest，再看 history。
 

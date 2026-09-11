@@ -288,6 +288,25 @@ const std::set<std::string>& fixed_keys()
         "output.statistics.every_steps", "output.statistics.every_time",
         "output.statistics.explicit_times", "output.statistics.write_initial",
         "output.statistics.write_final", "output.statistics.quantities",
+        "output.boundary.enabled", "output.boundary.format",
+        "output.boundary.every_steps", "output.boundary.every_time",
+        "output.boundary.explicit_times", "output.boundary.write_initial",
+        "output.boundary.write_final", "output.boundary.patches",
+        "output.boundary.quantities", "output.boundary.reference_pressure",
+        "output.boundary.reference_density",
+        "output.boundary.reference_velocity_x",
+        "output.boundary.reference_velocity_y",
+        "output.boundary.reference_velocity_z",
+        "output.boundary.reference_area", "output.boundary.reference_length",
+        "output.boundary.moment_center_x", "output.boundary.moment_center_y",
+        "output.boundary.moment_center_z",
+        "output.boundary.drag_direction_x", "output.boundary.drag_direction_y",
+        "output.boundary.drag_direction_z",
+        "output.boundary.lift_direction_x", "output.boundary.lift_direction_y",
+        "output.boundary.lift_direction_z",
+        "output.boundary.tangent_direction_x",
+        "output.boundary.tangent_direction_y",
+        "output.boundary.tangent_direction_z",
         "output.statistics.xz_planes.enabled",
         "output.statistics.xz_planes.cell_j_indices",
         "output.statistics.yz_planes.enabled",
@@ -842,6 +861,110 @@ std::string SeriesOutputConfig::summary(const char* label) const
     return result.str();
 }
 
+void BoundaryOutputConfig::validate(bool viscous) const
+{
+    schedule.validate();
+    if (!enabled) return;
+    const std::set<std::string> supported {
+        "p_w", "T_w", "mu_w", "Cp", "Cf", "q_wall",
+        "pressure_traction_x", "pressure_traction_y", "pressure_traction_z",
+        "viscous_traction_x", "viscous_traction_y", "viscous_traction_z",
+        "traction_x", "traction_y", "traction_z",
+    };
+    const std::set<std::string> viscous_only {
+        "Cf", "q_wall", "viscous_traction_x", "viscous_traction_y",
+        "viscous_traction_z",
+    };
+    std::set<std::string> unique_patches;
+    for (const auto& patch : patches) {
+        if (patch.empty() || !unique_patches.insert(patch).second) {
+            throw CaseConfigurationError(
+                "boundary output patch names must be nonempty and unique");
+        }
+    }
+    std::set<std::string> unique_quantities;
+    for (const auto& quantity : quantities) {
+        if (supported.find(quantity) == supported.end()
+            || !unique_quantities.insert(quantity).second) {
+            throw CaseConfigurationError(
+                "boundary output quantity is unknown or duplicated: " + quantity);
+        }
+        if (!viscous && viscous_only.find(quantity) != viscous_only.end()) {
+            throw CaseConfigurationError(
+                "inviscid boundary output cannot request viscous quantity: "
+                + quantity);
+        }
+    }
+    if (patches.empty() || quantities.empty()) {
+        throw CaseConfigurationError(
+            "enabled boundary output requires patches and quantities");
+    }
+    const auto positive = [](Real value) {
+        return std::isfinite(value) && value > 0.0;
+    };
+    const auto finite_vector = [](const std::array<Real, 3>& vector) {
+        return std::all_of(vector.begin(), vector.end(), [](Real value) {
+            return std::isfinite(value);
+        });
+    };
+    const auto dot = [](const std::array<Real, 3>& lhs,
+                        const std::array<Real, 3>& rhs) {
+        return lhs[0] * rhs[0] + lhs[1] * rhs[1] + lhs[2] * rhs[2];
+    };
+    const auto unit = [&](const std::array<Real, 3>& vector) {
+        return finite_vector(vector) && std::abs(dot(vector, vector) - 1.0) <= 1.0e-12;
+    };
+    if (!positive(reference_pressure) || !positive(reference_density)
+        || !positive(reference_area) || !positive(reference_length)
+        || !finite_vector(reference_velocity) || !finite_vector(moment_center)
+        || !unit(drag_direction) || !unit(lift_direction)
+        || !unit(tangent_direction)
+        || std::abs(dot(drag_direction, lift_direction)) > 1.0e-12) {
+        throw CaseConfigurationError("boundary output reference data are invalid");
+    }
+    const Real speed_squared = dot(reference_velocity, reference_velocity);
+    if (!std::isfinite(speed_squared)
+        || 0.5 * reference_density * speed_squared <= 1.0e-12) {
+        throw CaseConfigurationError(
+            "boundary output reference dynamic pressure is too small");
+    }
+}
+
+std::string BoundaryOutputConfig::summary() const
+{
+    if (!enabled) return "boundary(enabled=false)";
+    std::ostringstream result;
+    result << "boundary(enabled=true,format=" << series_output_format_name(format)
+           << ',' << schedule.summary() << ",patches=";
+    for (std::size_t index = 0; index < patches.size(); ++index) {
+        if (index != 0) result << ':';
+        result << patches[index];
+    }
+    result << ",quantities=";
+    for (std::size_t index = 0; index < quantities.size(); ++index) {
+        if (index != 0) result << ':';
+        result << quantities[index];
+    }
+    const auto vector = [&result](const std::array<Real, 3>& value) {
+        result << value[0] << ':' << value[1] << ':' << value[2];
+    };
+    result << std::setprecision(17)
+           << ",p_ref=" << reference_pressure
+           << ",rho_ref=" << reference_density << ",u_ref=";
+    vector(reference_velocity);
+    result << ",A_ref=" << reference_area << ",L_ref=" << reference_length
+           << ",moment_center=";
+    vector(moment_center);
+    result << ",drag=";
+    vector(drag_direction);
+    result << ",lift=";
+    vector(lift_direction);
+    result << ",tangent=";
+    vector(tangent_direction);
+    result << ')';
+    return result.str();
+}
+
 void XzPlaneStatisticsConfig::validate(bool statistics_enabled) const
 {
     std::set<int> unique;
@@ -941,7 +1064,7 @@ std::string CheckpointOutputConfig::summary() const
         + (enabled ? "true," : "false,") + schedule.summary() + ')';
 }
 
-void OutputConfig::validate() const
+void OutputConfig::validate(bool viscous) const
 {
     if (directory.empty()) {
         throw CaseConfigurationError("output directory must not be empty");
@@ -949,6 +1072,7 @@ void OutputConfig::validate() const
     field.validate();
     history.validate("history");
     statistics.validate("statistics");
+    boundary.validate(viscous);
     xz_planes.validate(statistics.enabled);
     yz_planes.validate(statistics.enabled);
     channel_walls.validate(statistics.enabled);
@@ -963,6 +1087,7 @@ std::string OutputConfig::summary() const
            << ",dimensional=" << (dimensional ? "true" : "false")
            << ',' << field.summary() << ',' << history.summary("history")
            << ',' << statistics.summary("statistics") << ','
+           << boundary.summary() << ','
            << xz_planes.summary() << ',' << yz_planes.summary() << ','
            << channel_walls.summary() << ','
            << checkpoint.summary() << ')';
@@ -1235,6 +1360,67 @@ CaseConfig CaseConfig::from_text(const std::string& text)
         entries, "output.statistics", true);
     result.output.statistics.quantities = optional_string_list(
         entries, "output.statistics.quantities");
+    result.output.boundary.enabled = optional_bool(
+        entries, "output.boundary.enabled", false);
+    if (const auto iterator = entries.find("output.boundary.format");
+        iterator != entries.end()) {
+        result.output.boundary.format = parse_series_output_format(iterator->second);
+    }
+    result.output.boundary.schedule = parse_schedule(
+        entries, "output.boundary", true);
+    result.output.boundary.patches = optional_string_list(
+        entries, "output.boundary.patches");
+    result.output.boundary.quantities = optional_string_list(
+        entries, "output.boundary.quantities");
+    result.output.boundary.reference_pressure = optional_real(
+        entries, "output.boundary.reference_pressure",
+        result.output.boundary.reference_pressure);
+    result.output.boundary.reference_density = optional_real(
+        entries, "output.boundary.reference_density",
+        result.output.boundary.reference_density);
+    result.output.boundary.reference_velocity = {{
+        optional_real(entries, "output.boundary.reference_velocity_x",
+            result.output.boundary.reference_velocity[0]),
+        optional_real(entries, "output.boundary.reference_velocity_y",
+            result.output.boundary.reference_velocity[1]),
+        optional_real(entries, "output.boundary.reference_velocity_z",
+            result.output.boundary.reference_velocity[2]),
+    }};
+    result.output.boundary.reference_area = optional_real(
+        entries, "output.boundary.reference_area",
+        result.output.boundary.reference_area);
+    result.output.boundary.reference_length = optional_real(
+        entries, "output.boundary.reference_length",
+        result.output.boundary.reference_length);
+    result.output.boundary.moment_center = {{
+        optional_real(entries, "output.boundary.moment_center_x", 0.0),
+        optional_real(entries, "output.boundary.moment_center_y", 0.0),
+        optional_real(entries, "output.boundary.moment_center_z", 0.0),
+    }};
+    result.output.boundary.drag_direction = {{
+        optional_real(entries, "output.boundary.drag_direction_x",
+            result.output.boundary.drag_direction[0]),
+        optional_real(entries, "output.boundary.drag_direction_y",
+            result.output.boundary.drag_direction[1]),
+        optional_real(entries, "output.boundary.drag_direction_z",
+            result.output.boundary.drag_direction[2]),
+    }};
+    result.output.boundary.lift_direction = {{
+        optional_real(entries, "output.boundary.lift_direction_x",
+            result.output.boundary.lift_direction[0]),
+        optional_real(entries, "output.boundary.lift_direction_y",
+            result.output.boundary.lift_direction[1]),
+        optional_real(entries, "output.boundary.lift_direction_z",
+            result.output.boundary.lift_direction[2]),
+    }};
+    result.output.boundary.tangent_direction = {{
+        optional_real(entries, "output.boundary.tangent_direction_x",
+            result.output.boundary.tangent_direction[0]),
+        optional_real(entries, "output.boundary.tangent_direction_y",
+            result.output.boundary.tangent_direction[1]),
+        optional_real(entries, "output.boundary.tangent_direction_z",
+            result.output.boundary.tangent_direction[2]),
+    }};
     result.output.xz_planes.enabled = optional_bool(
         entries, "output.statistics.xz_planes.enabled", false);
     result.output.xz_planes.cell_j_indices = optional_integer_list(
@@ -1311,7 +1497,7 @@ void CaseConfig::validate() const
     partition.validate(profile);
     initial.validate();
     run.validate();
-    output.validate();
+    output.validate(run.viscous);
     if (output.channel_walls.enabled && !run.viscous) {
         throw CaseConfigurationError(
             "channel-wall friction monitoring requires run.viscous=true");

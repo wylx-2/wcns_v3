@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
-"""Post-process Case07 Tecplot cell-centred fields.
+"""Post-process Case07 cell fields and authoritative boundary-face loads.
 
-The aerodynamic coefficients are diagnostic estimates: pressure and tangential
-velocity are extrapolated from the first off-wall cell of the generated circular
-O-grid.  They are suitable for qualitative case checks, not a grid-converged
-surface-force validation.
+Aerodynamic coefficients and surface Cp are read from wcns_run boundary/load
+outputs.  Cell-centred fields are used only for volume diagnostics and probes.
 """
 
 from __future__ import annotations
@@ -78,6 +76,47 @@ def read_tecplot(path: Path) -> tuple[list[str], list[tuple[str, np.ndarray]]]:
     return variables, zones
 
 
+def read_boundary_tecplot(path: Path) -> dict[str, np.ndarray]:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    variable_line = next(
+        (index for index, line in enumerate(lines) if line.startswith("VARIABLES=")),
+        None,
+    )
+    if variable_line is None:
+        raise ValueError(f"missing boundary VARIABLES in {path}")
+    variables = VARIABLE_RE.findall(lines[variable_line])
+    zone_line = variable_line + 1
+    if zone_line >= len(lines) or not lines[zone_line].startswith("ZONE "):
+        raise ValueError(f"missing boundary ZONE in {path}")
+    values = np.asarray(
+        [
+            [float(value) for value in line.split()]
+            for line in lines[zone_line + 1 :]
+            if line.strip() and not line.startswith("#")
+        ],
+        dtype=float,
+    )
+    if values.ndim != 2 or values.shape[1] != len(variables):
+        raise ValueError(f"truncated boundary table in {path}")
+    return {name: values[:, index] for index, name in enumerate(variables)}
+
+
+def read_load_history(path: Path) -> list[dict[str, float]]:
+    lines = path.read_text(encoding="utf-8").splitlines()
+    header = next(
+        (index for index, line in enumerate(lines) if line.startswith("# step time")),
+        None,
+    )
+    if header is None:
+        raise ValueError(f"missing load-history schema in {path}")
+    names = lines[header].removeprefix("# ").split()
+    return [
+        dict(zip(names, (float(value) for value in line.split())))
+        for line in lines[header + 1 :]
+        if line.strip() and not line.startswith("#")
+    ]
+
+
 def join_zones(
     variables: list[str], zones: list[tuple[str, np.ndarray]]
 ) -> dict[str, np.ndarray]:
@@ -103,49 +142,6 @@ def polar_vorticity(fields: dict[str, np.ndarray]) -> np.ndarray:
         - np.roll(radial_velocity, 1, axis=1)
     ) / (2.0 * delta_theta * radial[:, None])
     return radial_term - angular_term
-
-
-def surface_diagnostics(
-    fields: dict[str, np.ndarray], info: CaseInfo
-) -> dict[str, float | list[float]]:
-    ntheta = fields["X"].shape[1]
-    theta = -2.0 * math.pi * (np.arange(ntheta) + 0.5) / ntheta
-    delta_theta = 2.0 * math.pi / ntheta
-    radius = 0.5
-    diameter = 1.0
-    dynamic_pressure = 0.5
-    x, y = fields["X"][0], fields["Y"][0]
-    p = fields["p"][0]
-    u, v = fields["u"][0], fields["v"][0]
-    cell_radius = np.hypot(x, y)
-    cosine, sine = np.cos(theta), np.sin(theta)
-    pressure_inf = 1.0 / (1.4 * info.mach * info.mach)
-    pressure_force_x = -(p - pressure_inf) * cosine * radius * delta_theta
-    pressure_force_y = -(p - pressure_inf) * sine * radius * delta_theta
-    viscous_force_x = np.zeros_like(p)
-    viscous_force_y = np.zeros_like(p)
-    if info.viscous and info.reynolds is not None:
-        tangent_x, tangent_y = -sine, cosine
-        tangent_velocity = u * tangent_x + v * tangent_y
-        viscosity_ratio = fields.get("viscosity", np.ones_like(fields["p"]))[0]
-        shear = viscosity_ratio * tangent_velocity / (
-            info.reynolds * (cell_radius - radius)
-        )
-        viscous_force_x = shear * tangent_x * radius * delta_theta
-        viscous_force_y = shear * tangent_y * radius * delta_theta
-    scale = dynamic_pressure * diameter
-    return {
-        "cd_pressure": float(np.sum(pressure_force_x) / scale),
-        "cl_pressure": float(np.sum(pressure_force_y) / scale),
-        "cd_viscous_estimate": float(np.sum(viscous_force_x) / scale),
-        "cl_viscous_estimate": float(np.sum(viscous_force_y) / scale),
-        "cd_estimate": float(np.sum(pressure_force_x + viscous_force_x) / scale),
-        "cl_estimate": float(np.sum(pressure_force_y + viscous_force_y) / scale),
-        "theta": theta.tolist(),
-        "x": x.tolist(),
-        "y": y.tolist(),
-        "cp_first_cell": ((p - pressure_inf) / dynamic_pressure).tolist(),
-    }
 
 
 def flow_diagnostics(fields: dict[str, np.ndarray]) -> dict[str, float]:
@@ -239,7 +235,7 @@ def plot_derived_vorticity(
 
 def shedding_frequency(rows: list[dict[str, float]]) -> dict[str, float]:
     if len(rows) < 20:
-        return {"strouhal_estimate": float("nan"), "cl_rms_late": float("nan")}
+        return {"strouhal": float("nan"), "cl_rms_late": float("nan")}
     start = len(rows) // 2
     times = np.asarray([row["time"] for row in rows[start:]])
     def estimate(name: str) -> tuple[float, float]:
@@ -263,11 +259,11 @@ def shedding_frequency(rows: list[dict[str, float]]) -> dict[str, float]:
                 best_frequency = float(frequency)
         return best_frequency, float(np.sqrt(np.mean(centered * centered)))
 
-    lift_frequency, lift_rms = estimate("cl_estimate")
+    lift_frequency, lift_rms = estimate("cl_total")
     probe_frequency, probe_rms = estimate("wake_probe_v")
     return {
-        "strouhal_from_lift_estimate": lift_frequency,
-        "strouhal_from_probe_estimate": probe_frequency,
+        "strouhal_from_lift": lift_frequency,
+        "strouhal_from_probe": probe_frequency,
         "cl_rms_late": lift_rms,
         "wake_probe_v_rms_late": probe_rms,
     }
@@ -295,28 +291,50 @@ def analyze_case(root: Path, key: str, info: CaseInfo) -> dict[str, object]:
     files = sorted(result_directory.glob("*.field.*.dat"), key=filename_time)
     if not files:
         raise FileNotFoundError(f"no field files in {result_directory}")
-    history_rows: list[dict[str, float]] = []
+    field_probes: list[tuple[float, float]] = []
     final_variables: list[str] = []
     final_zones: list[tuple[str, np.ndarray]] = []
     final_fields: dict[str, np.ndarray] = {}
-    final_surface: dict[str, float | list[float]] = {}
     for path in files:
         variables, zones = read_tecplot(path)
         fields = join_zones(variables, zones)
-        surface = surface_diagnostics(fields, info)
         probe_distance = (fields["X"] - 2.0) ** 2 + (fields["Y"] - 0.5) ** 2
         probe = np.unravel_index(int(np.argmin(probe_distance)), probe_distance.shape)
-        history_rows.append({
-            "time": filename_time(path),
-            "cd_pressure": float(surface["cd_pressure"]),
-            "cd_viscous_estimate": float(surface["cd_viscous_estimate"]),
-            "cd_estimate": float(surface["cd_estimate"]),
-            "cl_estimate": float(surface["cl_estimate"]),
-            "wake_probe_v": float(fields["v"][probe]),
-        })
-        final_variables, final_zones, final_fields, final_surface = (
-            variables, zones, fields, surface
+        field_probes.append((filename_time(path), float(fields["v"][probe])))
+        final_variables, final_zones, final_fields = variables, zones, fields
+
+    load_files = list(result_directory.glob("*.loads.r*.txt"))
+    if len(load_files) != 1:
+        raise ValueError(f"expected one completed load history in {result_directory}")
+    load_rows = read_load_history(load_files[0])
+    if not load_rows:
+        raise ValueError(f"empty load history in {result_directory}")
+    history_rows: list[dict[str, float]] = []
+    for load in load_rows:
+        probe_time, probe_value = min(
+            field_probes, key=lambda sample: abs(sample[0] - load["time"])
         )
+        if abs(probe_time - load["time"]) > 1.0e-10:
+            raise ValueError("field and boundary output schedules are not aligned")
+        history_rows.append({
+            "time": load["time"],
+            "cd_pressure": load["Cd_pressure"],
+            "cd_viscous": load["Cd_viscous"],
+            "cd_total": load["Cd_total"],
+            "cl_pressure": load["Cl_pressure"],
+            "cl_viscous": load["Cl_viscous"],
+            "cl_total": load["Cl_total"],
+            "wake_probe_v": probe_value,
+        })
+
+    boundary_files = sorted(
+        result_directory.glob("*.boundary.r*.step*.dat"), key=filename_time
+    )
+    if not boundary_files:
+        raise FileNotFoundError(f"no boundary files in {result_directory}")
+    surface = read_boundary_tecplot(boundary_files[-1])
+    theta = np.arctan2(surface["y"], surface["x"])
+    order = np.argsort(np.mod(theta, 2.0 * math.pi))
 
     with (root / "results" / f"{key}.surface-history.csv").open(
         "w", newline="", encoding="utf-8"
@@ -328,17 +346,18 @@ def analyze_case(root: Path, key: str, info: CaseInfo) -> dict[str, object]:
         "w", newline="", encoding="utf-8"
     ) as stream:
         writer = csv.writer(stream)
-        writer.writerow(["theta", "x", "y", "cp_first_cell"])
+        writer.writerow(["theta", "x", "y", "Cp"])
         writer.writerows(zip(
-            final_surface["theta"], final_surface["x"],
-            final_surface["y"], final_surface["cp_first_cell"]
+            theta[order], surface["x"][order],
+            surface["y"][order], surface["Cp"][order]
         ))
 
     final = {
         "last_field": str(files[-1].relative_to(root)),
         "time": filename_time(files[-1]),
         **flow_diagnostics(final_fields),
-        **{name: value for name, value in final_surface.items() if not isinstance(value, list)},
+        **{name: value for name, value in history_rows[-1].items()
+           if name != "wake_probe_v"},
     }
     solver_histories = list(result_directory.glob("*.history.r*.txt"))
     if len(solver_histories) != 1:
@@ -390,15 +409,15 @@ def plot_histories(root: Path) -> None:
         with (root / "results" / f"{key}.surface-history.csv").open(encoding="utf-8") as stream:
             rows = list(csv.DictReader(stream))
         time = np.asarray([float(row["time"]) for row in rows])
-        drag = np.asarray([float(row["cd_estimate"]) for row in rows])
+        drag = np.asarray([float(row["cd_total"]) for row in rows])
         axes[0].plot(time, drag, marker="o", ms=2.0, label=key)
         if key in {"re100", "re200"}:
-            lift = np.asarray([float(row["cl_estimate"]) for row in rows])
+            lift = np.asarray([float(row["cl_total"]) for row in rows])
             probe = np.asarray([float(row["wake_probe_v"]) for row in rows])
-            axes[1].plot(time, lift, label=rf"{key} estimated $C_L$")
+            axes[1].plot(time, lift, label=rf"{key} $C_L$")
             axes[1].plot(time, probe, label=rf"{key} probe $v(2D,0.5D)$")
     axes[0].set_xlabel(r"$tU_\infty/D$")
-    axes[0].set_ylabel("estimated drag coefficient")
+    axes[0].set_ylabel("drag coefficient")
     axes[0].grid(True, alpha=0.3)
     axes[0].legend()
     axes[1].set_xlabel(r"$tU_\infty/D$")
@@ -413,11 +432,11 @@ def plot_histories(root: Path) -> None:
         with (root / "results" / f"{key}.surface-final.csv").open(encoding="utf-8") as stream:
             rows = list(csv.DictReader(stream))
         angle = np.mod(np.degrees([float(row["theta"]) for row in rows]), 360.0)
-        cp = np.asarray([float(row["cp_first_cell"]) for row in rows])
+        cp = np.asarray([float(row["Cp"]) for row in rows])
         order = np.argsort(angle)
         axis.plot(angle[order], cp[order], marker="o", ms=2.5, label=key)
     axis.set_xlabel("polar angle from downstream axis (degree)")
-    axis.set_ylabel(r"first-cell $C_p$")
+    axis.set_ylabel(r"boundary-face $C_p$")
     axis.grid(True, alpha=0.3)
     axis.legend(ncol=2)
     figure.savefig(root / "figures" / "surface-cp.png", dpi=180)

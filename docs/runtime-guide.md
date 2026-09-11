@@ -216,10 +216,24 @@ FlowSolution；Tecplot ASCII 按原 zone 写 cell-center ordered zone。支持�
 | `jacobian` | `partial(x,y,z)/partial(xi,eta,zeta)`；二维为面积尺度、三维为体积尺度 |
 
 `output.dimensional = true` 时按参考量恢复量纲；否则输出内部无量纲值。需要 ghost 坐标/度量
-或梯度的涡量、散度、Q 判据和壁面热流尚未注册，若在 `output.field.quantities` 请求会在首次
-输出前明确报“unknown field quantity”，不会输出占位零值。
+或梯度的涡量、散度和 Q 判据尚未注册；壁面热流应通过 `output.boundary.quantities=q_wall`
+请求。若在 `output.field.quantities` 请求未知量，会在首次输出前明确报
+“unknown field quantity”，不会输出占位零值。
 
-### 5.2 残差历史、统计和 manifest
+### 5.2 边界面工程量和载荷
+
+`output.boundary.format = txt | tecplot`。启用时必须给出物理 patch、逐面量、来流参考状态、
+参考面积/长度、力矩中心及单位 drag/lift/tangent 方向。内建量为 `p_w,T_w,mu_w,Cp,Cf,q_wall`、
+压力/黏性/总牵引的 `x/y/z` 分量；无粘运行不能请求黏性量。
+
+程序在已接受状态上复用当前 profile 的压力迹和黏性壁面强迹，使用全局守恒边界权重
+`w_b|S|`。所有 rank 将固定宽度面记录汇总到 root，并按
+`(patch,source_zone,k,j,i,axis,side)` 排序查重。每个事件生成
+`<case>.boundary.r<ranks>.step....txt|dat`，载荷固定 schema 写入
+`<case>.loads.r<ranks>.txt`。二维头记录 `force_per_unit_span=true`。这些配置进入摘要、digest
+和 manifest，但不改变数值 restart signature。完整公式和符号见《算法补充》11.4。
+
+### 5.3 残差历史、统计和 manifest
 
 `output.history.format = txt | tecplot`。历史列固定，包含 step/time/dt/CFL/wall time、总残差、
 五分量 `L2/Linf`、冻结参考值、归一化值、连续通过次数、重构/Riemann 回退、稳健化各级
