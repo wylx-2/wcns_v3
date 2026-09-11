@@ -40,8 +40,10 @@ output.boundary.tangent_direction_x/y/z = <required unit vector>
 
 ## 3. 权威数据流
 
-1. 每次 accepted state 的 residual refresh 使用现有 profile、公共 ghost、梯度 halo 和
-   `ViscousBoundaryTrace` 形成边界迹；求解器保存只读 `BoundaryFaceSample`。
+1. 每次 accepted state 的 residual refresh 已建立当前公共 ghost。仅在边界事件到期时，输出器
+   从该已接受状态调用与求解器相同的 profile、梯度 operand/gradient halo、
+   `interpolate_viscous_face_trace` 和 `apply_viscous_boundary_trace` 链，随即形成只读
+   `BoundaryFaceSample`；不缓存跨步迹，也不另造第一层单元近似。
 2. 样本包含 leaf block、patch、方向/侧、局部面索引、面心、外法向、壁面 primitive、
    $\tau\boldsymbol n$、$\chi\nabla T\cdot\boldsymbol n$ 和是否具有黏性迹。
 3. 输出器从 `GlobalConservationWeights` 取 $w_b$，计算 $\Delta A=w_b|S|$；从 partition leaf
