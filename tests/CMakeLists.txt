@@ -362,6 +362,17 @@ if(WCNS_ENABLE_CGNS)
         wcns.check.xz_plane_statistics.serial
         PROPERTIES FIXTURES_REQUIRED xz_plane_statistics_output
     )
+    add_test(
+        NAME wcns.check.boundary_3d.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/check_boundary_output.py
+            ${CMAKE_CURRENT_BINARY_DIR}/xz-plane-statistics-smoke
+            1
+    )
+    set_tests_properties(
+        wcns.check.boundary_3d.serial
+        PROPERTIES FIXTURES_REQUIRED xz_plane_statistics_output
+    )
     set_tests_properties(
         wcns.run.freestream.serial
         PROPERTIES FIXTURES_REQUIRED cgns_files
@@ -930,6 +941,17 @@ if(WCNS_ENABLE_CGNS)
         )
         set_tests_properties(
             wcns.check.xz_plane_statistics.2
+            PROPERTIES FIXTURES_REQUIRED xz_plane_statistics_output_mpi
+        )
+        add_test(
+            NAME wcns.check.boundary_3d.2
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/check_boundary_output.py
+                ${CMAKE_CURRENT_BINARY_DIR}/xz-plane-statistics-smoke-mpi
+                2
+        )
+        set_tests_properties(
+            wcns.check.boundary_3d.2
             PROPERTIES FIXTURES_REQUIRED xz_plane_statistics_output_mpi
         )
         add_test(

@@ -14,8 +14,9 @@ def rows(path):
 
 
 output = sys.argv[1]
-faces = sorted(glob.glob(os.path.join(output, "*.boundary.r1.step*.txt")))
-loads = glob.glob(os.path.join(output, "*.loads.r1.txt"))
+rank = int(sys.argv[2]) if len(sys.argv) > 2 else 1
+faces = sorted(glob.glob(os.path.join(output, f"*.boundary.r{rank}.step*.txt")))
+loads = glob.glob(os.path.join(output, f"*.loads.r{rank}.txt"))
 if len(faces) < 2 or len(loads) != 1:
     raise SystemExit(
         f"expected boundary snapshots and one load history, got {faces}, {loads}"
@@ -28,7 +29,10 @@ initial = rows(initial_paths[0])
 if not initial:
     raise SystemExit("initial boundary snapshot is empty")
 keys = [tuple(row[:7]) for row in initial]
-if keys != sorted(keys) or len(keys) != len(set(keys)):
+ordered_keys = sorted(
+    keys, key=lambda key: (key[0], key[1], key[4], key[3], key[2], key[5], key[6])
+)
+if keys != ordered_keys or len(keys) != len(set(keys)):
     raise SystemExit("boundary face keys are not sorted and unique")
 
 # Fixed columns end at nz=13; requested Cp is the fourth selected quantity.
