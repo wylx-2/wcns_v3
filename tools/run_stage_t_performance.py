@@ -227,6 +227,7 @@ def scaling_matrix(
     repetitions: int,
     detailed: bool,
 ) -> dict[str, object]:
+    root.mkdir(parents=True, exist_ok=True)
     ranks = [1, 2, 4, 8]
     strong_grid = (48, 72, 48)
     strong_mesh = root / "strong-48x72x48.cgns"
