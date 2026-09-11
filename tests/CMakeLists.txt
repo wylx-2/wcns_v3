@@ -153,6 +153,22 @@ if(WCNS_ENABLE_CGNS)
         ${CMAKE_CURRENT_BINARY_DIR}/linear_conduction_analytic.wcns
         @ONLY
     )
+    set(WCNS_TRANSPORT_CASE transport-sutherland-serial)
+    set(WCNS_TRANSPORT_OUTPUT transport-sutherland-serial)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/transport_runtime_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/transport_sutherland_serial.wcns
+        @ONLY
+    )
+    if(WCNS_ENABLE_MPI)
+        set(WCNS_TRANSPORT_CASE transport-sutherland-mpi)
+        set(WCNS_TRANSPORT_OUTPUT transport-sutherland-mpi)
+        configure_file(
+            ${CMAKE_CURRENT_SOURCE_DIR}/data/transport_runtime_case.wcns.in
+            ${CMAKE_CURRENT_BINARY_DIR}/transport_sutherland_mpi.wcns
+            @ONLY
+        )
+    endif()
     set(WCNS_OUTPUT_SUBDIR output-validation-serial)
     set(WCNS_HISTORY_FORMAT txt)
     configure_file(
@@ -249,6 +265,18 @@ if(WCNS_ENABLE_CGNS)
         NAME wcns.run.freestream.serial
         COMMAND wcns_run
             --config ${CMAKE_CURRENT_BINARY_DIR}/freestream_case.wcns
+    )
+    add_test(
+        NAME wcns.run.transport.sutherland.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/check_transport_runtime.py
+            --run $<TARGET_FILE:wcns_run>
+            --config ${CMAKE_CURRENT_BINARY_DIR}/transport_sutherland_serial.wcns
+            --output ${CMAKE_CURRENT_BINARY_DIR}/transport-sutherland-serial
+    )
+    set_tests_properties(
+        wcns.run.transport.sutherland.serial
+        PROPERTIES FIXTURES_REQUIRED cgns_files
     )
     add_test(
         NAME wcns.run.double_mach_reflection.smoke.serial
@@ -849,6 +877,20 @@ if(WCNS_ENABLE_CGNS)
     set_tests_properties(wcns.geometry_plan.serial PROPERTIES FIXTURES_REQUIRED cgns_files)
 
     if(WCNS_ENABLE_MPI)
+        add_test(
+            NAME wcns.run.transport.sutherland.2
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/check_transport_runtime.py
+                --run $<TARGET_FILE:wcns_run>
+                --config ${CMAKE_CURRENT_BINARY_DIR}/transport_sutherland_mpi.wcns
+                --output ${CMAKE_CURRENT_BINARY_DIR}/transport-sutherland-mpi
+                --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
+                --ranks 2
+        )
+        set_tests_properties(
+            wcns.run.transport.sutherland.2
+            PROPERTIES FIXTURES_REQUIRED cgns_files
+        )
         add_test(
             NAME wcns.run.boundary_partition.2
             COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
