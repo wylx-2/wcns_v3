@@ -34,6 +34,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scaling-repetitions", type=int, default=5)
     parser.add_argument("--scaling-warmups", type=int, default=1)
     parser.add_argument("--skip-scaling", action="store_true")
+    parser.add_argument(
+        "--reuse-serial-manifest", type=Path,
+        help="reuse serial/allocation results from a prior stage-T manifest",
+    )
     return parser.parse_args()
 
 
@@ -298,19 +302,33 @@ def main() -> int:
     baseline_by_id = {item["id"]: item for item in baseline["cases"]}
 
     serial: list[dict[str, object]] = []
-    for case in serial_cases(repository, root, generator):
-        measured = measure_case(
-            [], executable, str(case["config"]), root / "serial" / str(case["id"]),
-            args.warmups, args.repetitions, int(case["cells"]), int(case["steps"]),
-            args.detailed,
+    allocation: dict[str, object]
+    if args.reuse_serial_manifest is not None:
+        prior = json.loads(
+            args.reuse_serial_manifest.resolve().read_text(encoding="utf-8")
         )
-        baseline_seconds = float(baseline_by_id[str(case["id"])]["median_wall_seconds"])
-        serial.append({
-            key: value for key, value in case.items() if key != "config"
-        } | measured | {
-            "baseline_median_wall_seconds": baseline_seconds,
-            "speedup": baseline_seconds / float(measured["median_wall_seconds"]),
-        })
+        if prior.get("stage") != "T" or not prior.get("serial"):
+            raise RuntimeError("reused serial manifest is not a stage-T result")
+        serial = prior["serial"]
+        allocation = prior["allocation"]
+    else:
+        for case in serial_cases(repository, root, generator):
+            measured = measure_case(
+                [], executable, str(case["config"]),
+                root / "serial" / str(case["id"]), args.warmups,
+                args.repetitions, int(case["cells"]), int(case["steps"]),
+                args.detailed,
+            )
+            baseline_seconds = float(
+                baseline_by_id[str(case["id"])]["median_wall_seconds"]
+            )
+            serial.append({
+                key: value for key, value in case.items() if key != "config"
+            } | measured | {
+                "baseline_median_wall_seconds": baseline_seconds,
+                "speedup": baseline_seconds / float(measured["median_wall_seconds"]),
+            })
+        allocation = allocation_result(args.allocation_probe.resolve(), root)
 
     scaling: dict[str, object] | None = None
     if not args.skip_scaling:
@@ -348,7 +366,7 @@ def main() -> int:
             "detailed_timing": args.detailed,
             "intermediate_output": False,
         },
-        "allocation": allocation_result(args.allocation_probe.resolve(), root),
+        "allocation": allocation,
         "serial": serial,
         "scaling": scaling,
     }
