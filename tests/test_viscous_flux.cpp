@@ -58,6 +58,20 @@ void test_transport_model()
         sutherland.viscosity(4.0),
         1.25 * 8.0 * 1.4 / 4.4,
         1.0e-14);
+    const Real scaled_temperature = 2.75;
+    const Real expected_sutherland = 1.25
+        * std::pow(scaled_temperature, 1.5)
+        * 1.4 / (scaled_temperature + 0.4);
+    WCNS_REQUIRE_NEAR(
+        sutherland.viscosity(scaled_temperature),
+        expected_sutherland,
+        1.0e-14 * expected_sutherland);
+    WCNS_REQUIRE_NEAR(
+        sutherland.thermal_coefficient(scaled_temperature, gas, reference),
+        expected_sutherland
+            / ((gas.gamma() - 1.0) * reference.mach() * reference.mach()
+                * sutherland_config.prandtl),
+        1.0e-14 * expected_sutherland);
     WCNS_REQUIRE_THROWS(PhysicsError, sutherland.viscosity(0.0));
 
     TransportConfig invalid;

@@ -479,6 +479,35 @@ t_ref = L_ref / U_ref
 
 禁止配置 `Re`、`Ma`、`reference.reynolds` 或 `reference.mach`。内部状态使用 `rho/rho_ref`、`u/U_ref`、`T/T_ref`、`p/(rho_ref*U_ref^2)`。因此理想气体无量纲关系为 `p=rho*T/(gamma*Ma^2)`；`rho=1,T=1` 并不意味着 `p=1`。
 
+#### 层流输运（v1.1）
+
+旧配置不写任何 `transport.*` 键时严格迁移为：
+
+```text
+transport.model = constant
+transport.prandtl = 0.72
+transport.constant.viscosity_ratio = 1.0
+```
+
+常黏度比是 `mu_const*/mu_ref`。Sutherland 模式写为：
+
+```text
+transport.model = sutherland
+transport.prandtl = 0.72
+transport.sutherland.reference_viscosity_ratio = 1.0
+transport.sutherland.temperature = 110.4
+```
+
+最后一行单位为 K，也可唯一地替换成
+`transport.sutherland.temperature_ratio = S*/T_ref`。两种表示若物理等价，内部配置与重启签名
+相同；两者同时出现会失败。Sutherland 模式必须显式给参考黏度比和一个温度常数，常黏度与
+Sutherland 专属键不能混用。所有值必须有限且为正。
+
+内部公式为 `mu(T)=mu_Tref_ratio*T^(3/2)*(1+S)/(T+S)` 和
+`chi=mu/[(gamma-1)*Ma^2*Pr]`；`1/Re` 仍只由粘性散度和时间步限制施加。启动摘要会在初场或
+重启状态上报告全局 `T_range` 与真实 `mu_range`，`viscosity`/`mu_w` 输出也使用这个有效模型。
+修改任一输运参数后旧检查点会被拒绝；缺省 v1.0 输运检查点允许按固定默认语义恢复。
+
 ### 8.4 MPI 分区
 
 | 键 | 约束 | 含义 |
@@ -1145,6 +1174,6 @@ wcns_compare_metric_profiles mesh.cgns
 
 ## 16. 当前功能边界
 
-当前只有单组分热完全理想气体、层流常比热模型、显式 SSPRK3、结构共形网格和内建源项。标准配置尚未暴露 Sutherland/Prandtl、低 Mach 预处理、湍流、化学反应、隐式推进、本地时间步、通用表达式源项、动态插件、涡量/Q/壁面热流等派生输出。默认输运为 `Pr=0.72` 和`mu/mu_ref=1` 的常黏度。
+当前只有单组分热完全理想气体、层流常比热、常黏度/Sutherland 输运、显式 SSPRK3、结构共形网格和内建源项。尚未实现低 Mach 预处理、湍流、化学反应、隐式推进、本地时间步、通用表达式源项、动态插件和涡量/Q 等体派生输出。默认输运为 `Pr=0.72` 和 `mu/mu_ref=1` 的常黏度。
 
 这些限制不能通过写一个未知配置键绕过。需要扩展时按开发手册同时修改数据结构、严格 parser、验证、摘要/重启签名、生产装配、测试、模板和文档。

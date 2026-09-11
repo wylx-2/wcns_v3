@@ -60,6 +60,19 @@ reference.temperature = 288.15
 reference.length = 1.0
 reference.viscosity = 1.7894e-5
 
+# 层流输运。下列常黏度配置也是省略全部 transport.* 键时的 v1.0 兼容默认值。
+transport.model = constant
+transport.prandtl = 0.72
+transport.constant.viscosity_ratio = 1.0
+
+# Sutherland 写法（启用时删除上面的 constant 专属键）：
+# transport.model = sutherland
+# transport.prandtl = 0.72
+# transport.sutherland.reference_viscosity_ratio = 1.0
+# transport.sutherland.temperature = 110.4
+# temperature 单位 K；也可改用无量纲 temperature_ratio，但两者不能同时给。
+# transport.sutherland.temperature_ratio = 0.38313378448724628
+
 # 可选：zones_only | auto_split | force_split
 partition.mode = auto_split
 

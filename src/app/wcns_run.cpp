@@ -152,6 +152,46 @@ std::vector<wcns::CgnsPartitionLeaf> cgns_leaves(
     return result;
 }
 
+std::tuple<wcns::Real, wcns::Real, wcns::Real, wcns::Real>
+transport_range(
+    const wcns::MpiRuntime& mpi,
+    wcns::LocalBlockSet& local_blocks,
+    const wcns::GasModel& gas,
+    const wcns::ReferenceScales& reference,
+    const wcns::NumericalFloors& floors,
+    const wcns::TransportModel& transport)
+{
+    wcns::Real local_minimum_temperature = std::numeric_limits<wcns::Real>::infinity();
+    wcns::Real local_maximum_temperature = -std::numeric_limits<wcns::Real>::infinity();
+    for (auto& block : local_blocks.blocks()) {
+        wcns::update_temperature_primitive_interior(
+            block, gas, reference, floors);
+        const auto cells = block.cell_extent();
+        for (int k = 0; k < cells.nk; ++k) {
+            for (int j = 0; j < cells.nj; ++j) {
+                for (int i = 0; i < cells.ni; ++i) {
+                    const auto temperature = block.flow.temperature_primitive(
+                        i, j, k, wcns::temperature_value);
+                    // Evaluate every runtime temperature before any normal output.
+                    static_cast<void>(transport.viscosity(temperature));
+                    local_minimum_temperature = std::min(
+                        local_minimum_temperature, temperature);
+                    local_maximum_temperature = std::max(
+                        local_maximum_temperature, temperature);
+                }
+            }
+        }
+    }
+    const auto minimum_temperature = mpi.min(local_minimum_temperature);
+    const auto maximum_temperature = mpi.max(local_maximum_temperature);
+    return {
+        minimum_temperature,
+        maximum_temperature,
+        transport.viscosity(minimum_temperature),
+        transport.viscosity(maximum_temperature),
+    };
+}
+
 wcns::BoundaryType configured_boundary_type(
     const wcns::CaseConfig& config,
     const std::string& name)
@@ -433,6 +473,8 @@ int main(int argc, char** argv)
         const auto gas = config.make_gas_model();
         const auto reference = config.make_reference_scales(gas);
         const auto profile = config.make_profile();
+        const auto transport_config = config.make_transport_config();
+        const wcns::TransportModel transport(transport_config);
         const wcns::NumericalFloors floors;
         auto metrics = initialize_partitioned_metrics(
             mpi, reader, mesh_name, metadata, plan, local_blocks, profile);
@@ -447,7 +489,7 @@ int main(int argc, char** argv)
             gas,
             reference,
             floors,
-            wcns::TransportModel(wcns::TransportConfig {}),
+            transport,
             config.output.dimensional,
         };
         const auto conservation_weights = wcns::GlobalConservationWeights::build(
@@ -476,13 +518,33 @@ int main(int argc, char** argv)
             simulation_initial = checkpoint.restore(restart_name).initial;
         }
 
+        const auto [minimum_temperature, maximum_temperature,
+                    minimum_temperature_viscosity,
+                    maximum_temperature_viscosity]
+            = transport_range(
+                mpi, local_blocks, gas, reference, floors, transport);
+
         if (mpi.rank() == 0) {
             std::cout << config.summary() << '\n'
                       << plan.summary() << '\n'
                       << "mesh_signature=" << checkpoint.mesh_signature() << '\n'
                       << "derived Re=" << std::setprecision(17)
                       << reference.reynolds()
-                      << " Ma=" << reference.mach() << '\n';
+                      << " Ma=" << reference.mach() << '\n'
+                      << "transport_reference mu_Tref_over_mu_ref="
+                      << transport.viscosity(1.0)
+                      << " Pr=" << transport_config.prandtl;
+            if (const auto* sutherland = std::get_if<wcns::SutherlandViscosity>(
+                    &transport_config.viscosity)) {
+                std::cout << " S_over_Tref="
+                          << sutherland->constant_temperature_ratio;
+            } else {
+                std::cout << " S_over_Tref=not_applicable";
+            }
+            std::cout << " T_range=[" << minimum_temperature << ','
+                      << maximum_temperature << "] mu_range=["
+                      << minimum_temperature_viscosity << ','
+                      << maximum_temperature_viscosity << "]\n";
         }
         if (command.dry_run) {
             if (mpi.rank() == 0) {
@@ -572,6 +634,7 @@ int main(int argc, char** argv)
         if (config.run.viscous) {
             wcns::ViscousWcnsConfig solver_config;
             solver_config.inviscid = config.make_inviscid_config();
+            solver_config.transport = transport_config;
             wcns::ViscousWcnsSolver solver(
                 mpi,
                 local_blocks,

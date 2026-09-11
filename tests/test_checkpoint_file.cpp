@@ -42,13 +42,16 @@ std::map<std::string, std::string> descriptors(int file)
 // 独立重读检查点的网格、五个守恒场及严格重启元数据。
 int main(int argc, char** argv)
 {
-    if (argc != 2) {
-        std::cerr << "usage: wcns_checkpoint_file_tests <checkpoint.cgns>\n";
+    if (argc != 2 && argc != 3) {
+        std::cerr << "usage: wcns_checkpoint_file_tests <checkpoint.cgns> "
+                     "[--strip-default-transport]\n";
         return EXIT_FAILURE;
     }
     int file = 0;
     try {
-        check_cgns(cg_open(argv[1], CG_MODE_READ, &file), "cg_open checkpoint test");
+        check_cgns(
+            cg_open(argv[1], argc == 3 ? CG_MODE_MODIFY : CG_MODE_READ, &file),
+            "cg_open checkpoint test");
         const auto metadata = descriptors(file);
         WCNS_REQUIRE(metadata.at("WCNS_Version") == "1");
         WCNS_REQUIRE(metadata.at("WCNS_Step") == "1");
@@ -72,9 +75,24 @@ int main(int argc, char** argv)
                 lower, upper, density.data()),
             "cg_field_read checkpoint Density");
         for (const double value : density) WCNS_REQUIRE_NEAR(value, 1.0, 1.0e-12);
+        if (argc == 3) {
+            WCNS_REQUIRE(std::string(argv[2]) == "--strip-default-transport");
+            const auto& signature = metadata.at("WCNS_RestartSignature");
+            const auto suffix = signature.find(";transport=transport_v1;");
+            WCNS_REQUIRE(suffix != std::string::npos);
+            const auto legacy = signature.substr(0, suffix);
+            check_cgns(
+                cg_delete_node("WCNS_RestartSignature"),
+                "cg_delete_node checkpoint transport signature");
+            check_cgns(
+                cg_descriptor_write("WCNS_RestartSignature", legacy.c_str()),
+                "cg_descriptor_write legacy checkpoint signature");
+        }
         check_cgns(cg_close(file), "cg_close checkpoint test");
         file = 0;
-        std::cout << "checkpoint independently re-read\n";
+        std::cout << "checkpoint independently re-read"
+                  << (argc == 3 ? " and converted to v1.0 transport signature\n"
+                                : "\n");
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {
         if (file > 0) cg_close(file);

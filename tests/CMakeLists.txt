@@ -153,6 +153,22 @@ if(WCNS_ENABLE_CGNS)
         ${CMAKE_CURRENT_BINARY_DIR}/linear_conduction_analytic.wcns
         @ONLY
     )
+    set(WCNS_TRANSPORT_CASE transport-sutherland-serial)
+    set(WCNS_TRANSPORT_OUTPUT transport-sutherland-serial)
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/transport_runtime_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/transport_sutherland_serial.wcns
+        @ONLY
+    )
+    if(WCNS_ENABLE_MPI)
+        set(WCNS_TRANSPORT_CASE transport-sutherland-mpi)
+        set(WCNS_TRANSPORT_OUTPUT transport-sutherland-mpi)
+        configure_file(
+            ${CMAKE_CURRENT_SOURCE_DIR}/data/transport_runtime_case.wcns.in
+            ${CMAKE_CURRENT_BINARY_DIR}/transport_sutherland_mpi.wcns
+            @ONLY
+        )
+    endif()
     set(WCNS_OUTPUT_SUBDIR output-validation-serial)
     set(WCNS_HISTORY_FORMAT txt)
     configure_file(
@@ -169,6 +185,7 @@ if(WCNS_ENABLE_CGNS)
     )
     set(WCNS_CHECKPOINT_OUTPUT checkpoint-validation)
     set(WCNS_CHECKPOINT_GAMMA 1.4)
+    set(WCNS_TRANSPORT_LINES "# default v1.0 transport migration")
     set(WCNS_CHECKPOINT_ENABLED true)
     set(WCNS_RESTART_FIELD false)
     set(WCNS_RESTART_LINE "# fresh start")
@@ -222,6 +239,16 @@ if(WCNS_ENABLE_CGNS)
         ${CMAKE_CURRENT_BINARY_DIR}/restart_invalid.wcns
         @ONLY
     )
+    set(WCNS_CHECKPOINT_GAMMA 1.4)
+    set(WCNS_CHECKPOINT_OUTPUT restart-transport-invalid)
+    set(WCNS_TRANSPORT_LINES
+        "transport.model = constant\ntransport.constant.viscosity_ratio = 2.0")
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/data/checkpoint_case.wcns.in
+        ${CMAKE_CURRENT_BINARY_DIR}/restart_transport_invalid.wcns
+        @ONLY
+    )
+    set(WCNS_TRANSPORT_LINES "# default v1.0 transport migration")
     set(WCNS_CONTINUITY_OUTPUT restart-continuity-source)
     set(WCNS_CONTINUITY_CHECKPOINT true)
     set(WCNS_CONTINUITY_RESTART "# fresh start")
@@ -249,6 +276,18 @@ if(WCNS_ENABLE_CGNS)
         NAME wcns.run.freestream.serial
         COMMAND wcns_run
             --config ${CMAKE_CURRENT_BINARY_DIR}/freestream_case.wcns
+    )
+    add_test(
+        NAME wcns.run.transport.sutherland.serial
+        COMMAND ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/check_transport_runtime.py
+            --run $<TARGET_FILE:wcns_run>
+            --config ${CMAKE_CURRENT_BINARY_DIR}/transport_sutherland_serial.wcns
+            --output ${CMAKE_CURRENT_BINARY_DIR}/transport-sutherland-serial
+    )
+    set_tests_properties(
+        wcns.run.transport.sutherland.serial
+        PROPERTIES FIXTURES_REQUIRED cgns_files
     )
     add_test(
         NAME wcns.run.double_mach_reflection.smoke.serial
@@ -689,10 +728,13 @@ if(WCNS_ENABLE_CGNS)
         NAME wcns.checkpoint_file
         COMMAND wcns_checkpoint_file_tests
             ${CMAKE_CURRENT_BINARY_DIR}/checkpoint-validation/checkpoint-freestream.checkpoint.latest.cgns
+            --strip-default-transport
     )
     set_tests_properties(
         wcns.checkpoint_file
-        PROPERTIES FIXTURES_REQUIRED checkpoint_file
+        PROPERTIES
+            FIXTURES_REQUIRED checkpoint_file
+            FIXTURES_SETUP checkpoint_legacy_transport
     )
     add_test(
         NAME wcns.run.restart.serial
@@ -702,7 +744,7 @@ if(WCNS_ENABLE_CGNS)
     set_tests_properties(
         wcns.run.restart.serial
         PROPERTIES
-            FIXTURES_REQUIRED checkpoint_file
+            FIXTURES_REQUIRED checkpoint_legacy_transport
             RESOURCE_LOCK wcns_checkpoint_validation
     )
     add_test(
@@ -736,7 +778,19 @@ if(WCNS_ENABLE_CGNS)
     )
     set_tests_properties(
         wcns.run.incompatible_restart
-        PROPERTIES FIXTURES_REQUIRED checkpoint_file
+        PROPERTIES FIXTURES_REQUIRED checkpoint_legacy_transport
+    )
+    add_test(
+        NAME wcns.run.incompatible_transport_restart
+        COMMAND ${CMAKE_COMMAND}
+            -DPROGRAM=$<TARGET_FILE:wcns_run>
+            -DCONFIG=${CMAKE_CURRENT_BINARY_DIR}/restart_transport_invalid.wcns
+            -DEXPECTED_EXIT=1
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/run_expect_exit.cmake
+    )
+    set_tests_properties(
+        wcns.run.incompatible_transport_restart
+        PROPERTIES FIXTURES_REQUIRED checkpoint_legacy_transport
     )
     add_test(
         NAME wcns.run.existing_output_rejection
@@ -849,6 +903,20 @@ if(WCNS_ENABLE_CGNS)
     set_tests_properties(wcns.geometry_plan.serial PROPERTIES FIXTURES_REQUIRED cgns_files)
 
     if(WCNS_ENABLE_MPI)
+        add_test(
+            NAME wcns.run.transport.sutherland.2
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/check_transport_runtime.py
+                --run $<TARGET_FILE:wcns_run>
+                --config ${CMAKE_CURRENT_BINARY_DIR}/transport_sutherland_mpi.wcns
+                --output ${CMAKE_CURRENT_BINARY_DIR}/transport-sutherland-mpi
+                --mpi-exec ${WCNS_MPIEXEC_EXECUTABLE}
+                --ranks 2
+        )
+        set_tests_properties(
+            wcns.run.transport.sutherland.2
+            PROPERTIES FIXTURES_REQUIRED cgns_files
+        )
         add_test(
             NAME wcns.run.boundary_partition.2
             COMMAND ${WCNS_MPIEXEC_EXECUTABLE} -n 2
@@ -1276,7 +1344,7 @@ if(WCNS_ENABLE_CGNS)
         set_tests_properties(
             wcns.run.restart.2
             PROPERTIES
-                FIXTURES_REQUIRED checkpoint_file
+                FIXTURES_REQUIRED checkpoint_legacy_transport
                 RESOURCE_LOCK wcns_checkpoint_validation
         )
         add_test(
