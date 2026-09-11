@@ -1,5 +1,6 @@
 #include <wcns/parallel/halo_exchanger.hpp>
 
+#include <algorithm>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -7,11 +8,6 @@
 
 namespace wcns {
 namespace {
-
-struct PendingBuffer {
-    const DirectedExchange* exchange = nullptr;
-    std::vector<Real> values;
-};
 
 std::size_t value_count(const DirectedExchange& exchange, int components)
 {
@@ -71,7 +67,7 @@ void copy_local(
 }
 
 void pack_send(
-    PendingBuffer& pending,
+    HaloMessageBuffer& pending,
     const BlockFieldRegistry& fields)
 {
     const auto& donor = fields.field(pending.exchange->halo.donor_block);
@@ -89,7 +85,7 @@ void pack_send(
 }
 
 void unpack_receive(
-    const PendingBuffer& pending,
+    const HaloMessageBuffer& pending,
     const BlockFieldRegistry& fields)
 {
     auto& receiver = fields.field(pending.exchange->halo.receiver_block);
@@ -154,44 +150,65 @@ Field<Real>& BlockFieldRegistry::field(BlockId block) const
 HaloExchanger::HaloExchanger(
     const MpiRuntime& mpi,
     const DistributedTopology& topology,
-    int distribution_rank_count)
+    int distribution_rank_count,
+    int prepared_components)
     : mpi_(mpi)
     , topology_(topology)
 {
     if (distribution_rank_count != mpi.size()) {
         throw std::invalid_argument("MPI size differs from the block distribution rank count");
     }
+    if (prepared_components < 0) {
+        throw std::invalid_argument("prepared halo component count must not be negative");
+    }
+    local_ = topology_.local_copies(mpi_.rank());
+    receive_descriptors_ = topology_.receives(mpi_.rank());
+    send_descriptors_ = topology_.sends(mpi_.rank());
+    if (prepared_components > 0) prepare_buffers(prepared_components);
+}
+
+void HaloExchanger::prepare_buffers(int components) const
+{
+    receive_buffers_.clear();
+    send_buffers_.clear();
+    receive_buffers_.reserve(receive_descriptors_.size());
+    send_buffers_.reserve(send_descriptors_.size());
+    for (const auto* exchange : receive_descriptors_) {
+        receive_buffers_.push_back(
+            {exchange, std::vector<Real>(value_count(*exchange, components))});
+    }
+    for (const auto* exchange : send_descriptors_) {
+        send_buffers_.push_back(
+            {exchange, std::vector<Real>(value_count(*exchange, components))});
+    }
+    prepared_components_ = components;
+#if WCNS_HAS_MPI
+    requests_.resize(
+        receive_buffers_.size() + send_buffers_.size(), MPI_REQUEST_NULL);
+#endif
 }
 
 void HaloExchanger::exchange(const BlockFieldRegistry& fields) const
 {
-    const auto rank = mpi_.rank();
-    const auto local = topology_.local_copies(rank);
-    const auto receives = topology_.receives(rank);
-    const auto sends = topology_.sends(rank);
-
-    for (const auto* exchange : local) {
+    if (prepared_components_ != fields.components()) {
+        prepare_buffers(fields.components());
+    }
+    for (const auto* exchange : local_) {
         copy_local(*exchange, fields);
     }
 
-    std::vector<PendingBuffer> receive_buffers;
-    receive_buffers.reserve(receives.size());
-    for (const auto* exchange : receives) {
+    for (const auto* exchange : receive_descriptors_) {
         if (!fields.contains(exchange->halo.receiver_block)) {
             throw std::invalid_argument("receiver field is missing on its owner rank");
         }
-        receive_buffers.push_back(
-            {exchange, std::vector<Real>(value_count(*exchange, fields.components()))});
     }
-    std::vector<PendingBuffer> send_buffers;
-    send_buffers.reserve(sends.size());
-    for (const auto* exchange : sends) {
+    for (const auto* exchange : send_descriptors_) {
         if (!fields.contains(exchange->halo.donor_block)) {
             throw std::invalid_argument("donor field is missing on its owner rank");
         }
-        send_buffers.push_back(
-            {exchange, std::vector<Real>(value_count(*exchange, fields.components()))});
-        pack_send(send_buffers.back(), fields);
+    }
+    for (auto& pending : send_buffers_) {
+        pack_send(pending, fields);
     }
 
 #if WCNS_HAS_MPI
@@ -205,10 +222,9 @@ void HaloExchanger::exchange(const BlockFieldRegistry& fields) const
         throw MpiError("MPI_TAG_UB is unavailable");
     }
 
-    std::vector<MPI_Request> requests(
-        receive_buffers.size() + send_buffers.size(), MPI_REQUEST_NULL);
+    std::fill(requests_.begin(), requests_.end(), MPI_REQUEST_NULL);
     std::size_t request_index = 0;
-    for (auto& pending : receive_buffers) {
+    for (auto& pending : receive_buffers_) {
         const int tag = pending.exchange->message_tag();
         if (tag > *tag_upper_bound) {
             throw MpiError("halo receive tag exceeds MPI_TAG_UB");
@@ -221,10 +237,10 @@ void HaloExchanger::exchange(const BlockFieldRegistry& fields) const
                 pending.exchange->donor_rank,
                 tag,
                 mpi_.communicator(),
-                &requests[request_index++]),
+                &requests_[request_index++]),
             "MPI_Irecv halo");
     }
-    for (auto& pending : send_buffers) {
+    for (auto& pending : send_buffers_) {
         const int tag = pending.exchange->message_tag();
         if (tag > *tag_upper_bound) {
             throw MpiError("halo send tag exceeds MPI_TAG_UB");
@@ -237,22 +253,22 @@ void HaloExchanger::exchange(const BlockFieldRegistry& fields) const
                 pending.exchange->receiver_rank,
                 tag,
                 mpi_.communicator(),
-                &requests[request_index++]),
+                &requests_[request_index++]),
             "MPI_Isend halo");
     }
-    if (!requests.empty()) {
+    if (!requests_.empty()) {
         check_mpi(
             MPI_Waitall(
-                static_cast<int>(requests.size()), requests.data(), MPI_STATUSES_IGNORE),
+                static_cast<int>(requests_.size()), requests_.data(), MPI_STATUSES_IGNORE),
             "MPI_Waitall halo");
     }
 #else
-    if (!receive_buffers.empty() || !send_buffers.empty()) {
+    if (!receive_buffers_.empty() || !send_buffers_.empty()) {
         throw MpiError("remote halo exchange requires WCNS_ENABLE_MPI");
     }
 #endif
 
-    for (const auto& pending : receive_buffers) {
+    for (const auto& pending : receive_buffers_) {
         unpack_receive(pending, fields);
     }
 }

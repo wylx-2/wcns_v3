@@ -252,19 +252,29 @@ GradientOperandFaceField& GradientOperandFieldRegistry::field(BlockId block) con
     return *iterator->second;
 }
 
-void GradientOperandFaceHaloExchanger::exchange(
-    const GradientOperandFieldRegistry& fields) const
+void GradientOperandFaceHaloExchanger::prepare()
 {
-    struct Pending {
-        const FaceFluxExchangeDescriptor* descriptor = nullptr;
-        std::vector<Real> values;
-    };
     const RankId rank = mpi_.rank();
-    std::vector<Pending> receives;
-    std::vector<Pending> sends;
     for (const auto& descriptor : plan_.exchanges()) {
         const std::size_t count = 1 + descriptor.pairs.size()
             * static_cast<std::size_t>(gradient_operand_components);
+        if (descriptor.receiver_rank == rank && descriptor.donor_rank != rank) {
+            receives_.push_back({&descriptor, std::vector<Real>(count)});
+        } else if (descriptor.donor_rank == rank
+                   && descriptor.receiver_rank != rank) {
+            sends_.push_back({&descriptor, std::vector<Real>(count)});
+        }
+    }
+#if WCNS_HAS_MPI
+    requests_.resize(receives_.size() + sends_.size(), MPI_REQUEST_NULL);
+#endif
+}
+
+void GradientOperandFaceHaloExchanger::exchange(
+    const GradientOperandFieldRegistry& fields) const
+{
+    const RankId rank = mpi_.rank();
+    for (const auto& descriptor : plan_.exchanges()) {
         if (descriptor.receiver_rank == rank && descriptor.donor_rank == rank) {
             auto& receiver = fields.field(descriptor.receiver_block);
             const auto& donor = fields.field(descriptor.donor_block);
@@ -276,51 +286,53 @@ void GradientOperandFaceHaloExchanger::exchange(
                         load_operand(donor, descriptor.donor_axis, pair.donor),
                         descriptor, receiver.dimension()));
             }
-        } else if (descriptor.receiver_rank == rank) {
-            validate_operand_field(fields.field(descriptor.receiver_block), descriptor);
-            receives.push_back({&descriptor, std::vector<Real>(count)});
-        } else if (descriptor.donor_rank == rank) {
-            const auto& donor = fields.field(descriptor.donor_block);
-            validate_operand_field(donor, descriptor);
-            Pending pending {&descriptor, std::vector<Real>(count)};
-            pending.values[0] = static_cast<Real>(descriptor.version);
-            std::size_t offset = 1;
-            for (const auto& pair : descriptor.pairs) {
-                const auto state = load_operand(
-                    donor, descriptor.donor_axis, pair.donor);
-                for (const Real value : state) pending.values[offset++] = value;
-            }
-            sends.push_back(std::move(pending));
+        }
+    }
+    for (const auto& pending : receives_) {
+        validate_operand_field(
+            fields.field(pending.descriptor->receiver_block),
+            *pending.descriptor);
+    }
+    for (auto& pending : sends_) {
+        const auto& descriptor = *pending.descriptor;
+        const auto& donor = fields.field(descriptor.donor_block);
+        validate_operand_field(donor, descriptor);
+        pending.values[0] = static_cast<Real>(descriptor.version);
+        std::size_t offset = 1;
+        for (const auto& pair : descriptor.pairs) {
+            const auto state = load_operand(
+                donor, descriptor.donor_axis, pair.donor);
+            for (const Real value : state) pending.values[offset++] = value;
         }
     }
 #if WCNS_HAS_MPI
-    std::vector<MPI_Request> requests(receives.size() + sends.size(), MPI_REQUEST_NULL);
+    std::fill(requests_.begin(), requests_.end(), MPI_REQUEST_NULL);
     std::size_t request = 0;
-    for (auto& pending : receives) {
+    for (auto& pending : receives_) {
         check_mpi(MPI_Irecv(
             pending.values.data(), mpi_count(pending.values.size()), MPI_DOUBLE,
             pending.descriptor->donor_rank,
             pending.descriptor->message_tag(operand_tag_base), mpi_.communicator(),
-            &requests[request++]), "MPI_Irecv gradient operand");
+            &requests_[request++]), "MPI_Irecv gradient operand");
     }
-    for (auto& pending : sends) {
+    for (auto& pending : sends_) {
         check_mpi(MPI_Isend(
             pending.values.data(), mpi_count(pending.values.size()), MPI_DOUBLE,
             pending.descriptor->receiver_rank,
             pending.descriptor->message_tag(operand_tag_base), mpi_.communicator(),
-            &requests[request++]), "MPI_Isend gradient operand");
+            &requests_[request++]), "MPI_Isend gradient operand");
     }
-    if (!requests.empty()) {
+    if (!requests_.empty()) {
         check_mpi(MPI_Waitall(
-            static_cast<int>(requests.size()), requests.data(), MPI_STATUSES_IGNORE),
+            static_cast<int>(requests_.size()), requests_.data(), MPI_STATUSES_IGNORE),
             "MPI_Waitall gradient operand");
     }
 #else
-    if (!receives.empty() || !sends.empty()) {
+    if (!receives_.empty() || !sends_.empty()) {
         throw MpiError("remote gradient operand exchange requires MPI");
     }
 #endif
-    for (const auto& pending : receives) {
+    for (const auto& pending : receives_) {
         if (pending.values[0] != static_cast<Real>(pending.descriptor->version)) {
             throw MpiError("gradient operand message version mismatch");
         }
@@ -435,18 +447,29 @@ PrimitiveGradientField& GradientFieldRegistry::field(BlockId block) const
     return *iterator->second;
 }
 
-void GradientHaloExchanger::exchange(const GradientFieldRegistry& fields) const
+void GradientHaloExchanger::prepare()
 {
-    struct Pending {
-        const GradientExchangeDescriptor* descriptor = nullptr;
-        std::vector<Real> values;
-    };
     const RankId rank = mpi_.rank();
-    std::vector<Pending> receives;
-    std::vector<Pending> sends;
     for (const auto& descriptor : plan_.exchanges()) {
         const std::size_t count = 1 + descriptor.pairs.size()
             * static_cast<std::size_t>(gradient_operand_components);
+        if (descriptor.receiver_rank == rank && descriptor.donor_rank != rank) {
+            receives_.push_back({&descriptor, std::vector<Real>(count)});
+        } else if (descriptor.donor_rank == rank
+                   && descriptor.receiver_rank != rank) {
+            sends_.push_back({&descriptor, std::vector<Real>(count)});
+        }
+    }
+#if WCNS_HAS_MPI
+    requests_.resize(receives_.size() + sends_.size(), MPI_REQUEST_NULL);
+#endif
+}
+
+void GradientHaloExchanger::exchange(
+    const GradientFieldRegistry& fields) const
+{
+    const RankId rank = mpi_.rank();
+    for (const auto& descriptor : plan_.exchanges()) {
         if (descriptor.receiver_rank == rank && descriptor.donor_rank == rank) {
             auto& receiver = fields.field(descriptor.receiver_block);
             const auto& donor = fields.field(descriptor.donor_block);
@@ -457,50 +480,52 @@ void GradientHaloExchanger::exchange(const GradientFieldRegistry& fields) const
                     transform_primitive_gradients_for_receiver(
                         load_gradients(donor, pair.donor_interior), descriptor));
             }
-        } else if (descriptor.receiver_rank == rank) {
-            validate_gradient_field(fields.field(descriptor.receiver_block), descriptor);
-            receives.push_back({&descriptor, std::vector<Real>(count)});
-        } else if (descriptor.donor_rank == rank) {
-            const auto& donor = fields.field(descriptor.donor_block);
-            validate_gradient_field(donor, descriptor);
-            Pending pending {&descriptor, std::vector<Real>(count)};
-            pending.values[0] = static_cast<Real>(descriptor.version);
-            std::size_t offset = 1;
-            for (const auto& pair : descriptor.pairs) {
-                const auto gradients = load_gradients(donor, pair.donor_interior);
-                for (const auto& gradient : gradients) {
-                    for (const Real value : gradient) pending.values[offset++] = value;
-                }
+        }
+    }
+    for (const auto& pending : receives_) {
+        validate_gradient_field(
+            fields.field(pending.descriptor->receiver_block),
+            *pending.descriptor);
+    }
+    for (auto& pending : sends_) {
+        const auto& descriptor = *pending.descriptor;
+        const auto& donor = fields.field(descriptor.donor_block);
+        validate_gradient_field(donor, descriptor);
+        pending.values[0] = static_cast<Real>(descriptor.version);
+        std::size_t offset = 1;
+        for (const auto& pair : descriptor.pairs) {
+            const auto gradients = load_gradients(donor, pair.donor_interior);
+            for (const auto& gradient : gradients) {
+                for (const Real value : gradient) pending.values[offset++] = value;
             }
-            sends.push_back(std::move(pending));
         }
     }
 #if WCNS_HAS_MPI
-    std::vector<MPI_Request> requests(receives.size() + sends.size(), MPI_REQUEST_NULL);
+    std::fill(requests_.begin(), requests_.end(), MPI_REQUEST_NULL);
     std::size_t request = 0;
-    for (auto& pending : receives) {
+    for (auto& pending : receives_) {
         check_mpi(MPI_Irecv(
             pending.values.data(), mpi_count(pending.values.size()), MPI_DOUBLE,
             pending.descriptor->donor_rank, pending.descriptor->message_tag(),
-            mpi_.communicator(), &requests[request++]), "MPI_Irecv gradient");
+            mpi_.communicator(), &requests_[request++]), "MPI_Irecv gradient");
     }
-    for (auto& pending : sends) {
+    for (auto& pending : sends_) {
         check_mpi(MPI_Isend(
             pending.values.data(), mpi_count(pending.values.size()), MPI_DOUBLE,
             pending.descriptor->receiver_rank, pending.descriptor->message_tag(),
-            mpi_.communicator(), &requests[request++]), "MPI_Isend gradient");
+            mpi_.communicator(), &requests_[request++]), "MPI_Isend gradient");
     }
-    if (!requests.empty()) {
+    if (!requests_.empty()) {
         check_mpi(MPI_Waitall(
-            static_cast<int>(requests.size()), requests.data(), MPI_STATUSES_IGNORE),
+            static_cast<int>(requests_.size()), requests_.data(), MPI_STATUSES_IGNORE),
             "MPI_Waitall gradient");
     }
 #else
-    if (!receives.empty() || !sends.empty()) {
+    if (!receives_.empty() || !sends_.empty()) {
         throw MpiError("remote gradient exchange requires MPI");
     }
 #endif
-    for (const auto& pending : receives) {
+    for (const auto& pending : receives_) {
         if (pending.values[0] != static_cast<Real>(pending.descriptor->version)) {
             throw MpiError("gradient message version mismatch");
         }

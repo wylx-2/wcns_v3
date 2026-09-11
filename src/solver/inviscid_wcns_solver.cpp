@@ -102,7 +102,7 @@ InviscidWcnsSolver::InviscidWcnsSolver(
     , local_blocks_(local_blocks)
     , global_mesh_(global_mesh)
     , topology_(topology)
-    , state_exchanger_(mpi, topology, distribution_rank_count)
+    , state_exchanger_(mpi, topology, distribution_rank_count, euler_components)
     , metrics_(metrics)
     , boundary_data_(boundary_data)
     , profile_(std::move(profile))
@@ -112,6 +112,7 @@ InviscidWcnsSolver::InviscidWcnsSolver(
     , config_(std::move(config))
     , source_registry_(SourceTermRegistry::create_stage_j(config_.source_terms))
     , face_flux_plan_(FaceFluxHaloPlan::build(global_mesh_, profile_, 1))
+    , face_flux_exchanger_(mpi_, face_flux_plan_)
 {
     config_.validate();
     const auto riemann_registry
@@ -218,7 +219,7 @@ void InviscidWcnsSolver::compute_residuals_impl(
             robustness_levels == nullptr ? nullptr : &robust_riemann_);
     }
     face_flux_plan_.set_version(version_);
-    FaceFluxHaloExchanger(mpi_, face_flux_plan_).exchange(face_flux_registry_);
+    face_flux_exchanger_.exchange(face_flux_registry_);
     for (auto& block : local_blocks_.blocks()) {
         compute_wcns_inviscid_residual(
             block, metrics_.at(block.id()), face_flux_workspace_.at(block.id()), profile_,

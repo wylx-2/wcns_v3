@@ -127,13 +127,26 @@ public:
         const FaceFluxHaloPlan& plan)
         : mpi_(mpi), plan_(plan)
     {
+        prepare();
     }
 
     void exchange(const FaceFluxFieldRegistry& fields) const;
 
 private:
+    struct Pending {
+        const FaceFluxExchangeDescriptor* descriptor = nullptr;
+        std::vector<Real> values;
+    };
+
+    void prepare();
+
     const MpiRuntime& mpi_;
     const FaceFluxHaloPlan& plan_;
+    mutable std::vector<Pending> receives_;
+    mutable std::vector<Pending> sends_;
+#if WCNS_HAS_MPI
+    mutable std::vector<MPI_Request> requests_;
+#endif
 };
 
 [[nodiscard]] InviscidFaceFluxField compute_inviscid_face_fluxes(

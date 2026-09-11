@@ -87,6 +87,7 @@ private:
     std::unordered_map<BlockId, InviscidFaceFluxField> face_flux_workspace_;
     FaceFluxFieldRegistry face_flux_registry_;
     FaceFluxHaloPlan face_flux_plan_;
+    FaceFluxHaloExchanger face_flux_exchanger_;
     SsprkWorkspace time_workspace_;
     std::uint64_t version_ = 0;
     ReconstructionDiagnostics reconstruction_diagnostics_ {};

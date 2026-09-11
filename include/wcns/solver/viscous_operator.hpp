@@ -71,13 +71,25 @@ public:
         const ViscousFaceFluxHaloPlan& plan)
         : mpi_(mpi), plan_(plan)
     {
+        prepare();
     }
 
     void exchange(const ViscousFaceFluxFieldRegistry& fields) const;
 
 private:
+    struct Pending {
+        const FaceFluxExchangeDescriptor* descriptor = nullptr;
+        std::vector<Real> values;
+    };
+    void prepare();
+
     const MpiRuntime& mpi_;
     const ViscousFaceFluxHaloPlan& plan_;
+    mutable std::vector<Pending> receives_;
+    mutable std::vector<Pending> sends_;
+#if WCNS_HAS_MPI
+    mutable std::vector<MPI_Request> requests_;
+#endif
 };
 
 [[nodiscard]] ViscousFaceFluxField compute_viscous_face_fluxes(

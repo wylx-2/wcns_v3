@@ -476,18 +476,28 @@ InviscidFaceFluxField& FaceFluxFieldRegistry::field(BlockId block) const
     return *iterator->second;
 }
 
-void FaceFluxHaloExchanger::exchange(const FaceFluxFieldRegistry& fields) const
+void FaceFluxHaloExchanger::prepare()
 {
-    struct Pending {
-        const FaceFluxExchangeDescriptor* descriptor = nullptr;
-        std::vector<Real> values;
-    };
     const RankId rank = mpi_.rank();
-    std::vector<Pending> receives;
-    std::vector<Pending> sends;
     for (const auto& descriptor : plan_.exchanges()) {
         const std::size_t count = 1 + descriptor.pairs.size()
             * static_cast<std::size_t>(euler_components);
+        if (descriptor.receiver_rank == rank && descriptor.donor_rank != rank) {
+            receives_.push_back({&descriptor, std::vector<Real>(count)});
+        } else if (descriptor.donor_rank == rank
+                   && descriptor.receiver_rank != rank) {
+            sends_.push_back({&descriptor, std::vector<Real>(count)});
+        }
+    }
+#if WCNS_HAS_MPI
+    requests_.resize(receives_.size() + sends_.size(), MPI_REQUEST_NULL);
+#endif
+}
+
+void FaceFluxHaloExchanger::exchange(const FaceFluxFieldRegistry& fields) const
+{
+    const RankId rank = mpi_.rank();
+    for (const auto& descriptor : plan_.exchanges()) {
         if (descriptor.receiver_rank == rank && descriptor.donor_rank == rank) {
             auto& receiver = fields.field(descriptor.receiver_block);
             const auto& donor = fields.field(descriptor.donor_block);
@@ -498,50 +508,51 @@ void FaceFluxHaloExchanger::exchange(const FaceFluxFieldRegistry& fields) const
                     transform_inviscid_face_flux_for_receiver(
                         load_flux(donor, descriptor.donor_axis, pair.donor), descriptor));
             }
-        } else if (descriptor.receiver_rank == rank) {
-            auto& receiver = fields.field(descriptor.receiver_block);
-            validate_field(receiver, descriptor);
-            receives.push_back({&descriptor, std::vector<Real>(count)});
-        } else if (descriptor.donor_rank == rank) {
-            const auto& donor = fields.field(descriptor.donor_block);
-            validate_field(donor, descriptor);
-            Pending pending {&descriptor, std::vector<Real>(count)};
-            pending.values[0] = static_cast<Real>(descriptor.version);
-            std::size_t offset = 1;
-            for (const auto& pair : descriptor.pairs) {
-                const auto value = load_flux(donor, descriptor.donor_axis, pair.donor);
-                for (const auto component : value) pending.values[offset++] = component;
-            }
-            sends.push_back(std::move(pending));
+        }
+    }
+    for (const auto& pending : receives_) {
+        validate_field(
+            fields.field(pending.descriptor->receiver_block),
+            *pending.descriptor);
+    }
+    for (auto& pending : sends_) {
+        const auto& descriptor = *pending.descriptor;
+        const auto& donor = fields.field(descriptor.donor_block);
+        validate_field(donor, descriptor);
+        pending.values[0] = static_cast<Real>(descriptor.version);
+        std::size_t offset = 1;
+        for (const auto& pair : descriptor.pairs) {
+            const auto value = load_flux(donor, descriptor.donor_axis, pair.donor);
+            for (const auto component : value) pending.values[offset++] = component;
         }
     }
 
 #if WCNS_HAS_MPI
-    std::vector<MPI_Request> requests(receives.size() + sends.size(), MPI_REQUEST_NULL);
+    std::fill(requests_.begin(), requests_.end(), MPI_REQUEST_NULL);
     std::size_t request = 0;
-    for (auto& pending : receives) {
+    for (auto& pending : receives_) {
         check_mpi(MPI_Irecv(
             pending.values.data(), mpi_count(pending.values.size()), MPI_DOUBLE,
             pending.descriptor->donor_rank, pending.descriptor->message_tag(),
-            mpi_.communicator(), &requests[request++]), "MPI_Irecv face flux");
+            mpi_.communicator(), &requests_[request++]), "MPI_Irecv face flux");
     }
-    for (auto& pending : sends) {
+    for (auto& pending : sends_) {
         check_mpi(MPI_Isend(
             pending.values.data(), mpi_count(pending.values.size()), MPI_DOUBLE,
             pending.descriptor->receiver_rank, pending.descriptor->message_tag(),
-            mpi_.communicator(), &requests[request++]), "MPI_Isend face flux");
+            mpi_.communicator(), &requests_[request++]), "MPI_Isend face flux");
     }
-    if (!requests.empty()) {
+    if (!requests_.empty()) {
         check_mpi(MPI_Waitall(
-            static_cast<int>(requests.size()), requests.data(), MPI_STATUSES_IGNORE),
+            static_cast<int>(requests_.size()), requests_.data(), MPI_STATUSES_IGNORE),
             "MPI_Waitall face flux");
     }
 #else
-    if (!receives.empty() || !sends.empty()) {
+    if (!receives_.empty() || !sends_.empty()) {
         throw MpiError("remote face-flux exchange requires WCNS_ENABLE_MPI");
     }
 #endif
-    for (const auto& pending : receives) {
+    for (const auto& pending : receives_) {
         auto& receiver = fields.field(pending.descriptor->receiver_block);
         if (pending.values.empty()
             || pending.values[0] != static_cast<Real>(pending.descriptor->version)) {

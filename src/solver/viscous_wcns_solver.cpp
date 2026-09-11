@@ -147,7 +147,7 @@ ViscousWcnsSolver::ViscousWcnsSolver(
     , local_blocks_(local_blocks)
     , global_mesh_(global_mesh)
     , topology_(topology)
-    , state_exchanger_(mpi, topology, distribution_rank_count)
+    , state_exchanger_(mpi, topology, distribution_rank_count, euler_components)
     , metrics_(metrics)
     , boundary_data_(boundary_data)
     , profile_(std::move(profile))
@@ -159,12 +159,16 @@ ViscousWcnsSolver::ViscousWcnsSolver(
           config_.inviscid.source_terms))
     , transport_(config_.transport)
     , inviscid_flux_plan_(FaceFluxHaloPlan::build(global_mesh_, profile_, 1))
+    , inviscid_flux_exchanger_(mpi_, inviscid_flux_plan_)
     , operand_plan_(GradientOperandFaceHaloPlan::build(
           global_mesh_, profile_, 1))
+    , operand_exchanger_(mpi_, operand_plan_)
     , gradient_plan_(GradientHaloPlan::build(
           global_mesh_, topology_, profile_, 1))
+    , gradient_exchanger_(mpi_, gradient_plan_)
     , viscous_flux_plan_(ViscousFaceFluxHaloPlan::build(
           global_mesh_, profile_, 1))
+    , viscous_flux_exchanger_(mpi_, viscous_flux_plan_)
 {
     config_.validate();
     const auto riemann_registry = RiemannSolverRegistry::with_builtins(
@@ -299,10 +303,8 @@ void ViscousWcnsSolver::compute_residuals_impl(
     }
     inviscid_flux_plan_.set_version(version_);
     operand_plan_.set_version(version_);
-    FaceFluxHaloExchanger(mpi_, inviscid_flux_plan_)
-        .exchange(inviscid_flux_registry_);
-    GradientOperandFaceHaloExchanger(mpi_, operand_plan_)
-        .exchange(operand_registry_);
+    inviscid_flux_exchanger_.exchange(inviscid_flux_registry_);
+    operand_exchanger_.exchange(operand_registry_);
 
     for (auto& block : local_blocks_.blocks()) {
         compute_primitive_gradients_into(
@@ -310,7 +312,7 @@ void ViscousWcnsSolver::compute_residuals_impl(
             metrics_.at(block.id()), operand_workspace_.at(block.id()), profile_);
     }
     gradient_plan_.set_version(version_);
-    GradientHaloExchanger(mpi_, gradient_plan_).exchange(gradient_registry_);
+    gradient_exchanger_.exchange(gradient_registry_);
 
     for (auto& block : local_blocks_.blocks()) {
         compute_viscous_face_fluxes_into(
@@ -320,8 +322,7 @@ void ViscousWcnsSolver::compute_residuals_impl(
             gas_, reference_, floors_, version_);
     }
     viscous_flux_plan_.set_version(version_);
-    ViscousFaceFluxHaloExchanger(mpi_, viscous_flux_plan_)
-        .exchange(viscous_flux_registry_);
+    viscous_flux_exchanger_.exchange(viscous_flux_registry_);
 
     for (auto& block : local_blocks_.blocks()) {
         compute_wcns_inviscid_residual(
