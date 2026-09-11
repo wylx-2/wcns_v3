@@ -222,6 +222,30 @@ bool requests_thermal_quantity(const BoundaryOutputConfig& config)
         });
 }
 
+Index3 nearest_interior_cell(
+    const StructuredBlock& block,
+    Axis axis,
+    Side side,
+    Index3 face)
+{
+    face[static_cast<std::size_t>(axis)] = side == Side::Lower
+        ? 0 : block.cell_extent()[static_cast<std::size_t>(axis)] - 1;
+    return face;
+}
+
+Real positive_output_trace(
+    Real high_order,
+    Real nearest_cell,
+    Real floor,
+    const char* quantity)
+{
+    if (std::isfinite(high_order) && high_order > floor) return high_order;
+    if (std::isfinite(nearest_cell) && nearest_cell > floor) return nearest_cell;
+    throw PhysicsError(
+        std::string("boundary ") + quantity
+        + " trace and nearest interior value are invalid");
+}
+
 std::size_t exact_index(Real value, const char* label)
 {
     if (!std::isfinite(value) || value < 0.0
@@ -669,8 +693,24 @@ std::vector<std::string> BoundaryOutputWriter::write(
                             throw PhysicsError(
                                 "boundary conservation quadrature weight is invalid");
                         }
-                        const Real pressure = interpolate_internal_pressure_trace(
-                            block, profile_, patch.face.axis, face);
+                        const auto nearest = nearest_interior_cell(
+                            block, patch.face.axis, patch.face.side, face);
+                        Real high_order_pressure
+                            = std::numeric_limits<Real>::quiet_NaN();
+                        try {
+                            high_order_pressure
+                                = interpolate_internal_pressure_trace(
+                                    block, profile_, patch.face.axis, face);
+                        } catch (const PhysicsError&) {
+                            // A finite, positive nearest-cell value remains a
+                            // valid output-only fallback for an invalid trace.
+                        }
+                        const Real pressure = positive_output_trace(
+                            high_order_pressure,
+                            block.flow.primitive(
+                                nearest.i, nearest.j, nearest.k, wcns::pressure),
+                            quantities_.floors.pressure,
+                            "pressure");
                         // Pressure-only inviscid output must not depend on a
                         // high-order temperature trace that is neither requested
                         // nor used by the Euler traction.  The neutral values are
@@ -682,10 +722,24 @@ std::vector<std::string> BoundaryOutputWriter::write(
                         Vector3 temperature_gradient {};
                         Real thermal_coefficient = 1.0;
                         if (needs_thermal) {
-                            const auto raw_temperature
-                                = interpolate_temperature_face(
-                                    block, profile_, patch.face.axis, face);
-                            temperature = raw_temperature[temperature_value];
+                            Real high_order_temperature
+                                = std::numeric_limits<Real>::quiet_NaN();
+                            try {
+                                const auto raw_temperature
+                                    = interpolate_temperature_face(
+                                        block, profile_, patch.face.axis, face);
+                                high_order_temperature
+                                    = raw_temperature[temperature_value];
+                            } catch (const PhysicsError&) {
+                                // Apply the same output-only fallback as pressure.
+                            }
+                            temperature = positive_output_trace(
+                                high_order_temperature,
+                                block.flow.temperature_primitive(
+                                    nearest.i, nearest.j, nearest.k,
+                                    temperature_value),
+                                quantities_.floors.temperature,
+                                "temperature");
                             viscosity
                                 = quantities_.transport.viscosity(temperature);
                             thermal_coefficient
