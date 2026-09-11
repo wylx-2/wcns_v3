@@ -212,6 +212,16 @@ bool requests_viscous_quantity(const BoundaryOutputConfig& config)
         });
 }
 
+bool requests_thermal_quantity(const BoundaryOutputConfig& config)
+{
+    const std::set<std::string> thermal {"T_w", "mu_w"};
+    return std::any_of(
+        config.quantities.begin(), config.quantities.end(),
+        [&](const std::string& quantity) {
+            return thermal.find(quantity) != thermal.end();
+        });
+}
+
 std::size_t exact_index(Real value, const char* label)
 {
     if (!std::isfinite(value) || value < 0.0
@@ -601,6 +611,8 @@ std::vector<std::string> BoundaryOutputWriter::write(
     }
 
     const bool needs_viscous = requests_viscous_quantity(config_.output.boundary);
+    const bool needs_thermal = config_.run.viscous
+        || requests_thermal_quantity(config_.output.boundary);
     std::vector<Real> local_payload;
     std::size_t ordinal = 0;
     for (const auto& block : local_blocks_.blocks()) {
@@ -659,15 +671,28 @@ std::vector<std::string> BoundaryOutputWriter::write(
                         }
                         const Real pressure = interpolate_internal_pressure_trace(
                             block, profile_, patch.face.axis, face);
-                        const auto raw_temperature = interpolate_temperature_face(
-                            block, profile_, patch.face.axis, face);
-                        Real temperature = raw_temperature[temperature_value];
-                        Real viscosity = quantities_.transport.viscosity(temperature);
+                        // Pressure-only inviscid output must not depend on a
+                        // high-order temperature trace that is neither requested
+                        // nor used by the Euler traction.  The neutral values are
+                        // carried only in the internal gather payload and are not
+                        // emitted unless a thermal quantity was requested.
+                        Real temperature = 1.0;
+                        Real viscosity = 1.0;
                         Vector3 stress_normal {};
                         Vector3 temperature_gradient {};
-                        Real thermal_coefficient
-                            = quantities_.transport.thermal_coefficient(
-                                temperature, quantities_.gas, quantities_.reference);
+                        Real thermal_coefficient = 1.0;
+                        if (needs_thermal) {
+                            const auto raw_temperature
+                                = interpolate_temperature_face(
+                                    block, profile_, patch.face.axis, face);
+                            temperature = raw_temperature[temperature_value];
+                            viscosity
+                                = quantities_.transport.viscosity(temperature);
+                            thermal_coefficient
+                                = quantities_.transport.thermal_coefficient(
+                                    temperature, quantities_.gas,
+                                    quantities_.reference);
+                        }
                         if (config_.run.viscous) {
                             auto trace = interpolate_viscous_face_trace(
                                 block, gradients.at(block.id()), profile_,

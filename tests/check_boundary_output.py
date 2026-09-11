@@ -13,6 +13,21 @@ def rows(path):
         ]
 
 
+def boundary_table(path):
+    names = None
+    values = []
+    with open(path, encoding="utf-8") as stream:
+        for line in stream:
+            stripped = line.strip()
+            if stripped.startswith("# patch_index "):
+                names = stripped[2:].split()
+            elif stripped and not stripped.startswith("#"):
+                values.append([float(value) for value in stripped.split()])
+    if names is None or any(len(row) != len(names) for row in values):
+        raise SystemExit("boundary snapshot header or row width is invalid")
+    return names, values
+
+
 output = sys.argv[1]
 rank = int(sys.argv[2]) if len(sys.argv) > 2 else 1
 faces = sorted(glob.glob(os.path.join(output, f"*.boundary.r{rank}.step*.txt")))
@@ -25,7 +40,7 @@ if len(faces) < 2 or len(loads) != 1:
 initial_paths = [path for path in faces if ".step00000000." in path]
 if len(initial_paths) != 1:
     raise SystemExit(f"expected one initial boundary snapshot, got {initial_paths}")
-initial = rows(initial_paths[0])
+names, initial = boundary_table(initial_paths[0])
 if not initial:
     raise SystemExit("initial boundary snapshot is empty")
 keys = [tuple(row[:7]) for row in initial]
@@ -35,13 +50,21 @@ ordered_keys = sorted(
 if keys != ordered_keys or len(keys) != len(set(keys)):
     raise SystemExit("boundary face keys are not sorted and unique")
 
-# Fixed columns end at nz=13; requested Cp is the fourth selected quantity.
-cp = [row[17] for row in initial]
+column = {name: index for index, name in enumerate(names)}
+required = {
+    "Cp", "pressure_traction_x", "pressure_traction_y",
+    "traction_x", "traction_y",
+}
+if not required.issubset(column):
+    raise SystemExit(f"boundary snapshot is missing columns: {required - set(column)}")
+cp = [row[column["Cp"]] for row in initial]
 if max(abs(value) for value in cp) > 1.0e-13:
     raise SystemExit(f"uniform initial Cp is not zero: {max(abs(v) for v in cp)}")
 for row in initial:
-    # Requested pressure traction x/y and total traction x/y are columns 18..21.
-    if abs(row[18] - row[20]) > 1.0e-13 or abs(row[19] - row[21]) > 1.0e-13:
+    if (abs(row[column["pressure_traction_x"]] - row[column["traction_x"]])
+            > 1.0e-13
+            or abs(row[column["pressure_traction_y"]] - row[column["traction_y"]])
+            > 1.0e-13):
         raise SystemExit("inviscid face pressure and total traction differ")
 
 history = rows(loads[0])
