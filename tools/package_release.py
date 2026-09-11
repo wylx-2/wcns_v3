@@ -29,10 +29,14 @@ DIRECTORY_PREFIXES = (
 )
 
 EXPLICIT_FILES = (
+    Path(".clang-format"),
+    Path(".editorconfig"),
+    Path(".gitattributes"),
     Path("CMakeLists.txt"),
     Path("README.md"),
     Path("LICENSE.md"),
     Path("THIRD_PARTY_NOTICES.md"),
+    Path("pyproject.toml"),
     Path("\u7b97\u6cd5\u8865\u5145.md"),
     Path(".github/workflows/ci.yml"),
 )

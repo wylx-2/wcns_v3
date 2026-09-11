@@ -1,6 +1,6 @@
 # WCNS 用户自定义开发指南
 
-本文面向需要修改或扩展 WCNS 的开发者，对应当前 `1.1.0` 候选/schema 1 源码。目标不是只告诉读者“改哪个文件”，而是说明一次扩展必须穿过哪些数据、验证、并行、重启、输出和测试路径，避免新增代码在串行小算例中可运行、到多块/MPI/重启时失效。
+本文面向需要修改或扩展 WCNS 的开发者，对应当前 `1.1.0`/schema 1 源码。目标不是只告诉读者“改哪个文件”，而是说明一次扩展必须穿过哪些数据、验证、并行、重启、输出和测试路径，避免新增代码在串行小算例中可运行、到多块/MPI/重启时失效。
 
 精简的 `wcns_v3_release` 仓库按发布要求不携带开发仓库中的完整 `tests/`、人工算例结果和阶段记录。本文中涉及这些目录的回归方法仍用于说明扩展应达到的验证层级；需要复现项目完整历史矩阵时，应使用 `wcns_v3` 开发仓库。精简仓库中的 `examples/` 可用于最小端到端检查。
 
@@ -74,7 +74,24 @@ ctest --test-dir build-dev-serial --output-on-failure
 
 再建立独立 MPI 目录并运行 CTest。保存基线的 Git commit、测试结果和一个代表性算例 manifest。已有未提交修改属于用户工作，新增功能不能覆盖或顺带格式化无关文件。
 
-### 3.2 把扩展拆成小卡口
+### 3.2 格式与静态清理
+
+C/C++ 采用仓库根目录 `.clang-format`，Python 采用 `pyproject.toml` 中的 Black 配置；行尾和
+基础编辑约束见 `.gitattributes`、`.editorconfig`。本机清理命令为：
+
+```powershell
+$cpp = git ls-files '*.cpp' '*.hpp' '*.h' '*.c' '*.cc' '*.cxx'
+clang-format -i --style=file $cpp
+$python = git ls-files '*.py'
+black $python
+clang-format --dry-run --Werror --style=file $cpp
+black --check $python
+```
+
+机械格式改动应单独提交。删除“冗余代码”前必须证明它不是公开扩展点、条件编译路径或故意
+保留的独立验证入口；清理后至少执行受影响测试，正式版本前重新执行完整串行/MPI 回归。
+
+### 3.3 把扩展拆成小卡口
 
 建议顺序：
 
@@ -88,7 +105,7 @@ ctest --test-dir build-dev-serial --output-on-failure
 8. 用正式 `wcns_run` 做具体算例，保存配置、日志、manifest 和独立验证结果；
 9. 每个被认可的小卡口单独提交，提交中不要混入算例生成物或用户未审核修改。
 
-### 3.3 完成定义
+### 3.4 完成定义
 
 “代码能编译”不是完成。一个扩展至少应有：合法输入测试、非法输入测试、解析或制造结果、自由流/守恒检查、2D/3D 适用性、物理边界、原生连接、运行时切分、1/多 rank 等价、输出选择、重启兼容/拒绝、README/模板更新和 Release 构建实测。
 

@@ -2,8 +2,9 @@
 
 一个面向结构多块网格、CGNS 和 MPI 并行设计的小型高阶 CFD 程序。
 
-当前生产版本仍为 **WCNS v1.0.0**；**v1.1.0** 已完成 P--T 开发并进入最终 U 发布验收，
-将以 `v1.1.0-rc.1` 停在合并主干前的人工卡口。程序在自动发布矩阵基础上，已经过二维
+当前生产版本为 **WCNS v1.1.0**。`v1.1.0-rc.1` 已通过人工核验，并在一次不改变程序功能的
+源码清理和完整本地回归后进入主干。本项目当前采用本机独立开发；外部 CI 不作为本版本的
+完成条件，对外发布和代码许可证决定均暂缓。程序在自动发布矩阵基础上，已经过二维
 Riemann、三维泊肃叶流、扭曲网格等熵涡、双马赫反射、三维槽道流迁移/长算和二维圆柱
 低速/高超声速绕流等检查。数学与算法约定见 [`算法补充.md`](算法补充.md)，完整使用方法见
 [`docs/user-manual.md`](docs/user-manual.md)，源码扩展方法见
@@ -16,9 +17,9 @@ Git 闭环见 [`docs/v1.1.0-development-plan.md`](docs/v1.1.0-development-plan.m
 物理容许性、局部通量降阶、壁面载荷/热流、输运和性能公式见
 [`算法补充.md`](算法补充.md) 第 11 节；各阶段实现状态以对应设计和验收报告为准。
 
-本开发仓库保留阶段设计、自动测试、人工算例及验收证据。v1.1.0 的确定性私有源码包由
-`tools/package_release.py` 从候选提交直接生成；历史上的独立 `wcns_v3_release` 精简仓库不再
-作为候选来源真值。
+本开发仓库保留阶段设计、自动测试、人工算例及验收证据。v1.1.0 的确定性内部源码包由
+`tools/package_release.py` 从版本提交直接生成；历史上的独立 `wcns_v3_release` 精简仓库不再
+作为版本来源真值。
 
 当前程序具备 CGNS 结构多块网格读取、两套独立高阶几何 profile、单 zone 受约束二次剖分、同 rank/MPI 非阻塞 halo 交换、六种界面重构（含保持六点调用契约的 `zero_order`）、Rusanov/HLLC/Roe、WCNS-Euler 空间离散、层流 Navier--Stokes 黏性通量、显式源项和 SSPRK3 推进。v1.1 新增默认关闭的 SSPRK 候选态物理容许性检查、troubled-cell 离散支持传播、逐面受控降阶和整步缩步重试；关闭时保持 v1.0 数值路径。严格配置现完整支持常黏度/Sutherland/Prandtl，边界面 `p_w/T_w/mu_w/Cp/Cf/q_wall/traction` 和积分力、力矩、`Cd/Cl/Cm`。正式入口还支持可配置 MDCD 色散/耗散系数、定常/非定常停止、MPI 全局残差、精确时间事件、CGNS/Tecplot 流场、TXT/Tecplot 历史与统计、多截面 x-z/y-z 监测、manifest，以及可改变 rank 数和叶块划分的 CGNS 检查点重启；二维经典双马赫反射已有专用初场和时变边界。逐步使用说明见 [`docs/user-manual.md`](docs/user-manual.md)，源码二次开发见 [`docs/developer-guide.md`](docs/developer-guide.md)，可复制的完整配置见 [`examples/full_case_template.wcns`](examples/full_case_template.wcns)；简明运行速查仍见 [`docs/runtime-guide.md`](docs/runtime-guide.md)，发布算例的生成、独立重读和矩阵入口见 [`docs/release-validation.md`](docs/release-validation.md)。
 

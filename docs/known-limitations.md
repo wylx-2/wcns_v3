@@ -55,11 +55,11 @@
 
 ## 发布与平台
 
-- v1.1.0 候选的本机实测环境为 Windows 10、CMake 3.28、MinGW-w64 GCC 8.1、Python 3.14
-  和 Intel MPI 2021.10。Linux GCC/Clang、OpenMPI、ASan/UBSan 已配置为 CI 作业；当前候选
-  未取得远端结果时必须标为待执行，其他平台组合也属于未验证而不是已知不兼容。
+- v1.1.0 的本机实测环境为 Windows 11、CMake 3.28、MinGW-w64 GCC 8.1、本机 Python
+  工具链和 Intel MPI 2021.10。Linux GCC/Clang、OpenMPI、ASan/UBSan 的 CI 配置予以保留，
+  但本版本按本机独立开发验收，未执行的外部平台组合属于未验证而不是已知不兼容。
 - MinGW 构建的程序运行时需要相容的 `libgcc_s_sjlj-1.dll` 和 `libstdc++-6.dll`；MPI 版本
   还需要 Intel MPI 的 `impi.dll` 及运行环境。`cmake --install` 不复制这些工具链运行库。
-- WCNS 自有代码尚未选择对外许可证，因此 v1.1.0 源码候选和二进制只能保持私有，不应
-  作为可自由再分发的开源发行版；见
+- WCNS 自有代码尚未选择对外许可证，因此 v1.1.0 源码和二进制仅供本机及内部使用，暂不
+  对外发布，也不应作为可自由再分发的开源发行版；见
   [`LICENSE.md`](../LICENSE.md)。
