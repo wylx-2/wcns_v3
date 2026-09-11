@@ -185,6 +185,18 @@ const Field<Real>& ViscousFaceFluxField::field(Axis axis) const
     return const_cast<ViscousFaceFluxField*>(this)->field(axis);
 }
 
+void ViscousFaceFluxField::reset(std::uint64_t version)
+{
+    if (version == 0 || version > maximum_exact_message_version) {
+        throw std::invalid_argument("viscous face-flux reset version is invalid");
+    }
+    version_ = version;
+    const Real nan = std::numeric_limits<Real>::quiet_NaN();
+    i_.fill(nan);
+    j_.fill(nan);
+    k_.fill(nan);
+}
+
 ConservativeState transform_viscous_face_flux_for_receiver(
     const ConservativeState& donor,
     const FaceFluxExchangeDescriptor& descriptor)
@@ -210,6 +222,14 @@ ViscousFaceFluxHaloPlan ViscousFaceFluxHaloPlan::build(
     const auto base = FaceFluxHaloPlan::build(mesh, profile, version);
     result.exchanges_ = base.exchanges();
     return result;
+}
+
+void ViscousFaceFluxHaloPlan::set_version(std::uint64_t version)
+{
+    if (version == 0 || version > maximum_exact_message_version) {
+        throw TopologyError("viscous face-flux plan version is invalid");
+    }
+    for (auto& descriptor : exchanges_) descriptor.version = version;
 }
 
 void ViscousFaceFluxFieldRegistry::add(
@@ -320,7 +340,8 @@ void ViscousFaceFluxHaloExchanger::exchange(
     }
 }
 
-ViscousFaceFluxField compute_viscous_face_fluxes(
+void compute_viscous_face_fluxes_into(
+    ViscousFaceFluxField& result,
     const StructuredBlock& block,
     const MetricField& metric,
     const PrimitiveGradientField& gradients,
@@ -338,8 +359,16 @@ ViscousFaceFluxField compute_viscous_face_fluxes(
         || gradients.version() != version) {
         throw ProfileError("viscous face flux inputs have incompatible metadata");
     }
-    ViscousFaceFluxField result(
-        block.cell_extent(), block.cell_dimension(), profile.kind(), version);
+    const auto cells = block.cell_extent();
+    if (result.profile() != profile.kind()
+        || result.dimension() != block.cell_dimension()
+        || result.field(Axis::I).interior_extent()
+            != Extent3 {cells.ni + 1, cells.nj, cells.nk}
+        || result.field(Axis::J).interior_extent()
+            != Extent3 {cells.ni, cells.nj + 1, cells.nk}) {
+        throw ProfileError("viscous flux workspace metadata mismatch");
+    }
+    result.reset(version);
     const auto compute_axis = [&](Axis axis) {
         const auto& faces = face_metrics(metric, axis);
         const auto extent = faces.x.interior_extent();
@@ -386,6 +415,25 @@ ViscousFaceFluxField compute_viscous_face_fluxes(
     compute_axis(Axis::I);
     compute_axis(Axis::J);
     if (block.cell_dimension() == 3) compute_axis(Axis::K);
+}
+
+ViscousFaceFluxField compute_viscous_face_fluxes(
+    const StructuredBlock& block,
+    const MetricField& metric,
+    const PrimitiveGradientField& gradients,
+    const AlgorithmProfile& profile,
+    const TransportModel& transport,
+    const BoundaryDataMap& boundary_data,
+    const GasModel& gas,
+    const ReferenceScales& reference,
+    const NumericalFloors& floors,
+    std::uint64_t version)
+{
+    ViscousFaceFluxField result(
+        block.cell_extent(), block.cell_dimension(), profile.kind(), version);
+    compute_viscous_face_fluxes_into(
+        result, block, metric, gradients, profile, transport, boundary_data,
+        gas, reference, floors, version);
     return result;
 }
 

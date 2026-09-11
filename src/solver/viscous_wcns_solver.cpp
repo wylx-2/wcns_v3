@@ -158,6 +158,13 @@ ViscousWcnsSolver::ViscousWcnsSolver(
     , source_registry_(SourceTermRegistry::create_stage_j(
           config_.inviscid.source_terms))
     , transport_(config_.transport)
+    , inviscid_flux_plan_(FaceFluxHaloPlan::build(global_mesh_, profile_, 1))
+    , operand_plan_(GradientOperandFaceHaloPlan::build(
+          global_mesh_, profile_, 1))
+    , gradient_plan_(GradientHaloPlan::build(
+          global_mesh_, topology_, profile_, 1))
+    , viscous_flux_plan_(ViscousFaceFluxHaloPlan::build(
+          global_mesh_, profile_, 1))
 {
     config_.validate();
     const auto riemann_registry = RiemannSolverRegistry::with_builtins(
@@ -191,6 +198,43 @@ ViscousWcnsSolver::ViscousWcnsSolver(
             static_cast<void>(cached_line_operators(
                 profile_, block.cell_extent()[static_cast<std::size_t>(logical)]));
         }
+    }
+    const auto local_count = local_blocks_.blocks().size();
+    block_workspace_.reserve(local_count);
+    inviscid_flux_workspace_.reserve(local_count);
+    operand_workspace_.reserve(local_count);
+    gradient_workspace_.reserve(local_count);
+    viscous_flux_workspace_.reserve(local_count);
+    for (auto& block : local_blocks_.blocks()) {
+        block_workspace_.push_back(&block);
+        const auto inviscid = inviscid_flux_workspace_.emplace(
+            std::piecewise_construct,
+            std::forward_as_tuple(block.id()),
+            std::forward_as_tuple(
+                block.cell_extent(), block.cell_dimension(), profile_.kind(), 1));
+        const auto operand = operand_workspace_.emplace(
+            std::piecewise_construct,
+            std::forward_as_tuple(block.id()),
+            std::forward_as_tuple(
+                block.cell_extent(), block.cell_dimension(), profile_.kind(), 1));
+        const auto gradient = gradient_workspace_.emplace(
+            std::piecewise_construct,
+            std::forward_as_tuple(block.id()),
+            std::forward_as_tuple(
+                block.cell_extent(), block.cell_dimension(), profile_.kind(), 1));
+        const auto viscous = viscous_flux_workspace_.emplace(
+            std::piecewise_construct,
+            std::forward_as_tuple(block.id()),
+            std::forward_as_tuple(
+                block.cell_extent(), block.cell_dimension(), profile_.kind(), 1));
+        if (!inviscid.second || !operand.second
+            || !gradient.second || !viscous.second) {
+            throw std::logic_error("duplicate viscous workspace block");
+        }
+        inviscid_flux_registry_.add(block.id(), inviscid.first->second);
+        operand_registry_.add(block.id(), operand.first->second);
+        gradient_registry_.add(block.id(), gradient.first->second);
+        viscous_flux_registry_.add(block.id(), viscous.first->second);
     }
 }
 
@@ -229,10 +273,6 @@ void ViscousWcnsSolver::compute_residuals_impl(
         }
     }
 
-    std::unordered_map<BlockId, InviscidFaceFluxField> inviscid_fluxes;
-    FaceFluxFieldRegistry inviscid_registry;
-    std::unordered_map<BlockId, GradientOperandFaceField> operands;
-    GradientOperandFieldRegistry operand_registry;
     reconstruction_diagnostics_ = {};
     riemann_diagnostics_ = {};
     for (auto& block : local_blocks_.blocks()) {
@@ -242,78 +282,53 @@ void ViscousWcnsSolver::compute_residuals_impl(
         if (ghost.version != version_) {
             throw std::logic_error("viscous WCNS physical ghost version mismatch");
         }
-        auto [inviscid, inserted_inviscid] = inviscid_fluxes.emplace(
-            std::piecewise_construct,
-            std::forward_as_tuple(block.id()),
-            std::forward_as_tuple(compute_inviscid_face_fluxes(
-                block, metrics_.at(block.id()), profile_,
-                config_.inviscid.reconstruction, riemann_, gas_, reference_, floors_,
-                data, config_.inviscid.boundary, version_,
-                reconstruction_diagnostics_, &riemann_diagnostics_, rk_stage,
-                stage_time,
-                robustness_levels == nullptr
-                    ? nullptr : &robustness_levels->at(block.id()),
-                robustness_levels == nullptr ? nullptr : &robustness_ladder_,
-                robustness_levels == nullptr ? nullptr : &robust_riemann_)));
-        if (!inserted_inviscid) throw std::logic_error("duplicate inviscid flux block");
-        inviscid_registry.add(block.id(), inviscid->second);
-
-        auto [operand, inserted_operand] = operands.emplace(
-            std::piecewise_construct,
-            std::forward_as_tuple(block.id()),
-            std::forward_as_tuple(compute_gradient_face_operands(
-                block, metrics_.at(block.id()), profile_, version_)));
-        if (!inserted_operand) throw std::logic_error("duplicate gradient operand block");
-        operand_registry.add(block.id(), operand->second);
+        compute_inviscid_face_fluxes_into(
+            inviscid_flux_workspace_.at(block.id()), block,
+            metrics_.at(block.id()), profile_,
+            config_.inviscid.reconstruction, riemann_, gas_, reference_, floors_,
+            data, config_.inviscid.boundary, version_,
+            reconstruction_diagnostics_, &riemann_diagnostics_, rk_stage,
+            stage_time,
+            robustness_levels == nullptr
+                ? nullptr : &robustness_levels->at(block.id()),
+            robustness_levels == nullptr ? nullptr : &robustness_ladder_,
+            robustness_levels == nullptr ? nullptr : &robust_riemann_);
+        compute_gradient_face_operands_into(
+            operand_workspace_.at(block.id()), block,
+            metrics_.at(block.id()), profile_, version_);
     }
-    FaceFluxHaloExchanger(
-        mpi_, FaceFluxHaloPlan::build(global_mesh_, profile_, version_))
-        .exchange(inviscid_registry);
-    GradientOperandFaceHaloExchanger(
-        mpi_, GradientOperandFaceHaloPlan::build(
-                  global_mesh_, profile_, version_))
-        .exchange(operand_registry);
+    inviscid_flux_plan_.set_version(version_);
+    operand_plan_.set_version(version_);
+    FaceFluxHaloExchanger(mpi_, inviscid_flux_plan_)
+        .exchange(inviscid_flux_registry_);
+    GradientOperandFaceHaloExchanger(mpi_, operand_plan_)
+        .exchange(operand_registry_);
 
-    std::unordered_map<BlockId, PrimitiveGradientField> gradients;
-    GradientFieldRegistry gradient_registry;
     for (auto& block : local_blocks_.blocks()) {
-        auto [gradient, inserted] = gradients.emplace(
-            std::piecewise_construct,
-            std::forward_as_tuple(block.id()),
-            std::forward_as_tuple(compute_primitive_gradients(
-                block, metrics_.at(block.id()), operands.at(block.id()), profile_)));
-        if (!inserted) throw std::logic_error("duplicate primitive gradient block");
-        gradient_registry.add(block.id(), gradient->second);
+        compute_primitive_gradients_into(
+            gradient_workspace_.at(block.id()), block,
+            metrics_.at(block.id()), operand_workspace_.at(block.id()), profile_);
     }
-    GradientHaloExchanger(
-        mpi_, GradientHaloPlan::build(
-                  global_mesh_, topology_, profile_, version_))
-        .exchange(gradient_registry);
+    gradient_plan_.set_version(version_);
+    GradientHaloExchanger(mpi_, gradient_plan_).exchange(gradient_registry_);
 
-    std::unordered_map<BlockId, ViscousFaceFluxField> viscous_fluxes;
-    ViscousFaceFluxFieldRegistry viscous_registry;
     for (auto& block : local_blocks_.blocks()) {
-        auto [flux, inserted] = viscous_fluxes.emplace(
-            std::piecewise_construct,
-            std::forward_as_tuple(block.id()),
-            std::forward_as_tuple(compute_viscous_face_fluxes(
-                block, metrics_.at(block.id()), gradients.at(block.id()),
-                profile_, transport_, boundary_data_.at(block.id()),
-                gas_, reference_, floors_, version_)));
-        if (!inserted) throw std::logic_error("duplicate viscous flux block");
-        viscous_registry.add(block.id(), flux->second);
+        compute_viscous_face_fluxes_into(
+            viscous_flux_workspace_.at(block.id()), block,
+            metrics_.at(block.id()), gradient_workspace_.at(block.id()),
+            profile_, transport_, boundary_data_.at(block.id()),
+            gas_, reference_, floors_, version_);
     }
-    ViscousFaceFluxHaloExchanger(
-        mpi_, ViscousFaceFluxHaloPlan::build(
-                  global_mesh_, profile_, version_))
-        .exchange(viscous_registry);
+    viscous_flux_plan_.set_version(version_);
+    ViscousFaceFluxHaloExchanger(mpi_, viscous_flux_plan_)
+        .exchange(viscous_flux_registry_);
 
     for (auto& block : local_blocks_.blocks()) {
         compute_wcns_inviscid_residual(
-            block, metrics_.at(block.id()), inviscid_fluxes.at(block.id()), profile_,
+            block, metrics_.at(block.id()), inviscid_flux_workspace_.at(block.id()), profile_,
             config_.inviscid.flux_difference);
         add_wcns_viscous_residual(
-            block, metrics_.at(block.id()), viscous_fluxes.at(block.id()),
+            block, metrics_.at(block.id()), viscous_flux_workspace_.at(block.id()),
             profile_, reference_.reynolds());
         add_source_terms(
             block, metrics_.at(block.id()), source_registry_, stage_time);
@@ -322,21 +337,19 @@ void ViscousWcnsSolver::compute_residuals_impl(
 
 Real ViscousWcnsSolver::advance(Real time_step, Real initial_time)
 {
-    std::vector<StructuredBlock*> blocks;
-    for (auto& block : local_blocks_.blocks()) blocks.push_back(&block);
     Real accepted_time_step = time_step;
     if (!config_.inviscid.robustness.enabled) {
         robustness_diagnostics_ = {};
         robustness_diagnostics_.proposed_time_step = time_step;
         robustness_diagnostics_.accepted_time_step = time_step;
         int rk_stage = 0;
-        advance_ssprk3(blocks, time_step, initial_time,
+        advance_ssprk3(block_workspace_, time_workspace_, time_step, initial_time,
             [this, &rk_stage](Real stage_time) {
                 compute_residuals(stage_time, ++rk_stage);
             });
     } else {
         accepted_time_step = advance_ssprk3_with_robustness(
-            mpi_, blocks, global_mesh_, profile_,
+            mpi_, block_workspace_, global_mesh_, profile_,
             config_.inviscid.flux_difference, gas_, reference_, floors_,
             config_.inviscid.robustness, robustness_ladder_, time_step,
             initial_time,

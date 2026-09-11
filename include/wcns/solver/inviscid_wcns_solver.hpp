@@ -5,6 +5,7 @@
 #include <wcns/solver/inviscid_flux.hpp>
 #include <wcns/solver/robustness.hpp>
 #include <wcns/solver/source_operator.hpp>
+#include <wcns/solver/time_integrator.hpp>
 
 #include <unordered_map>
 
@@ -82,6 +83,11 @@ private:
     RiemannSolver riemann_ {};
     RiemannSolver robust_riemann_ {};
     RobustnessLadder robustness_ladder_ {};
+    std::vector<StructuredBlock*> block_workspace_;
+    std::unordered_map<BlockId, InviscidFaceFluxField> face_flux_workspace_;
+    FaceFluxFieldRegistry face_flux_registry_;
+    FaceFluxHaloPlan face_flux_plan_;
+    SsprkWorkspace time_workspace_;
     std::uint64_t version_ = 0;
     ReconstructionDiagnostics reconstruction_diagnostics_ {};
     RiemannDiagnostics riemann_diagnostics_ {};

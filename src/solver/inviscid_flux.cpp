@@ -379,6 +379,18 @@ const Field<Real>& InviscidFaceFluxField::field(Axis axis) const
     return const_cast<InviscidFaceFluxField*>(this)->field(axis);
 }
 
+void InviscidFaceFluxField::reset(std::uint64_t version)
+{
+    if (version == 0 || version > maximum_exact_message_version) {
+        throw std::invalid_argument("face-flux reset version is invalid");
+    }
+    version_ = version;
+    const Real nan = std::numeric_limits<Real>::quiet_NaN();
+    i_.fill(nan);
+    j_.fill(nan);
+    k_.fill(nan);
+}
+
 int FaceFluxExchangeDescriptor::message_tag(int tag_base) const
 {
     if (tag_base < 0 || connection < 0 || receiver_block < 0 || donor_block < 0) {
@@ -433,6 +445,14 @@ FaceFluxHaloPlan FaceFluxHaloPlan::build(
         }
     }
     return result;
+}
+
+void FaceFluxHaloPlan::set_version(std::uint64_t version)
+{
+    if (version == 0 || version > maximum_exact_message_version) {
+        throw TopologyError("face-flux plan version must be non-zero");
+    }
+    for (auto& descriptor : exchanges_) descriptor.version = version;
 }
 
 void FaceFluxFieldRegistry::add(BlockId block, InviscidFaceFluxField& field)
@@ -538,7 +558,8 @@ void FaceFluxHaloExchanger::exchange(const FaceFluxFieldRegistry& fields) const
     }
 }
 
-InviscidFaceFluxField compute_inviscid_face_fluxes(
+void compute_inviscid_face_fluxes_into(
+    InviscidFaceFluxField& result,
     const StructuredBlock& block,
     const MetricField& metric,
     const AlgorithmProfile& profile,
@@ -577,8 +598,16 @@ InviscidFaceFluxField compute_inviscid_face_fluxes(
             || robustness_levels->dimension() != block.cell_dimension())) {
         throw ProfileError("inviscid flux robustness field has a mismatched profile");
     }
-    InviscidFaceFluxField result(
-        block.cell_extent(), block.cell_dimension(), profile.kind(), version);
+    const auto cells = block.cell_extent();
+    if (result.profile() != profile.kind()
+        || result.dimension() != block.cell_dimension()
+        || result.field(Axis::I).interior_extent()
+            != Extent3 {cells.ni + 1, cells.nj, cells.nk}
+        || result.field(Axis::J).interior_extent()
+            != Extent3 {cells.ni, cells.nj + 1, cells.nk}) {
+        throw ProfileError("inviscid flux workspace metadata mismatch");
+    }
+    result.reset(version);
     const auto compute_axis = [&](Axis axis) {
         const auto& faces = metric_faces(metric, axis);
         const auto extent = faces.x.interior_extent();
@@ -651,6 +680,35 @@ InviscidFaceFluxField compute_inviscid_face_fluxes(
     compute_axis(Axis::I);
     compute_axis(Axis::J);
     if (block.cell_dimension() == 3) compute_axis(Axis::K);
+}
+
+InviscidFaceFluxField compute_inviscid_face_fluxes(
+    const StructuredBlock& block,
+    const MetricField& metric,
+    const AlgorithmProfile& profile,
+    const ReconstructionConfig& reconstruction,
+    const RiemannSolver& riemann,
+    const GasModel& gas,
+    const ReferenceScales& reference,
+    const NumericalFloors& floors,
+    const BoundaryDataMap& boundary_data,
+    const InviscidBoundaryOptions& boundary_options,
+    std::uint64_t version,
+    ReconstructionDiagnostics& diagnostics,
+    RiemannDiagnostics* riemann_diagnostics,
+    int rk_stage,
+    Real stage_time,
+    const FaceRobustnessField* robustness_levels,
+    const RobustnessLadder* robustness_ladder,
+    const RiemannSolver* robust_riemann)
+{
+    InviscidFaceFluxField result(
+        block.cell_extent(), block.cell_dimension(), profile.kind(), version);
+    compute_inviscid_face_fluxes_into(
+        result, block, metric, profile, reconstruction, riemann, gas, reference,
+        floors, boundary_data, boundary_options, version, diagnostics,
+        riemann_diagnostics, rk_stage, stage_time, robustness_levels,
+        robustness_ladder, robust_riemann);
     return result;
 }
 

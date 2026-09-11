@@ -21,6 +21,7 @@ public:
     [[nodiscard]] int dimension() const noexcept { return dimension_; }
     [[nodiscard]] Field<Real>& field(Axis axis);
     [[nodiscard]] const Field<Real>& field(Axis axis) const;
+    void reset(std::uint64_t version);
 
 private:
     AlgorithmProfileKind profile_;
@@ -47,6 +48,7 @@ public:
     {
         return exchanges_;
     }
+    void set_version(std::uint64_t version);
 
 private:
     std::vector<FaceFluxExchangeDescriptor> exchanges_;
@@ -79,6 +81,19 @@ private:
 };
 
 [[nodiscard]] ViscousFaceFluxField compute_viscous_face_fluxes(
+    const StructuredBlock& block,
+    const MetricField& metric,
+    const PrimitiveGradientField& gradients,
+    const AlgorithmProfile& profile,
+    const TransportModel& transport,
+    const BoundaryDataMap& boundary_data,
+    const GasModel& gas,
+    const ReferenceScales& reference,
+    const NumericalFloors& floors,
+    std::uint64_t version);
+
+void compute_viscous_face_fluxes_into(
+    ViscousFaceFluxField& result,
     const StructuredBlock& block,
     const MetricField& metric,
     const PrimitiveGradientField& gradients,

@@ -28,6 +28,7 @@ public:
     {
         return exchanges_;
     }
+    void set_version(std::uint64_t version);
 
 private:
     std::vector<FaceFluxExchangeDescriptor> exchanges_;
@@ -90,6 +91,7 @@ public:
     {
         return exchanges_;
     }
+    void set_version(std::uint64_t version);
 
 private:
     std::vector<GradientExchangeDescriptor> exchanges_;

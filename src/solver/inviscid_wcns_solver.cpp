@@ -111,6 +111,7 @@ InviscidWcnsSolver::InviscidWcnsSolver(
     , floors_(floors)
     , config_(std::move(config))
     , source_registry_(SourceTermRegistry::create_stage_j(config_.source_terms))
+    , face_flux_plan_(FaceFluxHaloPlan::build(global_mesh_, profile_, 1))
 {
     config_.validate();
     const auto riemann_registry
@@ -143,6 +144,20 @@ InviscidWcnsSolver::InviscidWcnsSolver(
             static_cast<void>(cached_line_operators(
                 profile_, block.cell_extent()[static_cast<std::size_t>(logical)]));
         }
+    }
+    block_workspace_.reserve(local_blocks_.blocks().size());
+    face_flux_workspace_.reserve(local_blocks_.blocks().size());
+    for (auto& block : local_blocks_.blocks()) {
+        block_workspace_.push_back(&block);
+        const auto inserted = face_flux_workspace_.emplace(
+            std::piecewise_construct,
+            std::forward_as_tuple(block.id()),
+            std::forward_as_tuple(
+                block.cell_extent(), block.cell_dimension(), profile_.kind(), 1));
+        if (!inserted.second) {
+            throw std::logic_error("duplicate inviscid workspace block");
+        }
+        face_flux_registry_.add(block.id(), inserted.first->second);
     }
 }
 
@@ -182,8 +197,6 @@ void InviscidWcnsSolver::compute_residuals_impl(
         }
     }
 
-    std::unordered_map<BlockId, InviscidFaceFluxField> fluxes;
-    FaceFluxFieldRegistry flux_registry;
     reconstruction_diagnostics_ = {};
     riemann_diagnostics_ = {};
     for (auto& block : local_blocks_.blocks()) {
@@ -193,29 +206,22 @@ void InviscidWcnsSolver::compute_residuals_impl(
         if (ghost.version != version_) {
             throw std::logic_error("WCNS physical ghost version mismatch");
         }
-        auto [iterator, inserted] = fluxes.emplace(
-            std::piecewise_construct,
-            std::forward_as_tuple(block.id()),
-            std::forward_as_tuple(compute_inviscid_face_fluxes(
-                block, metrics_.at(block.id()), profile_, config_.reconstruction,
-                riemann_, gas_, reference_, floors_, data->second,
-                config_.boundary, version_, reconstruction_diagnostics_,
-                &riemann_diagnostics_, rk_stage, stage_time,
-                robustness_levels == nullptr
-                    ? nullptr : &robustness_levels->at(block.id()),
-                robustness_levels == nullptr ? nullptr : &robustness_ladder_,
-                robustness_levels == nullptr ? nullptr : &robust_riemann_)));
-        if (!inserted) {
-            throw std::logic_error("duplicate local WCNS face-flux block");
-        }
-        flux_registry.add(block.id(), iterator->second);
+        compute_inviscid_face_fluxes_into(
+            face_flux_workspace_.at(block.id()), block,
+            metrics_.at(block.id()), profile_, config_.reconstruction,
+            riemann_, gas_, reference_, floors_, data->second,
+            config_.boundary, version_, reconstruction_diagnostics_,
+            &riemann_diagnostics_, rk_stage, stage_time,
+            robustness_levels == nullptr
+                ? nullptr : &robustness_levels->at(block.id()),
+            robustness_levels == nullptr ? nullptr : &robustness_ladder_,
+            robustness_levels == nullptr ? nullptr : &robust_riemann_);
     }
-    const auto current_plan
-        = FaceFluxHaloPlan::build(global_mesh_, profile_, version_);
-    FaceFluxHaloExchanger(mpi_, current_plan).exchange(flux_registry);
+    face_flux_plan_.set_version(version_);
+    FaceFluxHaloExchanger(mpi_, face_flux_plan_).exchange(face_flux_registry_);
     for (auto& block : local_blocks_.blocks()) {
         compute_wcns_inviscid_residual(
-            block, metrics_.at(block.id()), fluxes.at(block.id()), profile_,
+            block, metrics_.at(block.id()), face_flux_workspace_.at(block.id()), profile_,
             config_.flux_difference);
         add_source_terms(
             block, metrics_.at(block.id()), source_registry_, stage_time);
@@ -224,21 +230,19 @@ void InviscidWcnsSolver::compute_residuals_impl(
 
 Real InviscidWcnsSolver::advance(Real time_step, Real initial_time)
 {
-    std::vector<StructuredBlock*> blocks;
-    for (auto& block : local_blocks_.blocks()) blocks.push_back(&block);
     Real accepted_time_step = time_step;
     if (!config_.robustness.enabled) {
         robustness_diagnostics_ = {};
         robustness_diagnostics_.proposed_time_step = time_step;
         robustness_diagnostics_.accepted_time_step = time_step;
         int rk_stage = 0;
-        advance_ssprk3(blocks, time_step, initial_time,
+        advance_ssprk3(block_workspace_, time_workspace_, time_step, initial_time,
             [this, &rk_stage](Real stage_time) {
                 compute_residuals(stage_time, ++rk_stage);
             });
     } else {
         accepted_time_step = advance_ssprk3_with_robustness(
-            mpi_, blocks, global_mesh_, profile_, config_.flux_difference,
+            mpi_, block_workspace_, global_mesh_, profile_, config_.flux_difference,
             gas_, reference_, floors_, config_.robustness, robustness_ladder_,
             time_step, initial_time,
             [this](Real stage_time, int rk_stage,

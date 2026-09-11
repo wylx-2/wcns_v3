@@ -224,6 +224,12 @@ GradientOperandFaceHaloPlan GradientOperandFaceHaloPlan::build(
     return result;
 }
 
+void GradientOperandFaceHaloPlan::set_version(std::uint64_t version)
+{
+    require_version(version, "gradient operand halo");
+    for (auto& descriptor : exchanges_) descriptor.version = version;
+}
+
 void GradientOperandFieldRegistry::add(
     BlockId block, GradientOperandFaceField& field)
 {
@@ -400,6 +406,12 @@ GradientHaloPlan GradientHaloPlan::build(
         result.exchanges_.push_back(std::move(descriptor));
     }
     return result;
+}
+
+void GradientHaloPlan::set_version(std::uint64_t version)
+{
+    require_version(version, "gradient halo");
+    for (auto& descriptor : exchanges_) descriptor.version = version;
 }
 
 void GradientFieldRegistry::add(BlockId block, PrimitiveGradientField& field)
