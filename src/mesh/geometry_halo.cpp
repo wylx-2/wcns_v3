@@ -181,7 +181,7 @@ GeometryHaloPlan GeometryHaloPlan::build(const StructuredMesh& mesh,
     GeometryHaloPlan plan;
     plan.profile_ = profile.kind();
     const int operand_width = profile.kind() == AlgorithmProfileKind::PhengleiWcns ? 3 : 5;
-    const int final_width = profile.kind() == AlgorithmProfileKind::PhengleiWcns ? 3 : 3;
+    constexpr int shared_metric_width = 3; // Identical final support for both profiles.
     for (std::size_t index = 0; index < canonical.size(); ++index) {
         if (index > static_cast<std::size_t>(std::numeric_limits<ConnectionId>::max())) {
             throw TopologyError("geometry connection count exceeds ConnectionId range");
@@ -219,7 +219,7 @@ GeometryHaloPlan GeometryHaloPlan::build(const StructuredMesh& mesh,
                               owner,
                               GeometryMessageKind::SharedMetric,
                               GeometryOperandStage::None,
-                              final_width);
+                              shared_metric_width);
         }
     }
     std::set<int> tags;

@@ -301,8 +301,6 @@ def analyze_case(root: Path, key: str, info: CaseInfo) -> dict[str, object]:
     if not files:
         raise FileNotFoundError(f"no field files in {result_directory}")
     field_probes: list[tuple[float, float]] = []
-    final_variables: list[str] = []
-    final_zones: list[tuple[str, np.ndarray]] = []
     final_fields: dict[str, np.ndarray] = {}
     for path in files:
         variables, zones = read_tecplot(path)
@@ -310,7 +308,7 @@ def analyze_case(root: Path, key: str, info: CaseInfo) -> dict[str, object]:
         probe_distance = (fields["X"] - 2.0) ** 2 + (fields["Y"] - 0.5) ** 2
         probe = np.unravel_index(int(np.argmin(probe_distance)), probe_distance.shape)
         field_probes.append((filename_time(path), float(fields["v"][probe])))
-        final_variables, final_zones, final_fields = variables, zones, fields
+        final_fields = fields
 
     load_files = list(result_directory.glob("*.loads.r*.txt"))
     if len(load_files) != 1:

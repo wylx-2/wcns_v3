@@ -12,7 +12,9 @@ namespace wcns {
 namespace {
 
 constexpr std::uint64_t maximum_exact_message_version = 9007199254740992ULL;
+#if WCNS_HAS_MPI
 constexpr int viscous_flux_tag_base = 24576;
+#endif
 
 int side_sign(Side side)
 {

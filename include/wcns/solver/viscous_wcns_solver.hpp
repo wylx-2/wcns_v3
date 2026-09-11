@@ -77,8 +77,8 @@ private:
     ViscousWcnsConfig config_;
     SourceTermRegistry source_registry_;
     TransportModel transport_;
-    RiemannSolver riemann_ {};
-    RiemannSolver robust_riemann_ {};
+    RiemannSolver riemann_;
+    RiemannSolver robust_riemann_;
     RobustnessLadder robustness_ladder_ {};
     std::vector<StructuredBlock*> block_workspace_;
     std::unordered_map<BlockId, InviscidFaceFluxField> inviscid_flux_workspace_;

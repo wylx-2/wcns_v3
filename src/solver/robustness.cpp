@@ -14,7 +14,9 @@
 namespace wcns {
 namespace {
 
+#if WCNS_HAS_MPI
 constexpr int robustness_message_tag_base = 24576;
+#endif
 
 bool same_strategy(const RobustFluxStrategy& lhs, const RobustFluxStrategy& rhs)
 {

@@ -11,7 +11,9 @@ namespace wcns {
 namespace {
 
 constexpr std::uint64_t maximum_exact_message_version = 9007199254740992ULL;
+#if WCNS_HAS_MPI
 constexpr int operand_tag_base = 16384;
+#endif
 
 std::array<std::array<Real, 3>, 3> transpose(const std::array<std::array<Real, 3>, 3>& matrix)
 {

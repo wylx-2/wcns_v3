@@ -891,8 +891,8 @@ std::vector<std::string> channel_wall_statistic_names()
 }
 
 void register_channel_wall_statistics(StatisticRegistry& registry,
-                                      std::string lower_patch,
-                                      std::string upper_patch,
+                                      const std::string& lower_patch,
+                                      const std::string& upper_patch,
                                       Real half_height)
 {
     if (lower_patch.empty() || upper_patch.empty() || lower_patch == upper_patch

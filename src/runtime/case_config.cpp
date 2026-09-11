@@ -511,10 +511,10 @@ std::vector<std::string> optional_string_list(const EntryMap& entries, const std
 }
 
 std::string
-optional_string(const EntryMap& entries, const std::string& key, std::string default_value)
+optional_string(const EntryMap& entries, const std::string& key, std::string_view default_value)
 {
     const auto iterator = entries.find(key);
-    return iterator == entries.end() ? std::move(default_value) : iterator->second;
+    return iterator == entries.end() ? std::string(default_value) : iterator->second;
 }
 
 std::vector<int> optional_integer_list(const EntryMap& entries, const std::string& key)
