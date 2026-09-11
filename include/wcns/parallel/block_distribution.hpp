@@ -23,15 +23,10 @@ struct BlockAssignment {
 
 class BlockDistribution {
 public:
-    [[nodiscard]] static BlockDistribution balanced(
-        std::vector<BlockLoad> loads,
-        int rank_count);
+    [[nodiscard]] static BlockDistribution balanced(std::vector<BlockLoad> loads, int rank_count);
 
     [[nodiscard]] RankId owner(BlockId block) const;
-    [[nodiscard]] int rank_count() const noexcept
-    {
-        return static_cast<int>(rank_loads_.size());
-    }
+    [[nodiscard]] int rank_count() const noexcept { return static_cast<int>(rank_loads_.size()); }
     [[nodiscard]] const std::vector<std::size_t>& rank_loads() const noexcept
     {
         return rank_loads_;
@@ -52,20 +47,16 @@ private:
 
 class LocalBlockSet {
 public:
-    LocalBlockSet(
-        RankId rank,
-        std::vector<StructuredBlock> blocks,
-        const BlockDistribution& distribution);
+    LocalBlockSet(RankId rank,
+                  std::vector<StructuredBlock> blocks,
+                  const BlockDistribution& distribution);
 
     [[nodiscard]] RankId rank() const noexcept { return rank_; }
     [[nodiscard]] bool contains(BlockId id) const noexcept;
     [[nodiscard]] StructuredBlock& block(BlockId id);
     [[nodiscard]] const StructuredBlock& block(BlockId id) const;
     [[nodiscard]] std::vector<StructuredBlock>& blocks() noexcept { return blocks_; }
-    [[nodiscard]] const std::vector<StructuredBlock>& blocks() const noexcept
-    {
-        return blocks_;
-    }
+    [[nodiscard]] const std::vector<StructuredBlock>& blocks() const noexcept { return blocks_; }
 
 private:
     RankId rank_ = invalid_rank_id;
@@ -74,4 +65,3 @@ private:
 };
 
 } // namespace wcns
-

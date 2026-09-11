@@ -114,13 +114,12 @@ int main(int argc, char** argv)
             prepare_block(block, freestream);
         }
 
-        EulerSolver solver(
-            mpi,
-            local,
-            topology,
-            distribution.rank_count(),
-            freestream,
-            SpatialParameters {{}, {}, 0.25});
+        EulerSolver solver(mpi,
+                           local,
+                           topology,
+                           distribution.rank_count(),
+                           freestream,
+                           SpatialParameters {{}, {}, 0.25});
         solver.compute_residuals();
         WCNS_REQUIRE(solver.global_residual_l2() < 1.0e-11);
         const Real time_step = solver.advance_cfl();
@@ -132,21 +131,20 @@ int main(int argc, char** argv)
             const auto extent = block.cell_extent();
             for (int j = 0; j < extent.nj; ++j) {
                 for (int i = 0; i < extent.ni; ++i) {
-                    const auto actual = load_conservative(
-                        block.flow.conservative, {i, j, 0});
+                    const auto actual = load_conservative(block.flow.conservative, {i, j, 0});
                     for (int component = 0; component < euler_components; ++component) {
-                        local_error = std::max(
-                            local_error,
-                            std::abs(actual[static_cast<std::size_t>(component)]
-                                - expected[static_cast<std::size_t>(component)]));
+                        local_error
+                            = std::max(local_error,
+                                       std::abs(actual[static_cast<std::size_t>(component)]
+                                                - expected[static_cast<std::size_t>(component)]));
                     }
                 }
             }
         }
         WCNS_REQUIRE(mpi.max(local_error) < 1.0e-11);
         if (mpi.rank() == 0) {
-            std::cout << "Euler multiblock constant-state test passed with "
-                      << mpi.size() << " ranks\n";
+            std::cout << "Euler multiblock constant-state test passed with " << mpi.size()
+                      << " ranks\n";
         }
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {

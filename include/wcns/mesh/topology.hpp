@@ -49,6 +49,7 @@ enum class BoundaryType {
     NoSlipIsothermalWall,
     Symmetry,
     Periodic,
+    DoubleMachReflection,
 };
 
 struct BoundaryPatch {
@@ -74,8 +75,7 @@ struct IndexTransform {
         for (int receiver_axis = 0; receiver_axis < dimension; ++receiver_axis) {
             const int entry = receiver_to_donor[static_cast<std::size_t>(receiver_axis)];
             const int axis = std::abs(entry);
-            if (axis < 1 || axis > dimension
-                || used[static_cast<std::size_t>(axis - 1)]) {
+            if (axis < 1 || axis > dimension || used[static_cast<std::size_t>(axis - 1)]) {
                 return false;
             }
             used[static_cast<std::size_t>(axis - 1)] = true;
@@ -88,11 +88,8 @@ struct IndexTransform {
         return true;
     }
 
-    [[nodiscard]] Index3 map(
-        Index3 receiver,
-        Index3 receiver_origin,
-        Index3 donor_origin,
-        int dimension) const
+    [[nodiscard]] Index3
+    map(Index3 receiver, Index3 receiver_origin, Index3 donor_origin, int dimension) const
     {
         if (!valid(dimension)) {
             throw std::invalid_argument("cannot apply an invalid index transform");
@@ -104,7 +101,7 @@ struct IndexTransform {
             const int sign = entry < 0 ? -1 : 1;
             donor[donor_axis] += sign
                 * (receiver[static_cast<std::size_t>(receiver_axis)]
-                    - receiver_origin[static_cast<std::size_t>(receiver_axis)]);
+                   - receiver_origin[static_cast<std::size_t>(receiver_axis)]);
         }
         return donor;
     }
@@ -118,8 +115,7 @@ struct IndexTransform {
         for (int receiver_axis = 0; receiver_axis < dimension; ++receiver_axis) {
             const int entry = receiver_to_donor[static_cast<std::size_t>(receiver_axis)];
             const auto donor_axis = static_cast<std::size_t>(std::abs(entry) - 1);
-            result.receiver_to_donor[donor_axis]
-                = (entry < 0 ? -1 : 1) * (receiver_axis + 1);
+            result.receiver_to_donor[donor_axis] = (entry < 0 ? -1 : 1) * (receiver_axis + 1);
         }
         return result;
     }
@@ -139,10 +135,8 @@ struct PeriodicTransform {
     std::array<Real, 3> translation {{0.0, 0.0, 0.0}};
 
     [[nodiscard]] bool valid(int dimension) const;
-    [[nodiscard]] std::array<Real, 3> apply_point(
-        const std::array<Real, 3>& point) const;
-    [[nodiscard]] std::array<Real, 3> apply_vector(
-        const std::array<Real, 3>& vector) const;
+    [[nodiscard]] std::array<Real, 3> apply_point(const std::array<Real, 3>& point) const;
+    [[nodiscard]] std::array<Real, 3> apply_vector(const std::array<Real, 3>& vector) const;
     [[nodiscard]] PeriodicTransform inverse() const;
 
     friend bool operator==(const PeriodicTransform& lhs, const PeriodicTransform& rhs)

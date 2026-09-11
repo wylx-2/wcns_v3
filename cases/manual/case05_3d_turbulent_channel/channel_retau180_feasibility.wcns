@@ -1,0 +1,114 @@
+# case05 第一阶段只做 5 步可行性推进，不是湍流统计计算。
+schema_version = 1
+case.name = case05-channel-retau180-mab0p1-feasibility
+mesh.path = grids/channel_36x48x36_beta1p75.cgns
+
+algorithm.profile = phenglei_wcns
+algorithm.reconstruction = mdcd_hybrid
+algorithm.reconstruction_variables = primitive
+algorithm.riemann = hllc
+algorithm.mdcd.disp = 0.0463783
+algorithm.mdcd.diss = 0.01
+
+gas.gamma = 1.4
+# 以初始体积平均速度 U_b,0 为速度基准。取 R=1、T_ref=71.428571...
+# 则 c_ref=sqrt(gamma*R*T_ref)=10*U_b,0，程序导出体积平均 Ma_b=0.1。
+gas.specific_gas_constant = 1.0
+# U_ref=U_b,0、L_ref=h、rho_ref=1；Re_b^(h)=U_b^+*Re_tau=2786.75618。
+reference.velocity = 1.0
+reference.density = 1.0
+reference.temperature = 71.42857142857143
+reference.length = 1.0
+reference.viscosity = 0.0003588401476178181
+
+partition.mode = auto_split
+partition.allow_idle_ranks = false
+partition.max_load_ratio = 1.2
+partition.min_cells_per_active_direction = 8
+
+initial.type = turbulent_channel
+initial.y0 = -1.0
+initial.y1 = 1.0
+initial.x0 = 0.0
+initial.z0 = 0.0
+initial.period_x = 6.283185307179586
+initial.period_z = 3.141592653589793
+initial.re_tau = 180.0
+initial.bulk_velocity = 1.0
+initial.bulk_velocity_plus = 15.481978793165828
+initial.perturbation_amplitude = 0.05
+initial.rho = 1.0
+initial.temperature = 1.0
+
+boundary.default = no_slip_isothermal_wall
+boundary.bottom.type = no_slip_isothermal_wall
+boundary.bottom.wall_velocity_x = 0.0
+boundary.bottom.wall_velocity_y = 0.0
+boundary.bottom.wall_velocity_z = 0.0
+boundary.bottom.wall_temperature = 1.0
+boundary.top.type = no_slip_isothermal_wall
+boundary.top.wall_velocity_x = 0.0
+boundary.top.wall_velocity_y = 0.0
+boundary.top.wall_velocity_z = 0.0
+boundary.top.wall_temperature = 1.0
+
+source.enabled = true
+source.models = body_force
+# a_x*h/U_b,0^2=(u_tau/U_b,0)^2=1/(U_b^+)^2；同时加入动量和能量功。
+source.body.ax = 0.004172026549973031
+source.body.ay = 0.0
+source.body.az = 0.0
+
+run.mode = unsteady
+run.viscous = true
+run.cfl = 0.15
+# 当前是安全的可行性卡口。迁移到 Linux 后必须在人工批准下同时增大下面两项。
+# 长时间示例：run.max_steps=5000000、run.t_end=500（仍需按实际统计收敛调整）。
+run.max_steps = 5
+# 设得明显大于 5 步的预期累计时间，保证本地短测由 max_steps 截止。
+run.t_end = 0.01
+run.max_wall_time = 0
+
+output.directory = results/lowmach-feasibility-r4
+output.allow_existing = false
+output.dimensional = false
+
+output.field.enabled = true
+output.field.format = cgns
+# 可行性阶段只写初/终场。长算建议 output.field.every_time=10 或更大，控制磁盘占用。
+output.field.every_steps = 0
+output.field.every_time = 0
+output.field.write_initial = true
+output.field.write_final = true
+output.field.quantities = rho,u,v,w,p,T,rho_u,rho_v,rho_w,rho_E,mach,viscosity,jacobian
+
+output.history.enabled = true
+output.history.format = txt
+# 可行性阶段逐步记录；长算可改为 100--1000 步，不能大于故障定位所需时间尺度。
+output.history.every_steps = 1
+output.history.write_initial = true
+output.history.write_final = true
+
+output.statistics.enabled = true
+output.statistics.format = txt
+# 可行性阶段逐步记录；长算建议按物理时间 0.1--1.0 或等效步数采样。
+output.statistics.every_steps = 1
+output.statistics.every_time = 0
+output.statistics.write_initial = true
+output.statistics.write_final = true
+output.statistics.quantities = total_mass,total_momentum_x,total_momentum_y,total_momentum_z,total_energy
+# 真实 y-z 截面；每个目标选择其正 x 侧最近的单元中心面。
+# 本网格实际采样 x=pi/36 和 x=pi+pi/36，分别位于 x=0、pi 附近。
+output.statistics.yz_planes.enabled = true
+output.statistics.yz_planes.target_x_coordinates = 0.0,3.141592653589793
+output.statistics.channel_walls.enabled = true
+output.statistics.channel_walls.lower_patch = bottom
+output.statistics.channel_walls.upper_patch = top
+output.statistics.channel_walls.half_height = 1.0
+
+output.checkpoint.enabled = true
+# 可行性阶段只会写终止检查点；长算建议 every_time=5--20，并保留最近若干完整文件。
+output.checkpoint.every_steps = 0
+output.checkpoint.every_time = 5.0
+output.checkpoint.write_initial = false
+output.checkpoint.write_final = true

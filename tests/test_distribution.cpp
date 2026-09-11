@@ -57,8 +57,7 @@ void test_distribution()
 {
     using namespace wcns;
 
-    const auto distribution = BlockDistribution::balanced(
-        {{0, 100}, {1, 60}, {2, 40}, {3, 20}}, 2);
+    const auto distribution = BlockDistribution::balanced({{0, 100}, {1, 60}, {2, 40}, {3, 20}}, 2);
     WCNS_REQUIRE(distribution.owner(0) == 0);
     WCNS_REQUIRE(distribution.owner(1) == 1);
     WCNS_REQUIRE(distribution.owner(2) == 1);
@@ -66,10 +65,8 @@ void test_distribution()
     WCNS_REQUIRE(distribution.rank_loads() == (std::vector<std::size_t> {120, 100}));
     WCNS_REQUIRE(distribution.local_blocks(0) == (std::vector<BlockId> {0, 3}));
     WCNS_REQUIRE_THROWS(std::out_of_range, distribution.owner(9));
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument, BlockDistribution::balanced({{0, 1}}, 0));
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument, BlockDistribution::balanced({{0, 1}, {0, 2}}, 2));
+    WCNS_REQUIRE_THROWS(std::invalid_argument, BlockDistribution::balanced({{0, 1}}, 0));
+    WCNS_REQUIRE_THROWS(std::invalid_argument, BlockDistribution::balanced({{0, 1}, {0, 2}}, 2));
 
     auto mesh = make_two_block_mesh();
     const auto split = BlockDistribution::balanced({{0, 12}, {1, 12}}, 2);

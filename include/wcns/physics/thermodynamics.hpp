@@ -29,10 +29,7 @@ public:
 
     [[nodiscard]] Real gamma() const noexcept { return gamma_; }
     [[nodiscard]] Real molar_mass() const noexcept { return molar_mass_; }
-    [[nodiscard]] Real specific_gas_constant() const noexcept
-    {
-        return specific_gas_constant_;
-    }
+    [[nodiscard]] Real specific_gas_constant() const noexcept { return specific_gas_constant_; }
 
     [[nodiscard]] std::string summary() const;
     [[nodiscard]] std::string restart_signature() const;
@@ -42,8 +39,7 @@ private:
         : gamma_(gamma)
         , molar_mass_(molar_mass)
         , specific_gas_constant_(specific_gas_constant)
-    {
-    }
+    { }
 
     Real gamma_ = 0.0;
     Real molar_mass_ = 0.0;
@@ -62,9 +58,7 @@ struct ReferenceInput {
 
 class ReferenceScales {
 public:
-    [[nodiscard]] static ReferenceScales derive(
-        const ReferenceInput& input,
-        const GasModel& gas);
+    [[nodiscard]] static ReferenceScales derive(const ReferenceInput& input, const GasModel& gas);
 
     [[nodiscard]] Real velocity() const noexcept { return velocity_; }
     [[nodiscard]] Real density() const noexcept { return density_; }
@@ -80,16 +74,15 @@ public:
     [[nodiscard]] std::string restart_signature() const;
 
 private:
-    ReferenceScales(
-        Real velocity,
-        Real density,
-        Real temperature,
-        Real length,
-        Real viscosity,
-        Real reynolds,
-        Real mach,
-        Real dynamic_pressure,
-        Real time)
+    ReferenceScales(Real velocity,
+                    Real density,
+                    Real temperature,
+                    Real length,
+                    Real viscosity,
+                    Real reynolds,
+                    Real mach,
+                    Real dynamic_pressure,
+                    Real time)
         : velocity_(velocity)
         , density_(density)
         , temperature_(temperature)
@@ -99,8 +92,7 @@ private:
         , mach_(mach)
         , dynamic_pressure_(dynamic_pressure)
         , time_(time)
-    {
-    }
+    { }
 
     Real velocity_ = 0.0;
     Real density_ = 0.0;
@@ -150,46 +142,42 @@ using TemperaturePrimitiveState = std::array<Real, fluid_components>;
 using PressurePrimitiveState = std::array<Real, fluid_components>;
 using ThermodynamicConservativeState = std::array<Real, fluid_components>;
 
-[[nodiscard]] PressurePrimitiveState pressure_primitive(
-    const TemperaturePrimitiveState& state,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors = {},
-    int dimension = 3);
+[[nodiscard]] PressurePrimitiveState pressure_primitive(const TemperaturePrimitiveState& state,
+                                                        const GasModel& gas,
+                                                        const ReferenceScales& reference,
+                                                        const NumericalFloors& floors = {},
+                                                        int dimension = 3);
 
-[[nodiscard]] TemperaturePrimitiveState temperature_primitive(
-    const PressurePrimitiveState& state,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors = {},
-    int dimension = 3);
+[[nodiscard]] TemperaturePrimitiveState temperature_primitive(const PressurePrimitiveState& state,
+                                                              const GasModel& gas,
+                                                              const ReferenceScales& reference,
+                                                              const NumericalFloors& floors = {},
+                                                              int dimension = 3);
 
-[[nodiscard]] ThermodynamicConservativeState thermodynamic_conservative(
-    const TemperaturePrimitiveState& state,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors = {},
-    int dimension = 3);
+[[nodiscard]] ThermodynamicConservativeState
+thermodynamic_conservative(const TemperaturePrimitiveState& state,
+                           const GasModel& gas,
+                           const ReferenceScales& reference,
+                           const NumericalFloors& floors = {},
+                           int dimension = 3);
 
-[[nodiscard]] TemperaturePrimitiveState temperature_primitive_from_conservative(
-    const ThermodynamicConservativeState& state,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors = {},
-    int dimension = 3);
+[[nodiscard]] TemperaturePrimitiveState
+temperature_primitive_from_conservative(const ThermodynamicConservativeState& state,
+                                        const GasModel& gas,
+                                        const ReferenceScales& reference,
+                                        const NumericalFloors& floors = {},
+                                        int dimension = 3);
 
-[[nodiscard]] Real thermodynamic_sound_speed(
-    const TemperaturePrimitiveState& state,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors = {},
-    int dimension = 3);
+[[nodiscard]] Real thermodynamic_sound_speed(const TemperaturePrimitiveState& state,
+                                             const GasModel& gas,
+                                             const ReferenceScales& reference,
+                                             const NumericalFloors& floors = {},
+                                             int dimension = 3);
 
-[[nodiscard]] Real thermodynamic_total_enthalpy(
-    const TemperaturePrimitiveState& state,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors = {},
-    int dimension = 3);
+[[nodiscard]] Real thermodynamic_total_enthalpy(const TemperaturePrimitiveState& state,
+                                                const GasModel& gas,
+                                                const ReferenceScales& reference,
+                                                const NumericalFloors& floors = {},
+                                                int dimension = 3);
 
 } // namespace wcns

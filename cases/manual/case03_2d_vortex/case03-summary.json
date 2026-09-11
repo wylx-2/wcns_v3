@@ -1,0 +1,771 @@
+{
+  "case": "case03_2d_isentropic_vortex_warped_grid",
+  "status": "passed",
+  "ranks": 4,
+  "domain": [
+    10.0,
+    10.0
+  ],
+  "cells": [
+    100,
+    100
+  ],
+  "native_zones": [
+    2,
+    2
+  ],
+  "warp": {
+    "x_amplitude": 0.5,
+    "x_eta_wave_count": 1,
+    "y_amplitude": 0.5,
+    "y_xi_wave_count": 2,
+    "continuous_mapping_jacobian_range": [
+      0.8026079119782128,
+      1.1973920880217872
+    ]
+  },
+  "physics": {
+    "equations": "compressible Euler",
+    "gamma": 1.4,
+    "mach": 0.9997687921778579,
+    "vortex_strength": 5.0,
+    "initial_center": [
+      5.0,
+      5.0
+    ],
+    "background_velocity": [
+      1.0,
+      1.0
+    ],
+    "period": 10.0
+  },
+  "algorithm_common": {
+    "reconstruction": "weno_z",
+    "reconstruction_variables": "characteristic",
+    "riemann": "hllc",
+    "time_integrator": "ssprk3",
+    "cfl": 0.5
+  },
+  "metric_acceptance": {
+    "maximum_volume_sum_error": 1e-10,
+    "maximum_reference_relative_difference": 0.001,
+    "maximum_gcl_closure_linf": 1e-10,
+    "maximum_cross_profile_jacobian_relative_linf": 0.001
+  },
+  "metric_profiles": [
+    {
+      "profile": "phenglei_wcns",
+      "cells": 10000,
+      "jacobian_min": 0.008031272470022676,
+      "jacobian_max": 0.01196872752997722,
+      "volume_sum": 100.00000000000061,
+      "max_reference_relative_difference": 0.0002002621700734334,
+      "fallback_cells": 0,
+      "gcl_closure_linf": 2.220446049250313e-16
+    },
+    {
+      "profile": "scmm6_wcns",
+      "cells": 10000,
+      "jacobian_min": 0.008030952538229462,
+      "jacobian_max": 0.011969047461761105,
+      "volume_sum": 99.99999999999969,
+      "max_reference_relative_difference": 0.00020077637254683616,
+      "fallback_cells": 0,
+      "gcl_closure_linf": 4.2779027700381225e-14
+    }
+  ],
+  "metric_differences": [
+    {
+      "comparison": "cell_coordinate_x",
+      "samples": 10000,
+      "l1": 0.00015709245614589038,
+      "l2": 0.00017445714968809977,
+      "linf": 0.0002465979257504358,
+      "relative_linf": 2.359844478066581e-05
+    },
+    {
+      "comparison": "cell_coordinate_y",
+      "samples": 10000,
+      "l1": 0.0006285190219296294,
+      "l2": 0.0006976500969003962,
+      "linf": 0.0009866261956670286,
+      "relative_linf": 9.441399010262946e-05
+    },
+    {
+      "comparison": "cell_coordinate_z",
+      "samples": 10000,
+      "l1": 0,
+      "l2": 0,
+      "linf": 0,
+      "relative_linf": 0
+    },
+    {
+      "comparison": "jacobian",
+      "samples": 10000,
+      "l1": 4.028203190304131e-08,
+      "l2": 1.7934982543499674e-07,
+      "linf": 1.5180083070935602e-06,
+      "relative_linf": 0.00012682782919386996
+    },
+    {
+      "comparison": "i_face_x",
+      "samples": 10200,
+      "l1": 1.1351118846612693e-15,
+      "l2": 2.3130341599471634e-15,
+      "linf": 6.539213615042172e-14,
+      "relative_linf": 6.539213615037919e-13
+    },
+    {
+      "comparison": "i_face_y",
+      "samples": 10200,
+      "l1": 2.0514007152524422e-07,
+      "l2": 1.013328587559735e-06,
+      "linf": 5.066566609715495e-06,
+      "relative_linf": 0.0001613539476075613
+    },
+    {
+      "comparison": "i_face_z",
+      "samples": 10200,
+      "l1": 0,
+      "l2": 0,
+      "linf": 0,
+      "relative_linf": 0
+    },
+    {
+      "comparison": "j_face_x",
+      "samples": 10200,
+      "l1": 1.6064797373321217e-06,
+      "l2": 7.648380836016035e-06,
+      "linf": 3.823220170159902e-05,
+      "relative_linf": 0.0006096874926163999
+    },
+    {
+      "comparison": "j_face_y",
+      "samples": 10200,
+      "l1": 1.2076464556034461e-15,
+      "l2": 2.6361485517137213e-15,
+      "linf": 7.090161791012406e-14,
+      "relative_linf": 7.090161791008643e-13
+    },
+    {
+      "comparison": "j_face_z",
+      "samples": 10200,
+      "l1": 0,
+      "l2": 0,
+      "linf": 0,
+      "relative_linf": 0
+    }
+  ],
+  "profiles": {
+    "phenglei": {
+      "manifest": {
+        "manifest_version": 1,
+        "program_version": "0.1.0",
+        "git_commit": "71786ec0544d",
+        "compiler": "8.1.0",
+        "build_type": "Release",
+        "case": "case03-vortex-phenglei-100x100",
+        "mpi_ranks": 4,
+        "config_digest": 14733176583642528162,
+        "partition_digest": 6198052676997375174,
+        "mesh_signature": 5713918879925091616,
+        "restart_signature": "schema=1;profile=algorithm_profile_v1;name=phenglei_wcns;reconstruction=reconstruction_v2;reconstruction=weno_z;variables=characteristic;epsilon=9.9999999999999995e-07;js_power=2;z_power=2;mdcd_dispersion=0.046378299999999997;mdcd_dissipation=0.01;mdcd_sensor_epsilon=5.6249999999999998e-05;mdcd_sensor_threshold=0.40000000000000002;mdcd_weight_bias=20;mdcd_weight_epsilon=9.9999999999999993e-41;riemann=riemann_config_v1;riemann_solver=hllc;roe_entropy_fix=0.10000000000000001;riemann_denominator_tolerance=9.9999999999999998e-13;gas=gas_model=calorically_perfect gamma=1.3999999999999999 molar_mass=0.029000000000000001 specific_gas_constant=286.68965517241378;reference=U_ref=340 rho_ref=1.2250000000000001 T_ref=288.14999999999998 L_ref=1 mu_ref=1.7893999999999998e-05 Re=23275958.421817373 Ma=0.99976879217785786 dynamic_pressure_ref=141610.00000000003 time_ref=0.0029411764705882353;boundary.default=farfield;source=source_terms_v3;enable_source_terms=false;models=;viscous=false",
+        "step": 1352,
+        "time": 10,
+        "time_step": 0.0039036065585840163,
+        "wall_time": 112.252314,
+        "stop_reason": "physical_time_reached",
+        "config_summary": "case(schema=1,name=case03-vortex-phenglei-100x100,mesh=grids/warped_100x100.cgns,profile=phenglei_wcns,reconstruction=weno_z;variables=characteristic;epsilon=9.9999999999999995e-07;js_power=2;z_power=2;mdcd_dispersion=0.046378299999999997;mdcd_dissipation=0.01;mdcd_sensor_epsilon=5.6249999999999998e-05;mdcd_sensor_threshold=0.40000000000000002;mdcd_weight_bias=20;mdcd_weight_epsilon=9.9999999999999993e-41,riemann_solver=hllc;roe_entropy_fix=0.10000000000000001;riemann_denominator_tolerance=9.9999999999999998e-13,gas_model=calorically_perfect gamma=1.3999999999999999 molar_mass=0.029000000000000001 specific_gas_constant=286.68965517241378,U_ref=340 rho_ref=1.2250000000000001 T_ref=288.14999999999998 L_ref=1 mu_ref=1.7893999999999998e-05 Re=23275958.421817373 Ma=0.99976879217785786 dynamic_pressure_ref=141610.00000000003 time_ref=0.0029411764705882353,partition(mode=zones_only,allow_idle=false,max_load_ratio=1.2,min_cells=8),initial(type=isentropic_vortex,background_u=1,background_v=1,beta=5,period_x=10,period_y=10,x0=5,y0=5),boundary.default=farfield,enable_source_terms=false;models=,run(mode=unsteady,viscous=false,cfl=0.5,max_steps=100000,t_end=10,max_wall_time=0,steady(min_steps=1,check_interval=1,consecutive=1,reference_floor=1.0000000000000001e-30,l2_abs=9.9999999999999998e-13,l2_rel=1e-08,linf_enabled=true,linf_abs=9.9999999999999994e-12,linf_rel=1e-08)),output(directory=results/phenglei,allow_existing=false,dimensional=false,field(enabled=true,format=cgns,schedule(every_steps=0,every_time=0,explicit_times=,initial=true,final=true),quantities=rho:u:v:p:T:rho_u:rho_v:rho_w:rho_E:sound_speed:mach:total_enthalpy:entropy_proxy:jacobian),history(enabled=true,format=txt,schedule(every_steps=100,every_time=0,explicit_times=,initial=true,final=true),quantities=),statistics(enabled=true,format=txt,schedule(every_steps=100,every_time=0,explicit_times=,initial=true,final=true),quantities=total_mass:total_momentum_x:total_momentum_y:total_energy),checkpoint(enabled=false,schedule(every_steps=0,every_time=0,explicit_times=,initial=false,final=true))),restart.path=<none>,digest=0xcc76c20b091db9a2)",
+        "partition_summary": "partition_plan(maximum_feasible=144;leaf=0,zone=0,range=[0,0,0:50,50,1),owner=0,generation=0;leaf=1,zone=1,range=[0,0,0:50,50,1),owner=1,generation=0;leaf=2,zone=2,range=[0,0,0:50,50,1),owner=2,generation=0;leaf=3,zone=3,range=[0,0,0:50,50,1),owner=3,generation=0)",
+        "file": "results/phenglei/case03-vortex-phenglei-100x100.statistics.r4.txt"
+      },
+      "initial_field": "results\\phenglei\\case03-vortex-phenglei-100x100.field.step00000000.time0p000000000eP00.cgns",
+      "final_field": "results\\phenglei\\case03-vortex-phenglei-100x100.field.step00001352.time1p000000000eP01.cgns",
+      "analytic_errors": {
+        "initial": {
+          "check": "isentropic_vortex",
+          "cells": 10000,
+          "rho_l1": 0,
+          "rho_l2": 0,
+          "rho_linf": 0,
+          "primitive_linf": 7.771561172376096e-16,
+          "tolerance": 0.001
+        },
+        "final": {
+          "check": "isentropic_vortex",
+          "cells": 10000,
+          "rho_l1": 8.598919279879209e-05,
+          "rho_l2": 0.00011313617093067625,
+          "rho_linf": 0.0005068056065183901,
+          "primitive_linf": 0.0020579789348946775,
+          "tolerance": 0.001
+        }
+      },
+      "initial_final_errors": [
+        {
+          "check": "field_error",
+          "field": "Density",
+          "samples": 10000,
+          "l1": 8.780362411370546e-05,
+          "l2": 0.00011531180771447832,
+          "linf": 0.0005068056065183901,
+          "relative_l2": 0.00011764116795549765
+        },
+        {
+          "check": "field_error",
+          "field": "EnergyStagnationDensity",
+          "samples": 10000,
+          "l1": 0.00033049654247161185,
+          "l2": 0.0004364084205059828,
+          "linf": 0.002272926363416694,
+          "relative_l2": 0.00015879596516940662
+        },
+        {
+          "check": "field_error",
+          "field": "Jacobian",
+          "samples": 10000,
+          "l1": 0,
+          "l2": 0,
+          "linf": 0,
+          "relative_l2": 0
+        },
+        {
+          "check": "field_error",
+          "field": "Mach",
+          "samples": 10000,
+          "l1": 0.00011224570342146792,
+          "l2": 0.00023085699744430834,
+          "linf": 0.0025837608953909186,
+          "relative_l2": 0.00015987186129547953
+        },
+        {
+          "check": "field_error",
+          "field": "MomentumX",
+          "samples": 10000,
+          "l1": 0.00011286836759706298,
+          "l2": 0.0001578973000570735,
+          "linf": 0.001153778926413468,
+          "relative_l2": 0.0001595700801062536
+        },
+        {
+          "check": "field_error",
+          "field": "MomentumY",
+          "samples": 10000,
+          "l1": 0.0001433256958709377,
+          "l2": 0.0001998027620668005,
+          "linf": 0.0010179147040981218,
+          "relative_l2": 0.0002019197845270455
+        },
+        {
+          "check": "field_error",
+          "field": "MomentumZ",
+          "samples": 10000,
+          "l1": 0,
+          "l2": 0,
+          "linf": 0,
+          "relative_l2": 0
+        },
+        {
+          "check": "field_error",
+          "field": "Pressure",
+          "samples": 10000,
+          "l1": 8.541822680020812e-05,
+          "l2": 0.00011101078045721463,
+          "linf": 0.000460839949514652,
+          "relative_l2": 0.0001592350120890804
+        },
+        {
+          "check": "field_error",
+          "field": "Temperature",
+          "samples": 10000,
+          "l1": 4.216992950388665e-05,
+          "l2": 8.965025053426004e-05,
+          "linf": 0.0016046943971139704,
+          "relative_l2": 9.05496343356304e-05
+        },
+        {
+          "check": "field_error",
+          "field": "VelocityX",
+          "samples": 10000,
+          "l1": 7.687289519884808e-05,
+          "l2": 0.00015364002519685702,
+          "linf": 0.0020579789348946775,
+          "relative_l2": 0.00015160365095625772
+        },
+        {
+          "check": "field_error",
+          "field": "VelocityY",
+          "samples": 10000,
+          "l1": 0.00012574712475050222,
+          "l2": 0.00019567850836581477,
+          "linf": 0.0014173303194549014,
+          "relative_l2": 0.00019308526834674664
+        },
+        {
+          "check": "field_error",
+          "field": "entropy_proxy",
+          "samples": 10000,
+          "l1": 1.3401403089490884e-05,
+          "l2": 7.930653998841487e-05,
+          "linf": 0.0017647800363745914,
+          "relative_l2": 0.00011097782030037433
+        },
+        {
+          "check": "field_error",
+          "field": "sound_speed",
+          "samples": 10000,
+          "l1": 2.1950076804277387e-05,
+          "l2": 5.192694177029384e-05,
+          "linf": 0.000989535410912179,
+          "relative_l2": 5.219792390568765e-05
+        },
+        {
+          "check": "field_error",
+          "field": "total_enthalpy",
+          "samples": 10000,
+          "l1": 0.00018379395690718898,
+          "l2": 0.0003335426910109237,
+          "linf": 0.004256986379762129,
+          "relative_l2": 9.503457345577084e-05
+        }
+      ],
+      "conservation": [
+        {
+          "check": "series_constant",
+          "rows": 15,
+          "max_relative_drift": 7.947344553327486e-14,
+          "tolerance": 2e-10
+        }
+      ]
+    },
+    "scmm6": {
+      "manifest": {
+        "manifest_version": 1,
+        "program_version": "0.1.0",
+        "git_commit": "71786ec0544d",
+        "compiler": "8.1.0",
+        "build_type": "Release",
+        "case": "case03-vortex-scmm6-100x100",
+        "mpi_ranks": 4,
+        "config_digest": 10609887270725633448,
+        "partition_digest": 6198052676997375174,
+        "mesh_signature": 5713918879925091616,
+        "restart_signature": "schema=1;profile=algorithm_profile_v1;name=scmm6_wcns;reconstruction=reconstruction_v2;reconstruction=weno_z;variables=characteristic;epsilon=9.9999999999999995e-07;js_power=2;z_power=2;mdcd_dispersion=0.046378299999999997;mdcd_dissipation=0.01;mdcd_sensor_epsilon=5.6249999999999998e-05;mdcd_sensor_threshold=0.40000000000000002;mdcd_weight_bias=20;mdcd_weight_epsilon=9.9999999999999993e-41;riemann=riemann_config_v1;riemann_solver=hllc;roe_entropy_fix=0.10000000000000001;riemann_denominator_tolerance=9.9999999999999998e-13;gas=gas_model=calorically_perfect gamma=1.3999999999999999 molar_mass=0.029000000000000001 specific_gas_constant=286.68965517241378;reference=U_ref=340 rho_ref=1.2250000000000001 T_ref=288.14999999999998 L_ref=1 mu_ref=1.7893999999999998e-05 Re=23275958.421817373 Ma=0.99976879217785786 dynamic_pressure_ref=141610.00000000003 time_ref=0.0029411764705882353;boundary.default=farfield;source=source_terms_v3;enable_source_terms=false;models=;viscous=false",
+        "step": 1352,
+        "time": 10,
+        "time_step": 0.004222310362901993,
+        "wall_time": 119.481111,
+        "stop_reason": "physical_time_reached",
+        "config_summary": "case(schema=1,name=case03-vortex-scmm6-100x100,mesh=grids/warped_100x100.cgns,profile=scmm6_wcns,reconstruction=weno_z;variables=characteristic;epsilon=9.9999999999999995e-07;js_power=2;z_power=2;mdcd_dispersion=0.046378299999999997;mdcd_dissipation=0.01;mdcd_sensor_epsilon=5.6249999999999998e-05;mdcd_sensor_threshold=0.40000000000000002;mdcd_weight_bias=20;mdcd_weight_epsilon=9.9999999999999993e-41,riemann_solver=hllc;roe_entropy_fix=0.10000000000000001;riemann_denominator_tolerance=9.9999999999999998e-13,gas_model=calorically_perfect gamma=1.3999999999999999 molar_mass=0.029000000000000001 specific_gas_constant=286.68965517241378,U_ref=340 rho_ref=1.2250000000000001 T_ref=288.14999999999998 L_ref=1 mu_ref=1.7893999999999998e-05 Re=23275958.421817373 Ma=0.99976879217785786 dynamic_pressure_ref=141610.00000000003 time_ref=0.0029411764705882353,partition(mode=zones_only,allow_idle=false,max_load_ratio=1.2,min_cells=8),initial(type=isentropic_vortex,background_u=1,background_v=1,beta=5,period_x=10,period_y=10,x0=5,y0=5),boundary.default=farfield,enable_source_terms=false;models=,run(mode=unsteady,viscous=false,cfl=0.5,max_steps=100000,t_end=10,max_wall_time=0,steady(min_steps=1,check_interval=1,consecutive=1,reference_floor=1.0000000000000001e-30,l2_abs=9.9999999999999998e-13,l2_rel=1e-08,linf_enabled=true,linf_abs=9.9999999999999994e-12,linf_rel=1e-08)),output(directory=results/scmm6,allow_existing=false,dimensional=false,field(enabled=true,format=cgns,schedule(every_steps=0,every_time=0,explicit_times=,initial=true,final=true),quantities=rho:u:v:p:T:rho_u:rho_v:rho_w:rho_E:sound_speed:mach:total_enthalpy:entropy_proxy:jacobian),history(enabled=true,format=txt,schedule(every_steps=100,every_time=0,explicit_times=,initial=true,final=true),quantities=),statistics(enabled=true,format=txt,schedule(every_steps=100,every_time=0,explicit_times=,initial=true,final=true),quantities=total_mass:total_momentum_x:total_momentum_y:total_energy),checkpoint(enabled=false,schedule(every_steps=0,every_time=0,explicit_times=,initial=false,final=true))),restart.path=<none>,digest=0x933de442568a45a8)",
+        "partition_summary": "partition_plan(maximum_feasible=144;leaf=0,zone=0,range=[0,0,0:50,50,1),owner=0,generation=0;leaf=1,zone=1,range=[0,0,0:50,50,1),owner=1,generation=0;leaf=2,zone=2,range=[0,0,0:50,50,1),owner=2,generation=0;leaf=3,zone=3,range=[0,0,0:50,50,1),owner=3,generation=0)",
+        "file": "results/scmm6/case03-vortex-scmm6-100x100.statistics.r4.txt"
+      },
+      "initial_field": "results\\scmm6\\case03-vortex-scmm6-100x100.field.step00000000.time0p000000000eP00.cgns",
+      "final_field": "results\\scmm6\\case03-vortex-scmm6-100x100.field.step00001352.time1p000000000eP01.cgns",
+      "analytic_errors": {
+        "initial": {
+          "check": "isentropic_vortex",
+          "cells": 10000,
+          "rho_l1": 1.1076422212271464e-05,
+          "rho_l2": 3.96871584394561e-05,
+          "rho_linf": 0.00030471885927962905,
+          "primitive_linf": 0.0007186636014957504,
+          "tolerance": 0.001
+        },
+        "final": {
+          "check": "isentropic_vortex",
+          "cells": 10000,
+          "rho_l1": 2.0188364253694373e-05,
+          "rho_l2": 5.1383973235147026e-05,
+          "rho_linf": 0.0004547649549795363,
+          "primitive_linf": 0.00179117239677562,
+          "tolerance": 0.001
+        }
+      },
+      "initial_final_errors": [
+        {
+          "check": "field_error",
+          "field": "Density",
+          "samples": 10000,
+          "l1": 1.434739314767487e-05,
+          "l2": 2.7967460166894978e-05,
+          "linf": 0.00028038129514690313,
+          "relative_l2": 2.8532278751804775e-05
+        },
+        {
+          "check": "field_error",
+          "field": "EnergyStagnationDensity",
+          "samples": 10000,
+          "l1": 5.3674954717714114e-05,
+          "l2": 0.00011677620890573175,
+          "linf": 0.0011796231823987258,
+          "relative_l2": 4.2491179147684585e-05
+        },
+        {
+          "check": "field_error",
+          "field": "Jacobian",
+          "samples": 10000,
+          "l1": 0,
+          "l2": 0,
+          "linf": 0,
+          "relative_l2": 0
+        },
+        {
+          "check": "field_error",
+          "field": "Mach",
+          "samples": 10000,
+          "l1": 3.5941645959800874e-05,
+          "l2": 0.00014775842049670796,
+          "linf": 0.0024409883349556516,
+          "relative_l2": 0.00010232528156874133
+        },
+        {
+          "check": "field_error",
+          "field": "MomentumX",
+          "samples": 10000,
+          "l1": 2.3942050999914556e-05,
+          "l2": 6.766398595650839e-05,
+          "linf": 0.0008182898488596768,
+          "relative_l2": 6.838060927527373e-05
+        },
+        {
+          "check": "field_error",
+          "field": "MomentumY",
+          "samples": 10000,
+          "l1": 2.2849351128272282e-05,
+          "l2": 4.9866020780871964e-05,
+          "linf": 0.00046032128794368243,
+          "relative_l2": 5.039414721855908e-05
+        },
+        {
+          "check": "field_error",
+          "field": "MomentumZ",
+          "samples": 10000,
+          "l1": 0,
+          "l2": 0,
+          "linf": 0,
+          "relative_l2": 0
+        },
+        {
+          "check": "field_error",
+          "field": "Pressure",
+          "samples": 10000,
+          "l1": 1.345604901605946e-05,
+          "l2": 3.0563561608916183e-05,
+          "linf": 0.0003794868957299191,
+          "relative_l2": 4.384043304123946e-05
+        },
+        {
+          "check": "field_error",
+          "field": "Temperature",
+          "samples": 10000,
+          "l1": 1.5073064319936378e-05,
+          "l2": 7.546030370587776e-05,
+          "linf": 0.001532266745891242,
+          "relative_l2": 7.621713696067915e-05
+        },
+        {
+          "check": "field_error",
+          "field": "VelocityX",
+          "samples": 10000,
+          "l1": 2.9395110512446368e-05,
+          "l2": 0.00010631479358575348,
+          "linf": 0.001539377442031864,
+          "relative_l2": 0.00010490596505233698
+        },
+        {
+          "check": "field_error",
+          "field": "VelocityY",
+          "samples": 10000,
+          "l1": 2.5633582261464033e-05,
+          "l2": 8.603785524197989e-05,
+          "linf": 0.001089491858800029,
+          "relative_l2": 8.489772558367726e-05
+        },
+        {
+          "check": "field_error",
+          "field": "entropy_proxy",
+          "samples": 10000,
+          "l1": 1.2295512570973714e-05,
+          "l2": 7.757828900048749e-05,
+          "linf": 0.0017797764324469778,
+          "relative_l2": 0.0001085593876263452
+        },
+        {
+          "check": "field_error",
+          "field": "sound_speed",
+          "samples": 10000,
+          "l1": 8.340358641222768e-06,
+          "l2": 4.514055688961595e-05,
+          "linf": 0.0009456161550478459,
+          "relative_l2": 4.537605980105948e-05
+        },
+        {
+          "check": "field_error",
+          "field": "total_enthalpy",
+          "samples": 10000,
+          "l1": 5.869521744238699e-05,
+          "l2": 0.00022631302275552404,
+          "linf": 0.003766962279251551,
+          "relative_l2": 6.448215867918304e-05
+        }
+      ],
+      "conservation": [
+        {
+          "check": "series_constant",
+          "rows": 15,
+          "max_relative_drift": 8.020073572602744e-14,
+          "tolerance": 2e-10
+        }
+      ]
+    }
+  },
+  "records": [
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_generate_release_cgns.exe",
+        "warped-periodic-square",
+        "grids/warped_100x100.cgns",
+        "100",
+        "100",
+        "10.0",
+        "0.5",
+        "0.5"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.06436519999988377,
+      "peak_process_tree_rss_bytes": 6250496,
+      "log": "logs\\generate-grid.log",
+      "last_line": "generated release CGNS grid: grids/warped_100x100.cgns"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_compare_metric_profiles.exe",
+        "grids/warped_100x100.cgns"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.09419710002839565,
+      "peak_process_tree_rss_bytes": 10407936,
+      "log": "validation\\metric-profile-comparison.txt",
+      "last_line": "comparison=j_face_z samples=10200 l1=0 l2=0 linf=0 relative_linf=0"
+    },
+    {
+      "command": [
+        "C:\\Program Files (x86)\\Intel\\oneAPI\\mpi\\2021.10.0\\bin\\mpiexec.exe",
+        "-n",
+        "4",
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_run.exe",
+        "--config",
+        "phenglei_100x100.wcns"
+      ],
+      "return_code": 0,
+      "wall_seconds": 112.64688179991208,
+      "peak_process_tree_rss_bytes": 258736128,
+      "log": "logs\\run-phenglei.log",
+      "last_line": "WCNS run stopped: reason=physical_time_reached step=1352 time=10"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "finite",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case03_2d_vortex\\results\\phenglei\\case03-vortex-phenglei-100x100.field.step00000000.time0p000000000eP00.cgns"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.11127810005564243,
+      "peak_process_tree_rss_bytes": 3846144,
+      "log": "validation\\phenglei-initial-finite.txt",
+      "last_line": "check=finite samples=140000 min_rho=0.35052306065360278 min_p=0.16469334308795092 min_T=0.65748619428727972"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "finite",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case03_2d_vortex\\results\\phenglei\\case03-vortex-phenglei-100x100.field.step00001352.time1p000000000eP01.cgns"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.047272900003008544,
+      "peak_process_tree_rss_bytes": 5812224,
+      "log": "validation\\phenglei-final-finite.txt",
+      "last_line": "check=finite samples=140000 min_rho=0.35051936908903247 min_p=0.16431847970770316 min_T=0.65591446442824874"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "vortex",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case03_2d_vortex\\results\\phenglei\\case03-vortex-phenglei-100x100.field.step00000000.time0p000000000eP00.cgns",
+        "0.0",
+        "10.0",
+        "5.0",
+        "5.0",
+        "5.0",
+        "1.0",
+        "1.0",
+        "1.4",
+        "0.9997687921778579",
+        "0.001"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.05244440003298223,
+      "peak_process_tree_rss_bytes": 6340608,
+      "log": "validation\\phenglei-initial-analytic-error.txt",
+      "last_line": "check=isentropic_vortex cells=10000 rho_l1=0 rho_l2=0 rho_linf=0 primitive_linf=7.7715611723760958e-16 tolerance=0.001"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "vortex",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case03_2d_vortex\\results\\phenglei\\case03-vortex-phenglei-100x100.field.step00001352.time1p000000000eP01.cgns",
+        "10.0",
+        "10.0",
+        "5.0",
+        "5.0",
+        "5.0",
+        "1.0",
+        "1.0",
+        "1.4",
+        "0.9997687921778579",
+        "0.001"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.046357400016859174,
+      "peak_process_tree_rss_bytes": 6590464,
+      "log": "validation\\phenglei-final-analytic-error.txt",
+      "last_line": "check=isentropic_vortex cells=10000 rho_l1=8.5989192798792088e-05 rho_l2=0.00011313617093067625 rho_linf=0.00050680560651839013 primitive_linf=0.0020579789348946775 tolerance=0.001"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "field-error",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case03_2d_vortex\\results\\phenglei\\case03-vortex-phenglei-100x100.field.step00000000.time0p000000000eP00.cgns",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case03_2d_vortex\\results\\phenglei\\case03-vortex-phenglei-100x100.field.step00001352.time1p000000000eP01.cgns"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.06962730002123863,
+      "peak_process_tree_rss_bytes": 6119424,
+      "log": "validation\\phenglei-initial-final-error.txt",
+      "last_line": "check=field_error field=total_enthalpy samples=10000 l1=0.00018379395690718898 l2=0.00033354269101092371 linf=0.0042569863797621288 relative_l2=9.5034573455770837e-05"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "series-constant",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case03_2d_vortex\\results\\phenglei\\case03-vortex-phenglei-100x100.statistics.r4.txt",
+        "2e-10"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.04823109996505082,
+      "peak_process_tree_rss_bytes": 5939200,
+      "log": "validation\\phenglei-conservation.txt",
+      "last_line": "check=series_constant rows=15 max_relative_drift=7.9473445533274862e-14 tolerance=2.0000000000000001e-10"
+    },
+    {
+      "command": [
+        "C:\\Program Files (x86)\\Intel\\oneAPI\\mpi\\2021.10.0\\bin\\mpiexec.exe",
+        "-n",
+        "4",
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_run.exe",
+        "--config",
+        "scmm6_100x100.wcns"
+      ],
+      "return_code": 0,
+      "wall_seconds": 119.83642980002332,
+      "peak_process_tree_rss_bytes": 256020480,
+      "log": "logs\\run-scmm6.log",
+      "last_line": "WCNS run stopped: reason=physical_time_reached step=1352 time=10"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "finite",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case03_2d_vortex\\results\\scmm6\\case03-vortex-scmm6-100x100.field.step00000000.time0p000000000eP00.cgns"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.050721999956294894,
+      "peak_process_tree_rss_bytes": 6127616,
+      "log": "validation\\scmm6-initial-finite.txt",
+      "last_line": "check=finite samples=140000 min_rho=0.3505224716270971 min_p=0.16469295563214068 min_T=0.6574857523454688"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "finite",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case03_2d_vortex\\results\\scmm6\\case03-vortex-scmm6-100x100.field.step00001352.time1p000000000eP01.cgns"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.060492999968118966,
+      "peak_process_tree_rss_bytes": 5099520,
+      "log": "validation\\scmm6-final-finite.txt",
+      "last_line": "check=finite samples=140000 min_rho=0.35059862324560737 min_p=0.16437493498158554 min_T=0.65595348559957756"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "vortex",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case03_2d_vortex\\results\\scmm6\\case03-vortex-scmm6-100x100.field.step00000000.time0p000000000eP00.cgns",
+        "0.0",
+        "10.0",
+        "5.0",
+        "5.0",
+        "5.0",
+        "1.0",
+        "1.0",
+        "1.4",
+        "0.9997687921778579",
+        "0.001"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.047692000051029027,
+      "peak_process_tree_rss_bytes": 6127616,
+      "log": "validation\\scmm6-initial-analytic-error.txt",
+      "last_line": "check=isentropic_vortex cells=10000 rho_l1=1.1076422212271464e-05 rho_l2=3.9687158439456102e-05 rho_linf=0.00030471885927962905 primitive_linf=0.00071866360149575037 tolerance=0.001"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "vortex",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case03_2d_vortex\\results\\scmm6\\case03-vortex-scmm6-100x100.field.step00001352.time1p000000000eP01.cgns",
+        "10.0",
+        "10.0",
+        "5.0",
+        "5.0",
+        "5.0",
+        "1.0",
+        "1.0",
+        "1.4",
+        "0.9997687921778579",
+        "0.001"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.05215130001306534,
+      "peak_process_tree_rss_bytes": 6651904,
+      "log": "validation\\scmm6-final-analytic-error.txt",
+      "last_line": "check=isentropic_vortex cells=10000 rho_l1=2.0188364253694373e-05 rho_l2=5.1383973235147026e-05 rho_linf=0.00045476495497953628 primitive_linf=0.0017911723967756199 tolerance=0.001"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "field-error",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case03_2d_vortex\\results\\scmm6\\case03-vortex-scmm6-100x100.field.step00000000.time0p000000000eP00.cgns",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case03_2d_vortex\\results\\scmm6\\case03-vortex-scmm6-100x100.field.step00001352.time1p000000000eP01.cgns"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.0935270000481978,
+      "peak_process_tree_rss_bytes": 6504448,
+      "log": "validation\\scmm6-initial-final-error.txt",
+      "last_line": "check=field_error field=total_enthalpy samples=10000 l1=5.8695217442386992e-05 l2=0.00022631302275552404 linf=0.0037669622792515511 relative_l2=6.4482158679183044e-05"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "series-constant",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case03_2d_vortex\\results\\scmm6\\case03-vortex-scmm6-100x100.statistics.r4.txt",
+        "2e-10"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.0467071000020951,
+      "peak_process_tree_rss_bytes": 6139904,
+      "log": "validation\\scmm6-conservation.txt",
+      "last_line": "check=series_constant rows=15 max_relative_drift=8.0200735726027442e-14 tolerance=2.0000000000000001e-10"
+    }
+  ]
+}

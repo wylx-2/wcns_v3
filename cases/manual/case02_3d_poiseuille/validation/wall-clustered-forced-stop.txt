@@ -1,0 +1,7 @@
+check=forced_stop requested_step=3600 observed_partial_step=3600 last_complete_history_step=3580 last_complete_statistics_step=3560 final_field_available=false manifest_available=false acceptance=failed
+last_complete time=0.39333542008419314 dt=0.00010987023617565823 wall_time=11244.797839999999 total_l2=6.2163864819081318e-05 rho_l2=1.5569936981674718e-06 rhou_l2=7.560688102889389e-05 rhov_l2=1.1503469104630015e-06 rhow_l2=8.2555705407234474e-14 rhoE_l2=0.00011662582244047509
+last_complete_linf rho=3.0382491028281873e-06 rhou=0.00013157867745849927 rhov=1.6436565352783844e-06 rhow=3.8519868756122814e-13 rhoE=0.00018142623880346154
+thresholds l2_absolute=5e-05 linf_absolute=0.0002 consecutive_required=3 consecutive_observed=0
+failed_l2_components rhou_ratio_to_limit=1.5121376205778778 rhoE_ratio_to_limit=2.3325164488095017
+diagnostics reconstruction_fallbacks=0 riemann_fallbacks=0 finite_residuals=true
+note=The interrupt arrived while step 3600 history/statistics records were being written; their trailing columns are incomplete. Step 3580 is the last complete residual record. No final CGNS or manifest was committed, so no field-level final-profile claim is made.

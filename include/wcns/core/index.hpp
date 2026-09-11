@@ -15,28 +15,20 @@ struct Index3 {
     constexpr int& operator[](std::size_t axis)
     {
         switch (axis) {
-        case 0:
-            return i;
-        case 1:
-            return j;
-        case 2:
-            return k;
-        default:
-            throw std::out_of_range("Index3 axis must be in [0, 2]");
+        case 0: return i;
+        case 1: return j;
+        case 2: return k;
+        default: throw std::out_of_range("Index3 axis must be in [0, 2]");
         }
     }
 
     constexpr const int& operator[](std::size_t axis) const
     {
         switch (axis) {
-        case 0:
-            return i;
-        case 1:
-            return j;
-        case 2:
-            return k;
-        default:
-            throw std::out_of_range("Index3 axis must be in [0, 2]");
+        case 0: return i;
+        case 1: return j;
+        case 2: return k;
+        default: throw std::out_of_range("Index3 axis must be in [0, 2]");
         }
     }
 
@@ -45,10 +37,7 @@ struct Index3 {
         return lhs.i == rhs.i && lhs.j == rhs.j && lhs.k == rhs.k;
     }
 
-    friend constexpr bool operator!=(const Index3& lhs, const Index3& rhs)
-    {
-        return !(lhs == rhs);
-    }
+    friend constexpr bool operator!=(const Index3& lhs, const Index3& rhs) { return !(lhs == rhs); }
 };
 
 struct Extent3 {
@@ -59,48 +48,33 @@ struct Extent3 {
     constexpr int& operator[](std::size_t axis)
     {
         switch (axis) {
-        case 0:
-            return ni;
-        case 1:
-            return nj;
-        case 2:
-            return nk;
-        default:
-            throw std::out_of_range("Extent3 axis must be in [0, 2]");
+        case 0: return ni;
+        case 1: return nj;
+        case 2: return nk;
+        default: throw std::out_of_range("Extent3 axis must be in [0, 2]");
         }
     }
 
     constexpr const int& operator[](std::size_t axis) const
     {
         switch (axis) {
-        case 0:
-            return ni;
-        case 1:
-            return nj;
-        case 2:
-            return nk;
-        default:
-            throw std::out_of_range("Extent3 axis must be in [0, 2]");
+        case 0: return ni;
+        case 1: return nj;
+        case 2: return nk;
+        default: throw std::out_of_range("Extent3 axis must be in [0, 2]");
         }
     }
 
-    [[nodiscard]] constexpr bool valid() const
-    {
-        return ni >= 0 && nj >= 0 && nk >= 0;
-    }
+    [[nodiscard]] constexpr bool valid() const { return ni >= 0 && nj >= 0 && nk >= 0; }
 
-    [[nodiscard]] constexpr bool empty() const
-    {
-        return ni == 0 || nj == 0 || nk == 0;
-    }
+    [[nodiscard]] constexpr bool empty() const { return ni == 0 || nj == 0 || nk == 0; }
 
     [[nodiscard]] constexpr std::size_t size() const
     {
         if (!valid()) {
             throw std::invalid_argument("Extent3 dimensions must be non-negative");
         }
-        const auto ij = checked_product(
-            static_cast<std::size_t>(ni), static_cast<std::size_t>(nj));
+        const auto ij = checked_product(static_cast<std::size_t>(ni), static_cast<std::size_t>(nj));
         return checked_product(ij, static_cast<std::size_t>(nk));
     }
 
@@ -147,16 +121,13 @@ struct IndexRange3 {
         };
     }
 
-    [[nodiscard]] constexpr std::size_t size() const
-    {
-        return counts().size();
-    }
+    [[nodiscard]] constexpr std::size_t size() const { return counts().size(); }
 
     [[nodiscard]] constexpr Index3 at(Index3 ordinal) const
     {
         const auto count = counts();
-        if (ordinal.i < 0 || ordinal.i >= count.ni || ordinal.j < 0
-            || ordinal.j >= count.nj || ordinal.k < 0 || ordinal.k >= count.nk) {
+        if (ordinal.i < 0 || ordinal.i >= count.ni || ordinal.j < 0 || ordinal.j >= count.nj
+            || ordinal.k < 0 || ordinal.k >= count.nk) {
             throw std::out_of_range("IndexRange3 ordinal is outside the range");
         }
         const auto stride = step();
@@ -178,10 +149,7 @@ struct IndexRange3 {
     }
 
 private:
-    static constexpr int direction(int first, int last)
-    {
-        return (last > first) - (last < first);
-    }
+    static constexpr int direction(int first, int last) { return (last > first) - (last < first); }
 
     static constexpr int distance(int first, int last)
     {

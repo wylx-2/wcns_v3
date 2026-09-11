@@ -16,38 +16,31 @@ void validate_kind(SourceModelKind kind)
     switch (kind) {
     case SourceModelKind::UniformConservative:
     case SourceModelKind::BodyForce:
-    case SourceModelKind::ManufacturedSolution:
-        return;
+    case SourceModelKind::PressureGradient:
+    case SourceModelKind::ManufacturedSolution: return;
     }
     throw std::invalid_argument("source-term configuration contains an unknown model");
 }
 
-template<std::size_t N>
-bool all_zero(const std::array<Real, N>& values)
+template <std::size_t N> bool all_zero(const std::array<Real, N>& values)
 {
-    return std::all_of(values.begin(), values.end(), [](Real value) {
-        return value == 0.0;
-    });
+    return std::all_of(values.begin(), values.end(), [](Real value) { return value == 0.0; });
 }
 
-template<std::size_t N>
-void validate_finite(const std::array<Real, N>& values, const char* label)
+template <std::size_t N> void validate_finite(const std::array<Real, N>& values, const char* label)
 {
-    if (!std::all_of(values.begin(), values.end(), [](Real value) {
-            return std::isfinite(value);
-        })) {
+    if (!std::all_of(
+            values.begin(), values.end(), [](Real value) { return std::isfinite(value); })) {
         throw std::invalid_argument(std::string(label) + " must be finite");
     }
 }
 
 bool contains_model(const SourceTermConfig& config, SourceModelKind kind)
 {
-    return std::find(config.models.begin(), config.models.end(), kind)
-        != config.models.end();
+    return std::find(config.models.begin(), config.models.end(), kind) != config.models.end();
 }
 
-template<std::size_t N>
-std::string values_string(const std::array<Real, N>& values)
+template <std::size_t N> std::string values_string(const std::array<Real, N>& values)
 {
     std::ostringstream stream;
     stream << std::setprecision(std::numeric_limits<Real>::max_digits10);
@@ -64,12 +57,10 @@ const char* source_model_name(SourceModelKind kind)
 {
     validate_kind(kind);
     switch (kind) {
-    case SourceModelKind::UniformConservative:
-        return "uniform_conservative";
-    case SourceModelKind::BodyForce:
-        return "body_force";
-    case SourceModelKind::ManufacturedSolution:
-        return "manufactured_solution";
+    case SourceModelKind::UniformConservative: return "uniform_conservative";
+    case SourceModelKind::BodyForce: return "body_force";
+    case SourceModelKind::PressureGradient: return "pressure_gradient";
+    case SourceModelKind::ManufacturedSolution: return "manufactured_solution";
     }
     throw std::logic_error("unreachable source model");
 }
@@ -78,35 +69,36 @@ void SourceTermConfig::validate() const
 {
     validate_finite(uniform_conservative, "uniform conservative source");
     validate_finite(body_acceleration, "body acceleration");
+    validate_finite(pressure_gradient, "pressure-gradient force");
     validate_finite(manufactured_amplitude, "manufactured amplitude");
     if (!enable_source_terms) {
-        if (!models.empty() || !all_zero(uniform_conservative)
-            || !all_zero(body_acceleration) || !all_zero(manufactured_amplitude)) {
+        if (!models.empty() || !all_zero(uniform_conservative) || !all_zero(body_acceleration)
+            || !all_zero(pressure_gradient) || !all_zero(manufactured_amplitude)) {
             throw std::invalid_argument(
                 "disabled source terms require empty models and zero parameters");
         }
         return;
     }
     if (models.empty()) {
-        throw std::invalid_argument(
-            "enabled source terms require at least one model");
+        throw std::invalid_argument("enabled source terms require at least one model");
     }
 
     std::unordered_set<int> seen;
     for (const auto model : models) {
         validate_kind(model);
         if (!seen.insert(static_cast<int>(model)).second) {
-            throw std::invalid_argument(
-                "source-term configuration contains a duplicate model");
+            throw std::invalid_argument("source-term configuration contains a duplicate model");
         }
     }
     if (!contains_model(*this, SourceModelKind::UniformConservative)
         && !all_zero(uniform_conservative)) {
         throw std::invalid_argument("uniform source parameters require the uniform model");
     }
-    if (!contains_model(*this, SourceModelKind::BodyForce)
-        && !all_zero(body_acceleration)) {
+    if (!contains_model(*this, SourceModelKind::BodyForce) && !all_zero(body_acceleration)) {
         throw std::invalid_argument("body acceleration requires the body-force model");
+    }
+    if (!contains_model(*this, SourceModelKind::PressureGradient) && !all_zero(pressure_gradient)) {
+        throw std::invalid_argument("pressure-gradient force requires the pressure-gradient model");
     }
     if (!contains_model(*this, SourceModelKind::ManufacturedSolution)
         && !all_zero(manufactured_amplitude)) {
@@ -128,6 +120,7 @@ std::string SourceTermConfig::summary() const
     if (enable_source_terms) {
         result += ";uniform=" + values_string(uniform_conservative);
         result += ";body_acceleration=" + values_string(body_acceleration);
+        result += ";pressure_gradient=" + values_string(pressure_gradient);
         result += ";manufactured_amplitude=" + values_string(manufactured_amplitude);
     }
     return result;
@@ -135,22 +128,19 @@ std::string SourceTermConfig::summary() const
 
 std::string SourceTermConfig::restart_signature() const
 {
-    return "source_terms_v2;" + summary();
+    return "source_terms_v3;" + summary();
 }
 
-SourceTermRegistry SourceTermRegistry::create_stage_h(
-    const SourceTermConfig& config)
+SourceTermRegistry SourceTermRegistry::create_stage_h(const SourceTermConfig& config)
 {
     config.validate();
     if (config.enable_source_terms) {
-        throw std::logic_error(
-            "source-term models cannot be instantiated before stage J");
+        throw std::logic_error("source-term models cannot be instantiated before stage J");
     }
     return {};
 }
 
-SourceTermRegistry SourceTermRegistry::create_stage_j(
-    const SourceTermConfig& config)
+SourceTermRegistry SourceTermRegistry::create_stage_j(const SourceTermConfig& config)
 {
     config.validate();
     SourceTermRegistry result;
@@ -161,11 +151,10 @@ SourceTermRegistry SourceTermRegistry::create_stage_j(
     return result;
 }
 
-std::array<Real, 5> SourceTermRegistry::evaluate(
-    const std::array<Real, 5>& conservative,
-    const std::array<Real, 3>& coordinates,
-    Real time,
-    int dimension) const
+std::array<Real, 5> SourceTermRegistry::evaluate(const std::array<Real, 5>& conservative,
+                                                 const std::array<Real, 3>& coordinates,
+                                                 Real time,
+                                                 int dimension) const
 {
     if (dimension != 2 && dimension != 3) {
         throw std::invalid_argument("source evaluation dimension must be two or three");
@@ -190,6 +179,15 @@ std::array<Real, 5> SourceTermRegistry::evaluate(
             result[4] += conservative[1] * config_.body_acceleration[0]
                 + conservative[2] * config_.body_acceleration[1]
                 + conservative[3] * config_.body_acceleration[2];
+            break;
+        case SourceModelKind::PressureGradient:
+            result[1] += config_.pressure_gradient[0];
+            result[2] += config_.pressure_gradient[1];
+            result[3] += config_.pressure_gradient[2];
+            result[4] += (conservative[1] * config_.pressure_gradient[0]
+                          + conservative[2] * config_.pressure_gradient[1]
+                          + conservative[3] * config_.pressure_gradient[2])
+                / conservative[0];
             break;
         case SourceModelKind::ManufacturedSolution: {
             const Real shape = 1.0 + coordinates[0] + coordinates[1]

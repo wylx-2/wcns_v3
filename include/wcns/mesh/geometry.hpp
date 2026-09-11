@@ -10,8 +10,7 @@ struct NodeCoordinates {
         : x(vertex_extent)
         , y(vertex_extent)
         , z(vertex_extent)
-    {
-    }
+    { }
 
     Array3D<Real> x;
     Array3D<Real> y;
@@ -25,8 +24,7 @@ struct CellMetrics {
         , center_z(cell_extent, ghost_width)
         , volume(cell_extent, ghost_width)
         , jacobian(cell_extent, ghost_width)
-    {
-    }
+    { }
 
     Array3D<Real> center_x;
     Array3D<Real> center_y;
@@ -41,8 +39,7 @@ struct FaceMetric {
         , normal_y(face_extent)
         , normal_z(face_extent)
         , area(face_extent)
-    {
-    }
+    { }
 
     Array3D<Real> normal_x;
     Array3D<Real> normal_y;
@@ -55,8 +52,7 @@ struct FaceMetrics {
         : i_faces({cell_extent.ni + 1, cell_extent.nj, cell_extent.nk})
         , j_faces({cell_extent.ni, cell_extent.nj + 1, cell_extent.nk})
         , k_faces({cell_extent.ni, cell_extent.nj, cell_extent.nk + 1})
-    {
-    }
+    { }
 
     FaceMetric i_faces;
     FaceMetric j_faces;
@@ -64,4 +60,3 @@ struct FaceMetrics {
 };
 
 } // namespace wcns
-

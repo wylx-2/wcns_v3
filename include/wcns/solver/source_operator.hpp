@@ -6,16 +6,14 @@
 
 namespace wcns {
 
-void add_source_terms(
-    StructuredBlock& block,
-    const MetricField& metric,
-    const SourceTermRegistry& registry,
-    Real stage_time);
+void add_source_terms(StructuredBlock& block,
+                      const MetricField& metric,
+                      const SourceTermRegistry& registry,
+                      Real stage_time);
 
-[[nodiscard]] ConservativeState volume_weighted_source(
-    const StructuredBlock& block,
-    const MetricField& metric,
-    const SourceTermRegistry& registry,
-    Real stage_time);
+[[nodiscard]] ConservativeState volume_weighted_source(const StructuredBlock& block,
+                                                       const MetricField& metric,
+                                                       const SourceTermRegistry& registry,
+                                                       Real stage_time);
 
 } // namespace wcns

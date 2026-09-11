@@ -1,0 +1,179 @@
+{
+  "schema_version": 1,
+  "baseline_name": "stage-o-release-v1",
+  "classification": "stage O6 formal release-candidate acceptance",
+  "candidate_tag": "stage-o-release-candidate-v1",
+  "tested_source_commit": "e549c70f5ce315f94d0ad055ebad2febf0b9a535",
+  "date": "2026-09-03",
+  "platform": {
+    "operating_system": "Microsoft Windows NT 10.0.26200.0 64-bit",
+    "cmake": "3.28.0",
+    "generator": "MinGW Makefiles",
+    "compiler": "MinGW-w64 GCC 8.1.0 x86_64-win32-sjlj",
+    "mpi": "Intel MPI 2021.10 Build 20230619",
+    "matrix_python": "3.14.5",
+    "ctest_python": "3.9.13",
+    "build_type": "Release"
+  },
+  "commands": {
+    "configure_serial": "cmake -S . -B build-rc-serial -G \"MinGW Makefiles\" -DCMAKE_BUILD_TYPE=Release -DWCNS_ENABLE_MPI=OFF -DWCNS_ENABLE_CGNS=ON -DWCNS_BUILD_TESTS=ON",
+    "configure_mpi": "cmake -S . -B build-rc-mpi -G \"MinGW Makefiles\" -DCMAKE_BUILD_TYPE=Release -DWCNS_ENABLE_MPI=ON -DWCNS_ENABLE_CGNS=ON -DWCNS_BUILD_TESTS=ON",
+    "build": "cmake --build <build-rc-serial|build-rc-mpi>",
+    "ctest": "ctest --test-dir <build-rc-serial|build-rc-mpi> --output-on-failure",
+    "freestream": "python -B tools/run_release_matrix.py --ranks 1,2,4,8 --steps 10 plus the profile/grid/zone parameters recorded below",
+    "vortex": "python -B tools/run_vortex_matrix.py --ranks 4 --resolutions 32,64,128 --end-time 10 --cfl 0.5 --minimum-finest-order 3.5 --finest-l1 2e-5 plus each profile/reconstruction below",
+    "vortex_rank_consistency": "python -B tools/run_vortex_matrix.py --ranks 1,2,4,8 --resolutions 32 --end-time 10 --cfl 0.5",
+    "sod": "python -B tools/run_shock_matrix.py --case sod --cells-i 400 --cells-j 40 --end-time 0.2 --cfl 0.4 --density-l1 0.025 --position-cells 3 plus each reconstruction/Riemann combination below",
+    "quadrant": "python -B tools/run_shock_matrix.py --case quadrant --ranks 1,2,4 --cells-i 200 --cells-j 200 --end-time 0.3 --cfl 0.4 --symmetry-l1 5e-4",
+    "couette": "python -B tools/run_viscous_matrix.py --case couette --ranks 1,2,4 --cells-i 32 --cells-j 64 --velocity-curvature 0 --cfl 0.5 --l2-absolute 2e-5 --linf-absolute 2e-4 --profile-l2 2e-4",
+    "conduction": "python -B tools/run_viscous_matrix.py --case conduction --cells-i 32 --cells-j 64 --profile-l2 2e-5 plus HLLC/Roe coverage",
+    "source": "python -B tools/run_source_matrix.py --ranks 1,2,4 --resolution 32 --end-time 0.1 --tolerance 2e-12",
+    "manufactured_3d": "python -B tools/run_manufactured_matrix.py --ranks 1,2,4,8 --dimension 3 --cells-i 32 --cells-j 32 --cells-k 32 --warp 0.05 --end-time 0.01 --minimum-steps 5",
+    "output_restart": "python -B tools/run_output_restart_matrix.py --restart-ranks 1,2,4 --continuous-steps 100 --checkpoint-step 40 --tolerance 2e-11",
+    "failure": "python -B tools/run_failure_matrix.py --ranks 1,2,4 --timeout 30",
+    "install": "cmake --install build-rc-mpi --prefix build-rc-install"
+  },
+  "fresh_builds": {
+    "serial": {
+      "directory": "build-rc-serial",
+      "mpi": false,
+      "cgns": true,
+      "tests": true,
+      "ctest_passed": 42,
+      "ctest_total": 42,
+      "wall_seconds": 44.65
+    },
+    "mpi": {
+      "directory": "build-rc-mpi",
+      "mpi": true,
+      "cgns": true,
+      "tests": true,
+      "ctest_passed": 76,
+      "ctest_total": 76,
+      "wall_seconds": 118.23
+    }
+  },
+  "numerical": {
+    "freestream": {
+      "two_dimensional_cells": [128, 64, 1],
+      "warped_three_dimensional_cells": [64, 32, 24],
+      "warped_three_dimensional_amplitude": 0.05,
+      "profiles": ["phenglei_wcns", "scmm6_wcns"],
+      "ranks": [1, 2, 4, 8],
+      "steps": 10,
+      "maximum_uniform_error": 3.387568003887509e-14,
+      "uniform_error_tolerance": 1e-11,
+      "maximum_rank_field_difference": 1.6653345369377348e-15,
+      "rank_field_tolerance": 2e-11,
+      "maximum_conservation_relative_drift": 6.12861340042558e-16,
+      "conservation_tolerance": 1e-12,
+      "native_zone_counts": [2, 4],
+      "native_vs_runtime_split_field_difference": 0.0,
+      "maximum_load_ratio": 1.0,
+      "load_ratio_tolerance": 1.2
+    },
+    "isentropic_vortex": {
+      "cells": [32, 64, 128],
+      "end_time": 10.0,
+      "cfl": 0.5,
+      "riemann": "hllc",
+      "minimum_finest_pair_order": 3.5,
+      "finest_l1_tolerance": 2e-5,
+      "results": [
+        {"profile": "phenglei_wcns", "reconstruction": "weno_js", "rho_l1": [0.0018802494062592615, 0.00013080469687011838, 5.367973298017744e-6], "orders": [3.8454377908661925, 4.606893039979656]},
+        {"profile": "phenglei_wcns", "reconstruction": "weno_z", "rho_l1": [0.0010586545290609702, 5.3641191815151e-5, 2.4640650901565842e-6], "orders": [4.302746769146981, 4.44422902026698]},
+        {"profile": "phenglei_wcns", "reconstruction": "mdcd_linear", "rho_l1": [0.0005165464576817823, 3.076659957545002e-5, 2.209854387609576e-6], "orders": [4.069461203251134, 3.799341785773618]},
+        {"profile": "phenglei_wcns", "reconstruction": "mdcd_hybrid", "rho_l1": [0.000464576062109311, 3.076659957545002e-5, 2.209854387609576e-6], "orders": [3.916477913056804, 3.799341785773618]},
+        {"profile": "scmm6_wcns", "reconstruction": "weno_z", "rho_l1": [0.0009331512686239232, 4.8640174816822864e-5, 1.7975807203370724e-6], "orders": [4.261890649257832, 4.758019952524033]},
+        {"profile": "scmm6_wcns", "reconstruction": "mdcd_hybrid", "rho_l1": [0.0005740444719397601, 5.23405316799199e-5, 3.7459852351182095e-6], "orders": [3.455162024009595, 3.8045114611977793]}
+      ],
+      "maximum_conservation_relative_drift": 7.699852992209024e-14,
+      "conservation_tolerance": 2e-11,
+      "rank_consistency_cells": [32, 32],
+      "rank_consistency_ranks": [1, 2, 4, 8],
+      "maximum_rank_field_difference": 3.064215547965432e-14,
+      "rank_field_tolerance": 2e-11,
+      "quick_reconstruction_riemann_combinations": 12
+    },
+    "shocks": {
+      "sod_cells": [400, 40],
+      "sod_end_time": 0.2,
+      "sod_combinations": ["weno_z+hllc", "weno_z+roe", "mdcd_hybrid+hllc", "mdcd_hybrid+roe", "weno_z+rusanov"],
+      "sod_density_l1_range": [0.0011352480439412451, 0.0014835885420531457],
+      "sod_density_l1_tolerance": 0.025,
+      "sod_maximum_position_error_cells": 0.19620960391595751,
+      "sod_position_tolerance_cells": 3.0,
+      "sod_minimum_density": 0.12486929247972034,
+      "sod_minimum_pressure": 0.09984263030597641,
+      "sod_rank_field_difference": 0.0,
+      "quadrant_cells": [200, 200],
+      "quadrant_end_time": 0.3,
+      "quadrant_diagonal_l1": 1.0823790451232911e-14,
+      "quadrant_diagonal_linf": 5.526690216584029e-13,
+      "quadrant_diagonal_l1_tolerance": 5e-4,
+      "quadrant_minimum_density": 0.12334861521280335,
+      "quadrant_minimum_pressure": 0.016315662043887576,
+      "quadrant_rank_field_difference": 0.0
+    },
+    "viscous_and_sources": {
+      "couette_cells": [32, 64],
+      "couette_ranks": [1, 2, 4],
+      "couette_stop_reason": "steady_converged",
+      "couette_stop_step": 60,
+      "couette_temperature_curvature": 0.10285714285714283,
+      "couette_velocity_l2": 4.845613426707853e-11,
+      "couette_wall_shear_relative_error": 2.7653213052758474e-11,
+      "couette_rank_field_difference": 0.0,
+      "conduction_cells": [32, 64],
+      "conduction_riemann": ["hllc", "roe"],
+      "conduction_hllc_temperature_l2": 1.798766884999431e-16,
+      "conduction_roe_temperature_l2": 2.5900728791850833e-13,
+      "conduction_rank_field_difference": 0.0,
+      "uniform_source_cells": [32, 32],
+      "uniform_source_ranks": [1, 2, 4],
+      "uniform_source_maximum_error": 6.661338147750939e-15,
+      "uniform_source_tolerance": 2e-12,
+      "manufactured_3d_cells": [32, 32, 32],
+      "manufactured_3d_ranks": [1, 2, 4, 8],
+      "manufactured_3d_steps": 7,
+      "manufactured_3d_rank_field_difference": 2.6645352591003757e-15
+    },
+    "output_and_restart": {
+      "continuous_steps": 100,
+      "checkpoint_split_steps": [40, 60],
+      "restart_ranks": [1, 2, 4],
+      "tecplot_field_difference": 0.0,
+      "derived_quantity_difference": 8.881784197001252e-16,
+      "restart_2d_field_difference": 0.0,
+      "restart_3d_1_to_4_field_difference": 1.3322676295501878e-14,
+      "field_tolerance": 2e-11
+    },
+    "failure_matrix": {
+      "status": "passed",
+      "ranks": [1, 2, 4],
+      "case_classes": 16,
+      "timeout_seconds_per_command": 30.0
+    }
+  },
+  "performance": {
+    "method": "end-to-end command wall clock and 0.01 s sampled aggregate launcher plus solver RSS",
+    "hard_acceptance_threshold": false,
+    "two_dimensional": [
+      {"ranks": 1, "wall_seconds": 2.9274060999741778, "peak_rss_bytes": 132362240},
+      {"ranks": 2, "wall_seconds": 2.429655600048136, "peak_rss_bytes": 255455232},
+      {"ranks": 4, "wall_seconds": 1.3725875000236556, "peak_rss_bytes": 379326464},
+      {"ranks": 8, "wall_seconds": 1.2357906000106595, "peak_rss_bytes": 466685952}
+    ],
+    "warped_three_dimensional": [
+      {"ranks": 1, "wall_seconds": 47.40268830000423, "peak_rss_bytes": 166547456},
+      {"ranks": 2, "wall_seconds": 28.835179699992295, "peak_rss_bytes": 245174272},
+      {"ranks": 4, "wall_seconds": 25.10954400000628, "peak_rss_bytes": 368533504},
+      {"ranks": 8, "wall_seconds": 43.6616090000025, "peak_rss_bytes": 628559872}
+    ]
+  },
+  "install_smoke": {
+    "prefix": "build-rc-install",
+    "installed_generator_created_adf_cgns": true,
+    "installed_runner_dry_run_passed": true
+  }
+}

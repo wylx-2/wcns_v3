@@ -1,0 +1,72 @@
+# 经典 WENO5 在本文中指 Jiang-Shu 五阶 WENO，即程序键 weno_js。
+schema_version = 1
+case.name = case04-scmm6-roe-weno5-960x240
+mesh.path = grids/double_mach_960x240.cgns
+
+algorithm.profile = scmm6_wcns
+algorithm.flux_difference = conservative_two_point
+algorithm.reconstruction = weno_js
+algorithm.reconstruction_variables = characteristic
+algorithm.riemann = roe
+
+gas.gamma = 1.4
+gas.specific_gas_constant = 1.0
+reference.velocity = 1.0
+reference.density = 1.0
+reference.temperature = 1.0
+reference.length = 1.0
+reference.viscosity = 1.0e-5
+
+partition.mode = auto_split
+partition.allow_idle_ranks = false
+partition.max_load_ratio = 1.2
+partition.min_cells_per_active_direction = 8
+
+initial.type = double_mach_reflection
+initial.x0 = 0.16666666666666667
+
+boundary.default = outflow
+boundary.left.type = double_mach_reflection
+boundary.bottom.type = double_mach_reflection
+boundary.top.type = double_mach_reflection
+
+source.enabled = false
+
+run.mode = unsteady
+run.viscous = false
+run.cfl = 0.2
+run.max_steps = 1000000
+run.t_end = 0.2
+run.max_wall_time = 0
+
+output.directory = results/scmm6_roe_weno5
+output.allow_existing = false
+output.dimensional = false
+
+# 同时保留 CGNS 与 Tecplot 终场；Tecplot 用于本报告的等值图和逐点比较。
+output.field.enabled = true
+output.field.format = both
+output.field.every_steps = 0
+output.field.every_time = 0
+output.field.write_initial = false
+output.field.write_final = true
+output.field.quantities = rho,u,v,p,T,mach,entropy_proxy
+
+output.history.enabled = true
+output.history.format = txt
+output.history.every_steps = 1
+output.history.write_initial = true
+output.history.write_final = true
+
+output.statistics.enabled = true
+output.statistics.format = txt
+output.statistics.every_steps = 20
+output.statistics.write_initial = true
+output.statistics.write_final = true
+output.statistics.quantities = total_mass,total_momentum_x,total_momentum_y,total_energy
+
+output.checkpoint.enabled = true
+output.checkpoint.every_steps = 0
+output.checkpoint.every_time = 0.05
+output.checkpoint.write_initial = false
+output.checkpoint.write_final = true

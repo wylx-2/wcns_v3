@@ -1,0 +1,22 @@
+manifest_version=1
+program_version=0.1.0
+git_commit=71786ec0544d
+compiler=8.1.0
+build_type=Release
+case=case03-vortex-phenglei-100x100
+mpi_ranks=4
+config_digest=14733176583642528162
+partition_digest=6198052676997375174
+mesh_signature=5713918879925091616
+restart_signature=schema=1;profile=algorithm_profile_v1;name=phenglei_wcns;reconstruction=reconstruction_v2;reconstruction=weno_z;variables=characteristic;epsilon=9.9999999999999995e-07;js_power=2;z_power=2;mdcd_dispersion=0.046378299999999997;mdcd_dissipation=0.01;mdcd_sensor_epsilon=5.6249999999999998e-05;mdcd_sensor_threshold=0.40000000000000002;mdcd_weight_bias=20;mdcd_weight_epsilon=9.9999999999999993e-41;riemann=riemann_config_v1;riemann_solver=hllc;roe_entropy_fix=0.10000000000000001;riemann_denominator_tolerance=9.9999999999999998e-13;gas=gas_model=calorically_perfect gamma=1.3999999999999999 molar_mass=0.029000000000000001 specific_gas_constant=286.68965517241378;reference=U_ref=340 rho_ref=1.2250000000000001 T_ref=288.14999999999998 L_ref=1 mu_ref=1.7893999999999998e-05 Re=23275958.421817373 Ma=0.99976879217785786 dynamic_pressure_ref=141610.00000000003 time_ref=0.0029411764705882353;boundary.default=farfield;source=source_terms_v3;enable_source_terms=false;models=;viscous=false
+step=1352
+time=10
+time_step=0.0039036065585840163
+wall_time=112.252314
+stop_reason=physical_time_reached
+config_summary=case(schema=1,name=case03-vortex-phenglei-100x100,mesh=grids/warped_100x100.cgns,profile=phenglei_wcns,reconstruction=weno_z;variables=characteristic;epsilon=9.9999999999999995e-07;js_power=2;z_power=2;mdcd_dispersion=0.046378299999999997;mdcd_dissipation=0.01;mdcd_sensor_epsilon=5.6249999999999998e-05;mdcd_sensor_threshold=0.40000000000000002;mdcd_weight_bias=20;mdcd_weight_epsilon=9.9999999999999993e-41,riemann_solver=hllc;roe_entropy_fix=0.10000000000000001;riemann_denominator_tolerance=9.9999999999999998e-13,gas_model=calorically_perfect gamma=1.3999999999999999 molar_mass=0.029000000000000001 specific_gas_constant=286.68965517241378,U_ref=340 rho_ref=1.2250000000000001 T_ref=288.14999999999998 L_ref=1 mu_ref=1.7893999999999998e-05 Re=23275958.421817373 Ma=0.99976879217785786 dynamic_pressure_ref=141610.00000000003 time_ref=0.0029411764705882353,partition(mode=zones_only,allow_idle=false,max_load_ratio=1.2,min_cells=8),initial(type=isentropic_vortex,background_u=1,background_v=1,beta=5,period_x=10,period_y=10,x0=5,y0=5),boundary.default=farfield,enable_source_terms=false;models=,run(mode=unsteady,viscous=false,cfl=0.5,max_steps=100000,t_end=10,max_wall_time=0,steady(min_steps=1,check_interval=1,consecutive=1,reference_floor=1.0000000000000001e-30,l2_abs=9.9999999999999998e-13,l2_rel=1e-08,linf_enabled=true,linf_abs=9.9999999999999994e-12,linf_rel=1e-08)),output(directory=results/phenglei,allow_existing=false,dimensional=false,field(enabled=true,format=cgns,schedule(every_steps=0,every_time=0,explicit_times=,initial=true,final=true),quantities=rho:u:v:p:T:rho_u:rho_v:rho_w:rho_E:sound_speed:mach:total_enthalpy:entropy_proxy:jacobian),history(enabled=true,format=txt,schedule(every_steps=100,every_time=0,explicit_times=,initial=true,final=true),quantities=),statistics(enabled=true,format=txt,schedule(every_steps=100,every_time=0,explicit_times=,initial=true,final=true),quantities=total_mass:total_momentum_x:total_momentum_y:total_energy),checkpoint(enabled=false,schedule(every_steps=0,every_time=0,explicit_times=,initial=false,final=true))),restart.path=<none>,digest=0xcc76c20b091db9a2)
+partition_summary=partition_plan(maximum_feasible=144;leaf=0,zone=0,range=[0,0,0:50,50,1),owner=0,generation=0;leaf=1,zone=1,range=[0,0,0:50,50,1),owner=1,generation=0;leaf=2,zone=2,range=[0,0,0:50,50,1),owner=2,generation=0;leaf=3,zone=3,range=[0,0,0:50,50,1),owner=3,generation=0)
+file=results/phenglei/case03-vortex-phenglei-100x100.field.step00000000.time0p000000000eP00.cgns
+file=results/phenglei/case03-vortex-phenglei-100x100.field.step00001352.time1p000000000eP01.cgns
+file=results/phenglei/case03-vortex-phenglei-100x100.history.r4.txt
+file=results/phenglei/case03-vortex-phenglei-100x100.statistics.r4.txt

@@ -1,0 +1,222 @@
+{
+  "case": "case01_2d_riemann",
+  "status": "passed",
+  "ranks": 4,
+  "initial_discontinuity": [
+    0.8,
+    0.8
+  ],
+  "end_time": 0.3,
+  "algorithm": {
+    "profile": "phenglei_wcns",
+    "reconstruction": "weno_z",
+    "reconstruction_variables": "characteristic",
+    "riemann": "hllc",
+    "time_integrator": "ssprk3",
+    "cfl": 0.4
+  },
+  "grids": {
+    "uniform": {
+      "cells": [
+        256,
+        256
+      ],
+      "vertices": [
+        257,
+        257
+      ],
+      "zones_i": 4,
+      "length": [
+        1.0,
+        1.0
+      ],
+      "cluster_center": null,
+      "cluster_strength": 0.0,
+      "minimum_spacing": 0.00390625,
+      "maximum_spacing": 0.00390625,
+      "center_vertex": 0.5,
+      "cell_containing_discontinuity": 204,
+      "discontinuity_cell_bounds": [
+        0.796875,
+        0.80078125
+      ]
+    },
+    "clustered": {
+      "cells": [
+        256,
+        256
+      ],
+      "vertices": [
+        257,
+        257
+      ],
+      "zones_i": 4,
+      "length": [
+        1.0,
+        1.0
+      ],
+      "cluster_center": [
+        0.5,
+        0.5
+      ],
+      "cluster_strength": 2.5,
+      "minimum_spacing": 0.0016142009619946607,
+      "maximum_spacing": 0.009803377113974776,
+      "center_vertex": 0.5,
+      "cell_containing_discontinuity": 230,
+      "discontinuity_cell_bounds": [
+        0.7973104999880595,
+        0.8033945959019955
+      ]
+    }
+  },
+  "final_fields": {
+    "uniform": "results\\uniform\\case01-uniform-256x256.field.step00000841.time3p000000000eM01.cgns",
+    "clustered": "results\\clustered\\case01-clustered-256x256.field.step00001625.time3p000000000eM01.cgns"
+  },
+  "records": [
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_generate_release_cgns.exe",
+        "rectangle",
+        "grids/uniform_256x256.cgns",
+        "256",
+        "256",
+        "4",
+        "1.0",
+        "1.0",
+        "false"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.11103579995688051,
+      "peak_process_tree_rss_bytes": 5668864,
+      "log": "logs\\generate-uniform.log",
+      "last_line": "generated release CGNS grid: grids/uniform_256x256.cgns"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_generate_release_cgns.exe",
+        "clustered-rectangle",
+        "grids/clustered_256x256_x0p5_y0p5.cgns",
+        "256",
+        "256",
+        "4",
+        "1.0",
+        "1.0",
+        "0.5",
+        "0.5",
+        "2.5",
+        "false"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.06817310000769794,
+      "peak_process_tree_rss_bytes": 6221824,
+      "log": "logs\\generate-clustered.log",
+      "last_line": "generated release CGNS grid: grids/clustered_256x256_x0p5_y0p5.cgns"
+    },
+    {
+      "command": [
+        "C:\\Program Files (x86)\\Intel\\oneAPI\\mpi\\2021.10.0\\bin\\mpiexec.exe",
+        "-n",
+        "4",
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_run.exe",
+        "--config",
+        "uniform_256x256.wcns"
+      ],
+      "return_code": 0,
+      "wall_seconds": 466.1904549000319,
+      "peak_process_tree_rss_bytes": 709083136,
+      "log": "logs\\run-uniform.log",
+      "last_line": "WCNS run stopped: reason=physical_time_reached step=841 time=0.29999999999999999"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "finite",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case01_2d_riemann\\results\\uniform\\case01-uniform-256x256.field.step00000000.time0p000000000eP00.cgns"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.05208400008268654,
+      "peak_process_tree_rss_bytes": 7241728,
+      "log": "validation\\uniform-initial-finite.txt",
+      "last_line": "check=finite samples=917504 min_rho=0.13800000000000001 min_p=0.029000000000000008 min_T=0.21014492753623193"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "finite",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case01_2d_riemann\\results\\uniform\\case01-uniform-256x256.field.step00000841.time3p000000000eM01.cgns"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.04470249998848885,
+      "peak_process_tree_rss_bytes": 7200768,
+      "log": "validation\\uniform-final-finite.txt",
+      "last_line": "check=finite samples=917504 min_rho=0.12931597810463735 min_p=0.018469259341256889 min_T=0.14282271697556428"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "diagonal-symmetry",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case01_2d_riemann\\results\\uniform\\case01-uniform-256x256.field.step00000841.time3p000000000eM01.cgns",
+        "5e-4"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.06751099997200072,
+      "peak_process_tree_rss_bytes": 19333120,
+      "log": "validation\\uniform-final-symmetry.txt",
+      "last_line": "check=diagonal_symmetry cells=65536 l1=5.8334983965222847e-15 linf=2.0383694732117874e-13 tolerance=0.00050000000000000001"
+    },
+    {
+      "command": [
+        "C:\\Program Files (x86)\\Intel\\oneAPI\\mpi\\2021.10.0\\bin\\mpiexec.exe",
+        "-n",
+        "4",
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_run.exe",
+        "--config",
+        "clustered_256x256.wcns"
+      ],
+      "return_code": 0,
+      "wall_seconds": 911.7296663000016,
+      "peak_process_tree_rss_bytes": 698363904,
+      "log": "logs\\run-clustered.log",
+      "last_line": "WCNS run stopped: reason=physical_time_reached step=1625 time=0.29999999999999999"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "finite",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case01_2d_riemann\\results\\clustered\\case01-clustered-256x256.field.step00000000.time0p000000000eP00.cgns"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.15112390008289367,
+      "peak_process_tree_rss_bytes": 5881856,
+      "log": "validation\\clustered-initial-finite.txt",
+      "last_line": "check=finite samples=917504 min_rho=0.13800000000000001 min_p=0.029000000000000008 min_T=0.21014492753623193"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "finite",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case01_2d_riemann\\results\\clustered\\case01-clustered-256x256.field.step00001625.time3p000000000eM01.cgns"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.09149749996140599,
+      "peak_process_tree_rss_bytes": 6246400,
+      "log": "validation\\clustered-final-finite.txt",
+      "last_line": "check=finite samples=917504 min_rho=0.12259631166663409 min_p=0.016749189400783824 min_T=0.13288074548907156"
+    },
+    {
+      "command": [
+        "D:\\program\\WCNS_v3\\wcns\\build-rc-mpi\\wcns_validate_release_case.exe",
+        "diagonal-symmetry",
+        "D:\\program\\WCNS_v3\\wcns\\cases\\manual\\case01_2d_riemann\\results\\clustered\\case01-clustered-256x256.field.step00001625.time3p000000000eM01.cgns",
+        "5e-4"
+      ],
+      "return_code": 0,
+      "wall_seconds": 0.10888900002464652,
+      "peak_process_tree_rss_bytes": 22724608,
+      "log": "validation\\clustered-final-symmetry.txt",
+      "last_line": "check=diagonal_symmetry cells=65536 l1=2.1824775030615421e-07 linf=0.00010619993703575581 tolerance=0.00050000000000000001"
+    }
+  ]
+}

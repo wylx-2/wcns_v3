@@ -29,8 +29,8 @@ void validate_primitive(const PrimitiveState& primitive, const IdealGas& gas)
 
 Normal3 checked_normal(Normal3 normal)
 {
-    const Real magnitude = std::sqrt(
-        normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+    const Real magnitude
+        = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
     if (!std::isfinite(magnitude) || magnitude <= 0.0) {
         throw PhysicsError("Euler flux normal must be finite and non-zero");
     }
@@ -51,8 +51,7 @@ Real normal_velocity(const PrimitiveState& state, Normal3 normal)
 void IdealGas::validate() const
 {
     if (!std::isfinite(gamma) || gamma <= 1.0 || !std::isfinite(density_floor)
-        || density_floor < 0.0 || !std::isfinite(pressure_floor)
-        || pressure_floor < 0.0) {
+        || density_floor < 0.0 || !std::isfinite(pressure_floor) || pressure_floor < 0.0) {
         throw PhysicsError("ideal-gas parameters are invalid");
     }
 }
@@ -98,14 +97,11 @@ Real sound_speed(const PrimitiveState& primitive, const IdealGas& gas)
 {
     gas.validate();
     validate_primitive(primitive, gas);
-    return std::sqrt(
-        gas.gamma * primitive[pressure] / primitive[primitive_density]);
+    return std::sqrt(gas.gamma * primitive[pressure] / primitive[primitive_density]);
 }
 
-ConservativeState euler_flux(
-    const PrimitiveState& primitive,
-    Normal3 unit_normal,
-    const IdealGas& gas)
+ConservativeState
+euler_flux(const PrimitiveState& primitive, Normal3 unit_normal, const IdealGas& gas)
 {
     gas.validate();
     validate_primitive(primitive, gas);
@@ -123,11 +119,10 @@ ConservativeState euler_flux(
     };
 }
 
-ConservativeState rusanov_flux(
-    const PrimitiveState& left,
-    const PrimitiveState& right,
-    Normal3 unit_normal,
-    const IdealGas& gas)
+ConservativeState rusanov_flux(const PrimitiveState& left,
+                               const PrimitiveState& right,
+                               Normal3 unit_normal,
+                               const IdealGas& gas)
 {
     gas.validate();
     const auto normal = checked_normal(unit_normal);
@@ -135,9 +130,8 @@ ConservativeState rusanov_flux(
     const auto right_conservative = to_conservative(right, gas);
     const auto left_flux = euler_flux(left, normal, gas);
     const auto right_flux = euler_flux(right, normal, gas);
-    const Real speed = std::max(
-        std::abs(normal_velocity(left, normal)) + sound_speed(left, gas),
-        std::abs(normal_velocity(right, normal)) + sound_speed(right, gas));
+    const Real speed = std::max(std::abs(normal_velocity(left, normal)) + sound_speed(left, gas),
+                                std::abs(normal_velocity(right, normal)) + sound_speed(right, gas));
     ConservativeState result {};
     for (int component = 0; component < euler_components; ++component) {
         const auto index = static_cast<std::size_t>(component);
@@ -154,8 +148,7 @@ ConservativeState load_conservative(const Field<Real>& field, Index3 index)
     }
     ConservativeState result {};
     for (int component = 0; component < euler_components; ++component) {
-        result[static_cast<std::size_t>(component)]
-            = field(index.i, index.j, index.k, component);
+        result[static_cast<std::size_t>(component)] = field(index.i, index.j, index.k, component);
     }
     return result;
 }
@@ -171,10 +164,8 @@ void store_state(Field<Real>& field, Index3 index, const ConservativeState& stat
         throw std::invalid_argument("Euler field must have five components");
     }
     for (int component = 0; component < euler_components; ++component) {
-        field(index.i, index.j, index.k, component)
-            = state[static_cast<std::size_t>(component)];
+        field(index.i, index.j, index.k, component) = state[static_cast<std::size_t>(component)];
     }
 }
 
 } // namespace wcns
-

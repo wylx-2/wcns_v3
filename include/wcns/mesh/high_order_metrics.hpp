@@ -7,6 +7,7 @@
 #include <wcns/physics/thermodynamics.hpp>
 
 #include <cstddef>
+#include <vector>
 
 namespace wcns {
 
@@ -28,8 +29,7 @@ struct CellCoordinates {
         : x(extent)
         , y(extent)
         , z(extent)
-    {
-    }
+    { }
 
     Array3D<Real> x;
     Array3D<Real> y;
@@ -41,8 +41,7 @@ struct FaceAreaVectors {
         : x(extent)
         , y(extent)
         , z(extent)
-    {
-    }
+    { }
 
     [[nodiscard]] Real area(int i, int j, int k) const;
 
@@ -85,8 +84,7 @@ struct GeometryDiagnostics {
         , reference_i_area({cell_extent.ni + 1, cell_extent.nj, cell_extent.nk})
         , reference_j_area({cell_extent.ni, cell_extent.nj + 1, cell_extent.nk})
         , reference_k_area({cell_extent.ni, cell_extent.nj, cell_extent.nk + 1})
-    {
-    }
+    { }
 
     Array3D<Real> reference_volume;
     Array3D<Real> reference_i_area;
@@ -101,9 +99,21 @@ struct MetricInitializationResult {
     GeometryDiagnostics diagnostics;
 };
 
-[[nodiscard]] MetricInitializationResult initialize_metric_field(
-    StructuredBlock& block,
-    const AlgorithmProfile& profile,
-    const MetricBuildOptions& options = {});
+[[nodiscard]] MetricInitializationResult initialize_metric_field(StructuredBlock& block,
+                                                                 const AlgorithmProfile& profile,
+                                                                 const MetricBuildOptions& options
+                                                                 = {});
+
+[[nodiscard]] MetricField
+extract_metric_field(const MetricField& source, Index3 cell_begin, Extent3 cell_extent);
+
+[[nodiscard]] std::vector<Real> pack_metric_field(const MetricField& metric);
+
+[[nodiscard]] std::size_t metric_field_payload_size(Extent3 cell_extent, int dimension);
+
+[[nodiscard]] MetricField unpack_metric_field(AlgorithmProfileKind profile,
+                                              Extent3 cell_extent,
+                                              int dimension,
+                                              const std::vector<Real>& payload);
 
 } // namespace wcns

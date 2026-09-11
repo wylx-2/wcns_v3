@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "stage": "T",
+  "date": "2026-09-11",
+  "status": "pass",
+  "performance_source_commit": "e97d718f4e67ff0dcab790ff4b2cd67e253f678f",
+  "final_implementation_commit": "995d6ff687a371125300ca6435ecdec248be9d57",
+  "performance_protocol": {
+    "build_type": "Release",
+    "warmups": 1,
+    "samples": 5,
+    "maximum_cv": 0.05,
+    "scaling_steps": 5,
+    "mpi_pin_processor_list": "0,2,4,6,8,9,10,11",
+    "mpi_high_priority": true,
+    "note": "Later commits change only the measurement protocol and output-enabled root gather; the output-disabled solver hot path measured here is unchanged."
+  },
+  "allocation": {
+    "baseline_allocations": 946214,
+    "first_allocations": 6,
+    "second_allocations": 6,
+    "first_bytes": 208,
+    "second_bytes": 208,
+    "reduction": 0.9999936589397325,
+    "minimum_reduction": 0.90,
+    "pass": true
+  },
+  "serial": [
+    {
+      "id": "vortex-2d-100x100",
+      "samples_seconds": [2.8012916000152472, 2.7850197999796364, 2.7721378999995068, 2.7862404999905266, 2.799801600020146],
+      "median_seconds": 2.7862404999905266,
+      "cv": 0.0038468259567443,
+      "speedup": 1.616293137665314,
+      "pass": true
+    },
+    {
+      "id": "case07-cylinder-4zone-48x32",
+      "samples_seconds": [0.4406455999996979, 0.4415302000124939, 0.44957879997673444, 0.4636287000030279, 0.4515286000096239],
+      "median_seconds": 0.44957879997673444,
+      "cv": 0.01850034701025989,
+      "speedup": 1.1516764136282753,
+      "minimum_speedup": 1.0,
+      "pass": true
+    },
+    {
+      "id": "viscous-3d-36x48x36",
+      "samples_seconds": [15.761443199997302, 17.365854500007117, 17.464445800025715, 17.841713400004664, 17.092945100012003],
+      "median_seconds": 17.365854500007117,
+      "cv": 0.04171121307570822,
+      "speedup": 3.91333055911296,
+      "pass": true
+    }
+  ],
+  "strong_scaling": [
+    {
+      "ranks": 1,
+      "cells_per_rank": 165888,
+      "samples_seconds": [61.28447569999844, 65.35080240000389, 66.32483860000502, 61.029630000004545, 65.7015659000026],
+      "median_seconds": 65.35080240000389,
+      "cv": 0.035872087544843674,
+      "efficiency": 1.0
+    },
+    {
+      "ranks": 2,
+      "cells_per_rank": 82944,
+      "samples_seconds": [30.17768240001169, 30.047519800020382, 30.234120400011307, 30.105787800013786, 29.976383400004124],
+      "median_seconds": 30.105787800013786,
+      "cv": 0.003034887385629035,
+      "efficiency": 1.085352803821562
+    },
+    {
+      "ranks": 4,
+      "cells_per_rank": 41472,
+      "samples_seconds": [19.349297400010983, 18.931415899976855, 19.21918069999083, 18.77752169998712, 19.204753099998925],
+      "median_seconds": 19.204753099998925,
+      "cv": 0.010976243772368931,
+      "efficiency": 0.85071130646308,
+      "minimum_efficiency": 0.70,
+      "minimum_cells_per_rank": 15552,
+      "pass": true
+    },
+    {
+      "ranks": 8,
+      "cells_per_rank": 20736,
+      "samples_seconds": [16.239496599999256, 15.08569819998229, 15.158354799990775, 15.028448299999582, 14.680755200010026],
+      "median_seconds": 15.08569819998229,
+      "cv": 0.03456243794123672,
+      "efficiency": 0.5414963359143746
+    }
+  ],
+  "weak_scaling": [
+    {"ranks": 1, "cells_per_rank": 16128, "samples_seconds": [4.208681499992963, 4.289647099998547, 4.127065300010145, 4.16188030000194, 4.1781406000081915], "median_seconds": 4.1781406000081915, "cv": 0.013116042153537828, "efficiency": 1.0},
+    {"ranks": 2, "cells_per_rank": 16128, "samples_seconds": [4.191665799997281, 4.19981910000206, 4.263803399982862, 4.1880399999790825, 4.167951600014931], "median_seconds": 4.191665799997281, "cv": 0.00773673008809657, "efficiency": 0.996773311462689},
+    {"ranks": 4, "cells_per_rank": 16128, "samples_seconds": [4.834891300008167, 4.851959399995394, 4.843745500023942, 4.819765100022778, 4.923141000006581], "median_seconds": 4.843745500023942, "cv": 0.0073836773075678964, "efficiency": 0.8625846671728602},
+    {"ranks": 8, "cells_per_rank": 16128, "samples_seconds": [9.993475900002522, 9.96401870000409, 9.933077200024854, 9.973029599990696, 10.002338899997994], "median_seconds": 9.973029599990696, "cv": 0.0024373172161048662, "efficiency": 0.41894396864239625}
+  ],
+  "detailed_timing_overhead": [
+    {"id": "vortex-2d-100x100", "warmups": 5, "default_samples_seconds": [2.8266710999887437, 2.831799699983094, 2.830570699996315, 2.8373421999858692, 2.828074499993818], "default_median_seconds": 2.830570699996315, "detailed_samples_seconds": [2.835349300003145, 2.8297406999918167, 2.857214500021655, 2.819024199998239, 2.8239563000097405], "detailed_median_seconds": 2.8297406999918167, "default_cv": 0.0013054471402362713, "detailed_cv": 0.004681631611751566, "overhead": -0.00029322708826862165, "pass": true},
+    {"id": "case07-cylinder-4zone-48x32", "warmups": 5, "default_samples_seconds": [0.45588219998171553, 0.4430319000093732, 0.4422243999724742, 0.4457840999821201, 0.44596420001471415], "default_median_seconds": 0.4457840999821201, "detailed_samples_seconds": [0.44163169999956153, 0.443064899998717, 0.44533300001057796, 0.44615090001025237, 0.4499756999721285], "detailed_median_seconds": 0.44533300001057796, "default_cv": 0.010929018057316732, "detailed_cv": 0.006432868633946334, "overhead": -0.0010119247670794529, "pass": true},
+    {"id": "viscous-3d-36x48x36", "warmups": 5, "default_samples_seconds": [8.579667999991216, 8.559693999995943, 8.561562999995658, 8.596448700001929, 8.616749999986496], "default_median_seconds": 8.579667999991216, "detailed_samples_seconds": [8.695915400021477, 8.707655900012469, 8.714701099990634, 8.699103799997829, 8.617913800000679], "detailed_median_seconds": 8.699103799997829, "default_cv": 0.0025170818389623605, "detailed_cv": 0.004051249111312946, "overhead": 0.01392079507117705, "pass": true}
+  ],
+  "io": {
+    "root_real_payload_copies": 1,
+    "layout": "source-zone/quantity streaming with in-place rank-to-zone permutation",
+    "tecplot_datapacking": "BLOCK",
+    "independent_reread": true,
+    "checkpoint_restart": true,
+    "serial_targeted_tests": "13/13",
+    "mpi_targeted_tests": "20/20",
+    "manual_mpi_gather_ranks": [4, 8],
+    "pass": true
+  },
+  "regression": {
+    "serial_ctest": "60/60",
+    "serial_seconds": 25.65,
+    "mpi_ctest": "108/108",
+    "mpi_seconds": 73.89,
+    "algorithm_spec": "6/6",
+    "diff_check": "pass",
+    "pass": true
+  },
+  "excluded_user_paths": [
+    "cases/manual/case06_2d_naca0012/"
+  ],
+  "remote": {
+    "status": "not_synced",
+    "reason": "Prior external network write approval was not granted."
+  }
+}

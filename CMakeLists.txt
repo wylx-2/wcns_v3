@@ -1,6 +1,27 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(wcns VERSION 0.1.0 LANGUAGES C CXX)
+project(wcns VERSION 1.1.0 LANGUAGES C CXX)
+
+include(GNUInstallDirs)
+
+execute_process(
+    COMMAND git rev-parse --short=12 HEAD
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    OUTPUT_VARIABLE WCNS_GIT_COMMIT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+if(NOT WCNS_GIT_COMMIT AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/WCNS_SOURCE_REVISION")
+    file(STRINGS
+        "${CMAKE_CURRENT_SOURCE_DIR}/WCNS_SOURCE_REVISION"
+        WCNS_GIT_COMMIT
+        LIMIT_COUNT 1
+    )
+    string(STRIP "${WCNS_GIT_COMMIT}" WCNS_GIT_COMMIT)
+endif()
+if(NOT WCNS_GIT_COMMIT)
+    set(WCNS_GIT_COMMIT unknown)
+endif()
 
 option(WCNS_BUILD_TESTS "Build WCNS unit tests" ON)
 option(WCNS_ENABLE_CGNS "Enable CGNS mesh I/O" ON)
@@ -24,6 +45,7 @@ else()
 endif()
 
 add_library(wcns_physics STATIC
+    src/physics/double_mach_reflection.cpp
     src/physics/source_terms.cpp
     src/physics/thermodynamics.cpp
 )
@@ -146,15 +168,103 @@ add_library(wcns_solver STATIC
     src/solver/inviscid_wcns_solver.cpp
     src/solver/physical_boundary.cpp
     src/solver/riemann_solver.cpp
+    src/solver/robustness.cpp
     src/solver/source_operator.cpp
     src/solver/spatial_operator.cpp
     src/solver/time_integrator.cpp
+    src/solver/transport_model.cpp
+    src/solver/viscous_flux.cpp
+    src/solver/viscous_gradient.cpp
+    src/solver/viscous_halo.cpp
+    src/solver/viscous_boundary.cpp
+    src/solver/viscous_operator.cpp
+    src/solver/viscous_wcns_solver.cpp
     src/solver/wcns_reconstruction.cpp
 )
 add_library(wcns::solver ALIAS wcns_solver)
 target_link_libraries(wcns_solver PUBLIC wcns::parallel wcns::physics)
 
+add_library(wcns_runtime STATIC
+    src/runtime/boundary_output.cpp
+    src/runtime/case_config.cpp
+    src/runtime/flow_initializer.cpp
+    src/runtime/output_manager.cpp
+    src/runtime/quantity_registry.cpp
+    src/runtime/simulation_driver.cpp
+    src/runtime/stop_controller.cpp
+    src/runtime/structured_partition.cpp
+)
+add_library(wcns::runtime ALIAS wcns_runtime)
+target_link_libraries(wcns_runtime PUBLIC wcns::solver)
+target_compile_definitions(
+    wcns_runtime
+    PRIVATE
+        WCNS_GIT_COMMIT="${WCNS_GIT_COMMIT}"
+        WCNS_PROGRAM_VERSION="${PROJECT_VERSION}"
+)
+
+if(WCNS_ENABLE_CGNS)
+    target_sources(wcns_runtime PRIVATE
+        src/runtime/checkpoint.cpp
+        src/runtime/field_output.cpp
+    )
+    target_link_libraries(wcns_runtime PRIVATE wcns::io wcns::cgns)
+    add_executable(wcns_run src/app/wcns_run.cpp)
+    target_link_libraries(wcns_run PRIVATE wcns::runtime wcns::io)
+
+    add_executable(
+        wcns_generate_release_cgns
+        tools/generate_release_cgns.cpp
+    )
+    target_link_libraries(wcns_generate_release_cgns PRIVATE wcns::core wcns::cgns)
+
+    add_executable(
+        wcns_validate_release_case
+        tools/validate_release_case.cpp
+    )
+    target_link_libraries(wcns_validate_release_case PRIVATE wcns::core wcns::cgns)
+
+    add_executable(
+        wcns_compare_metric_profiles
+        tools/compare_metric_profiles.cpp
+    )
+    target_link_libraries(wcns_compare_metric_profiles PRIVATE wcns::io)
+endif()
+
 if(WCNS_BUILD_TESTS)
     include(CTest)
     add_subdirectory(tests)
 endif()
+
+if(WCNS_ENABLE_CGNS)
+    install(
+        TARGETS
+            wcns_run
+            wcns_generate_release_cgns
+            wcns_validate_release_case
+            wcns_compare_metric_profiles
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+endif()
+install(
+    FILES
+        README.md
+        LICENSE.md
+        THIRD_PARTY_NOTICES.md
+        "算法补充.md"
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/wcns
+)
+install(
+    DIRECTORY docs/
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/wcns/docs
+    FILES_MATCHING PATTERN "*.md"
+)
+install(
+    DIRECTORY examples/
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/wcns/examples
+)
+install(
+    DIRECTORY cases/config/
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/wcns/cases/config
+    FILES_MATCHING PATTERN "*.wcns.in"
+)

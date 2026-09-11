@@ -25,12 +25,9 @@ void test_structured_block()
     WCNS_REQUIRE(block.cell_metrics.volume.interior_extent() == block.cell_extent());
     WCNS_REQUIRE(block.cell_metrics.volume.ghost_width() == 3);
 
-    WCNS_REQUIRE(
-        block.face_metrics.i_faces.area.interior_extent() == (Extent3 {5, 3, 1}));
-    WCNS_REQUIRE(
-        block.face_metrics.j_faces.area.interior_extent() == (Extent3 {4, 4, 1}));
-    WCNS_REQUIRE(
-        block.face_metrics.k_faces.area.interior_extent() == (Extent3 {4, 3, 2}));
+    WCNS_REQUIRE(block.face_metrics.i_faces.area.interior_extent() == (Extent3 {5, 3, 1}));
+    WCNS_REQUIRE(block.face_metrics.j_faces.area.interior_extent() == (Extent3 {4, 4, 1}));
+    WCNS_REQUIRE(block.face_metrics.k_faces.area.interior_extent() == (Extent3 {4, 3, 2}));
 
     WCNS_REQUIRE(block.flow.conservative.components() == euler_components);
     WCNS_REQUIRE(block.flow.conservative.ghost_width() == 3);
@@ -67,14 +64,9 @@ void test_structured_block()
     StructuredBlock volume(8, "volume", 0, 3, 3, {4, 3, 2}, 2);
     WCNS_REQUIRE(volume.cell_extent() == (Extent3 {3, 2, 1}));
 
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument, (StructuredBlock(-1, "bad", 0, 2, 2, {2, 2, 1}, 3)));
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument, (StructuredBlock(0, "", 0, 2, 2, {2, 2, 1}, 3)));
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument, (StructuredBlock(0, "bad", 0, 2, 2, {2, 2, 2}, 3)));
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument, (StructuredBlock(0, "bad", 0, 3, 3, {2, 2, 1}, 3)));
-    WCNS_REQUIRE_THROWS(
-        std::invalid_argument, (StructuredBlock(0, "bad", -2, 2, 2, {2, 2, 1}, 3)));
+    WCNS_REQUIRE_THROWS(std::invalid_argument, (StructuredBlock(-1, "bad", 0, 2, 2, {2, 2, 1}, 3)));
+    WCNS_REQUIRE_THROWS(std::invalid_argument, (StructuredBlock(0, "", 0, 2, 2, {2, 2, 1}, 3)));
+    WCNS_REQUIRE_THROWS(std::invalid_argument, (StructuredBlock(0, "bad", 0, 2, 2, {2, 2, 2}, 3)));
+    WCNS_REQUIRE_THROWS(std::invalid_argument, (StructuredBlock(0, "bad", 0, 3, 3, {2, 2, 1}, 3)));
+    WCNS_REQUIRE_THROWS(std::invalid_argument, (StructuredBlock(0, "bad", -2, 2, 2, {2, 2, 1}, 3)));
 }

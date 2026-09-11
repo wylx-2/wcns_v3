@@ -12,6 +12,7 @@ namespace wcns {
 enum class SourceModelKind {
     UniformConservative,
     BodyForce,
+    PressureGradient,
     ManufacturedSolution,
 };
 
@@ -22,6 +23,8 @@ struct SourceTermConfig {
     std::vector<SourceModelKind> models;
     std::array<Real, 5> uniform_conservative {{0.0, 0.0, 0.0, 0.0, 0.0}};
     std::array<Real, 3> body_acceleration {{0.0, 0.0, 0.0}};
+    // Constant force per unit volume G=-grad(p); energy source is u dot G.
+    std::array<Real, 3> pressure_gradient {{0.0, 0.0, 0.0}};
     std::array<Real, 5> manufactured_amplitude {{0.0, 0.0, 0.0, 0.0, 0.0}};
 
     void validate() const;
@@ -34,16 +37,13 @@ struct SourceTermConfig {
 // actual source evaluation is implemented in stage J.
 class SourceTermRegistry {
 public:
-    [[nodiscard]] static SourceTermRegistry create_stage_h(
-        const SourceTermConfig& config);
-    [[nodiscard]] static SourceTermRegistry create_stage_j(
-        const SourceTermConfig& config);
+    [[nodiscard]] static SourceTermRegistry create_stage_h(const SourceTermConfig& config);
+    [[nodiscard]] static SourceTermRegistry create_stage_j(const SourceTermConfig& config);
 
-    [[nodiscard]] std::array<Real, 5> evaluate(
-        const std::array<Real, 5>& conservative,
-        const std::array<Real, 3>& coordinates,
-        Real time,
-        int dimension) const;
+    [[nodiscard]] std::array<Real, 5> evaluate(const std::array<Real, 5>& conservative,
+                                               const std::array<Real, 3>& coordinates,
+                                               Real time,
+                                               int dimension) const;
 
     [[nodiscard]] constexpr bool empty() const noexcept { return model_count_ == 0; }
     [[nodiscard]] constexpr std::size_t size() const noexcept { return model_count_; }

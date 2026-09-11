@@ -2,6 +2,7 @@
 
 #include <wcns/mesh/algorithm_profile.hpp>
 #include <wcns/mesh/high_order_metrics.hpp>
+#include <wcns/mesh/linear_operators.hpp>
 #include <wcns/mesh/structured_mesh.hpp>
 #include <wcns/parallel/mpi_runtime.hpp>
 #include <wcns/solver/physical_boundary.hpp>
@@ -14,13 +15,22 @@
 
 namespace wcns {
 
+class FaceRobustnessField;
+class RobustnessLadder;
+
+enum class FluxDifferenceMode {
+    Profile,
+    ConservativeTwoPoint,
+};
+
+[[nodiscard]] const char* flux_difference_mode_name(FluxDifferenceMode mode);
+
 class InviscidFaceFluxField {
 public:
-    InviscidFaceFluxField(
-        Extent3 cell_extent,
-        int dimension,
-        AlgorithmProfileKind profile,
-        std::uint64_t version);
+    InviscidFaceFluxField(Extent3 cell_extent,
+                          int dimension,
+                          AlgorithmProfileKind profile,
+                          std::uint64_t version);
 
     [[nodiscard]] AlgorithmProfileKind profile() const noexcept { return profile_; }
     [[nodiscard]] std::uint64_t version() const noexcept { return version_; }
@@ -29,6 +39,7 @@ public:
 
     [[nodiscard]] Field<Real>& field(Axis axis);
     [[nodiscard]] const Field<Real>& field(Axis axis) const;
+    void reset(std::uint64_t version);
 
 private:
     AlgorithmProfileKind profile_;
@@ -64,21 +75,29 @@ struct FaceFluxExchangeDescriptor {
     [[nodiscard]] int message_tag(int tag_base = 12288) const;
 };
 
-[[nodiscard]] ConservativeState transform_inviscid_face_flux_for_receiver(
-    const ConservativeState& donor,
-    const FaceFluxExchangeDescriptor& descriptor);
+[[nodiscard]] ConservativeState
+transform_inviscid_face_flux_for_receiver(const ConservativeState& donor,
+                                          const FaceFluxExchangeDescriptor& descriptor);
+
+[[nodiscard]] bool
+is_non_owned_connection_face(const StructuredBlock& block, Axis axis, Index3 face);
+
+[[nodiscard]] StencilRow inviscid_residual_stencil(const StructuredBlock& block,
+                                                   const AlgorithmProfile& profile,
+                                                   FluxDifferenceMode mode,
+                                                   Axis axis,
+                                                   Index3 cell);
 
 class FaceFluxHaloPlan {
 public:
-    [[nodiscard]] static FaceFluxHaloPlan build(
-        const StructuredMesh& mesh,
-        const AlgorithmProfile& profile,
-        std::uint64_t version);
+    [[nodiscard]] static FaceFluxHaloPlan
+    build(const StructuredMesh& mesh, const AlgorithmProfile& profile, std::uint64_t version);
 
     [[nodiscard]] const std::vector<FaceFluxExchangeDescriptor>& exchanges() const noexcept
     {
         return exchanges_;
     }
+    void set_version(std::uint64_t version);
 
 private:
     std::vector<FaceFluxExchangeDescriptor> exchanges_;
@@ -96,38 +115,76 @@ private:
 
 class FaceFluxHaloExchanger {
 public:
-    FaceFluxHaloExchanger(
-        const MpiRuntime& mpi,
-        const FaceFluxHaloPlan& plan)
-        : mpi_(mpi), plan_(plan)
+    FaceFluxHaloExchanger(const MpiRuntime& mpi, const FaceFluxHaloPlan& plan)
+        : mpi_(mpi)
+        , plan_(plan)
     {
+        prepare();
     }
 
     void exchange(const FaceFluxFieldRegistry& fields) const;
 
 private:
+    struct Pending {
+        const FaceFluxExchangeDescriptor* descriptor = nullptr;
+        std::vector<Real> values;
+    };
+
+    void prepare();
+
     const MpiRuntime& mpi_;
     const FaceFluxHaloPlan& plan_;
+    mutable std::vector<Pending> receives_;
+    mutable std::vector<Pending> sends_;
+#if WCNS_HAS_MPI
+    mutable std::vector<MPI_Request> requests_;
+#endif
 };
 
-[[nodiscard]] InviscidFaceFluxField compute_inviscid_face_fluxes(
-    const StructuredBlock& block,
-    const MetricField& metric,
-    const AlgorithmProfile& profile,
-    const ReconstructionConfig& reconstruction,
-    const RiemannSolver& riemann,
-    const GasModel& gas,
-    const ReferenceScales& reference,
-    const NumericalFloors& floors,
-    const BoundaryDataMap& boundary_data,
-    const InviscidBoundaryOptions& boundary_options,
-    std::uint64_t version,
-    ReconstructionDiagnostics& diagnostics);
+[[nodiscard]] InviscidFaceFluxField
+compute_inviscid_face_fluxes(const StructuredBlock& block,
+                             const MetricField& metric,
+                             const AlgorithmProfile& profile,
+                             const ReconstructionConfig& reconstruction,
+                             const RiemannSolver& riemann,
+                             const GasModel& gas,
+                             const ReferenceScales& reference,
+                             const NumericalFloors& floors,
+                             const BoundaryDataMap& boundary_data,
+                             const InviscidBoundaryOptions& boundary_options,
+                             std::uint64_t version,
+                             ReconstructionDiagnostics& diagnostics,
+                             RiemannDiagnostics* riemann_diagnostics = nullptr,
+                             int rk_stage = 0,
+                             Real stage_time = 0.0,
+                             const FaceRobustnessField* robustness_levels = nullptr,
+                             const RobustnessLadder* robustness_ladder = nullptr,
+                             const RiemannSolver* robust_riemann = nullptr);
 
-void compute_wcns_inviscid_residual(
-    StructuredBlock& block,
-    const MetricField& metric,
-    const InviscidFaceFluxField& flux,
-    const AlgorithmProfile& profile);
+void compute_inviscid_face_fluxes_into(InviscidFaceFluxField& result,
+                                       const StructuredBlock& block,
+                                       const MetricField& metric,
+                                       const AlgorithmProfile& profile,
+                                       const ReconstructionConfig& reconstruction,
+                                       const RiemannSolver& riemann,
+                                       const GasModel& gas,
+                                       const ReferenceScales& reference,
+                                       const NumericalFloors& floors,
+                                       const BoundaryDataMap& boundary_data,
+                                       const InviscidBoundaryOptions& boundary_options,
+                                       std::uint64_t version,
+                                       ReconstructionDiagnostics& diagnostics,
+                                       RiemannDiagnostics* riemann_diagnostics = nullptr,
+                                       int rk_stage = 0,
+                                       Real stage_time = 0.0,
+                                       const FaceRobustnessField* robustness_levels = nullptr,
+                                       const RobustnessLadder* robustness_ladder = nullptr,
+                                       const RiemannSolver* robust_riemann = nullptr);
+
+void compute_wcns_inviscid_residual(StructuredBlock& block,
+                                    const MetricField& metric,
+                                    const InviscidFaceFluxField& flux,
+                                    const AlgorithmProfile& profile,
+                                    FluxDifferenceMode mode = FluxDifferenceMode::Profile);
 
 } // namespace wcns

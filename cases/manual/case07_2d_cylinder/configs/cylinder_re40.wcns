@@ -1,0 +1,109 @@
+schema_version = 1
+case.name = case07-cylinder-re40
+mesh.path = ../grid/cylinder_o_32x20_r8.cgns
+
+algorithm.profile = scmm6_wcns
+algorithm.reconstruction = linear5
+algorithm.reconstruction_variables = primitive
+algorithm.riemann = hllc
+
+gas.gamma = 1.4
+gas.molar_mass = 0.029
+reference.velocity = 69.4001887736
+reference.density = 1.0
+reference.temperature = 300.0
+reference.length = 1.0
+reference.viscosity = 1.73500471934
+
+partition.mode = auto_split
+partition.allow_idle_ranks = false
+partition.max_load_ratio = 1.2
+partition.min_cells_per_active_direction = 8
+
+initial.type = uniform
+initial.rho = 1.0
+initial.u = 1.0
+initial.v = 0.0
+initial.w = 0.0
+initial.temperature = 1.0
+
+boundary.default = farfield
+boundary.farfield.type = farfield
+boundary.farfield.rho = 1.0
+boundary.farfield.u = 1.0
+boundary.farfield.v = 0.0
+boundary.farfield.w = 0.0
+boundary.farfield.temperature = 1.0
+boundary.cylinder.type = no_slip_adiabatic_wall
+boundary.cylinder.wall_velocity_x = 0.0
+boundary.cylinder.wall_velocity_y = 0.0
+boundary.cylinder.wall_velocity_z = 0.0
+
+source.enabled = false
+
+run.mode = unsteady
+run.viscous = true
+run.cfl = 0.25
+run.max_steps = 30000
+run.t_end = 20.0
+run.max_wall_time = 0
+
+output.directory = cases/manual/case07_2d_cylinder/results/re40
+output.allow_existing = false
+output.dimensional = false
+
+output.field.enabled = true
+output.field.format = tecplot
+output.field.every_steps = 0
+output.field.every_time = 2.5
+output.field.write_initial = true
+output.field.write_final = true
+output.field.quantities = rho,u,v,p,T,mach,entropy_proxy,viscosity,jacobian
+
+output.history.enabled = true
+output.history.format = txt
+output.history.every_steps = 20
+output.history.every_time = 0
+output.history.write_initial = true
+output.history.write_final = true
+
+output.statistics.enabled = true
+output.statistics.format = txt
+output.statistics.every_steps = 100
+output.statistics.every_time = 0
+output.statistics.write_initial = true
+output.statistics.write_final = true
+output.statistics.quantities = total_mass,total_momentum_x,total_momentum_y,total_energy
+
+output.boundary.enabled = true
+output.boundary.format = tecplot
+output.boundary.every_time = 2.5
+output.boundary.write_initial = true
+output.boundary.write_final = true
+output.boundary.patches = cylinder
+output.boundary.quantities = p_w,T_w,mu_w,Cp,Cf,q_wall,pressure_traction_x,pressure_traction_y,viscous_traction_x,viscous_traction_y,traction_x,traction_y
+output.boundary.reference_pressure = 17.8571428759968
+output.boundary.reference_density = 1.0
+output.boundary.reference_velocity_x = 1.0
+output.boundary.reference_velocity_y = 0.0
+output.boundary.reference_velocity_z = 0.0
+output.boundary.reference_area = 1.0
+output.boundary.reference_length = 1.0
+output.boundary.moment_center_x = 0.0
+output.boundary.moment_center_y = 0.0
+output.boundary.moment_center_z = 0.0
+output.boundary.drag_direction_x = 1.0
+output.boundary.drag_direction_y = 0.0
+output.boundary.drag_direction_z = 0.0
+output.boundary.lift_direction_x = 0.0
+output.boundary.lift_direction_y = 1.0
+output.boundary.lift_direction_z = 0.0
+output.boundary.tangent_direction_x = 1.0
+output.boundary.tangent_direction_y = 0.0
+output.boundary.tangent_direction_z = 0.0
+
+output.checkpoint.enabled = true
+output.checkpoint.every_steps = 5000
+output.checkpoint.every_time = 10.0
+output.checkpoint.write_initial = false
+output.checkpoint.write_final = true

@@ -1,0 +1,278 @@
+# WCNS schema 1 完整可运行配置模板。
+#
+# 使用方法：
+# 1. 复制本文件到独立算例目录；
+# 2. 把 mesh.path 改为真实 ADF-CGNS 结构网格；
+# 3. 按需修改初场、边界、停止和输出；
+# 4. 先执行 wcns_run --config <配置文件> --dry-run。
+#
+# 语法警告：只支持 key = value；注释必须独占一行。不要在数值后写行尾注释。
+
+# 配置格式版本。当前只能为 1。
+schema_version = 1
+
+# 算例名会成为输出文件名前缀；建议只用字母、数字、-、_。
+case.name = my_case
+
+# 相对路径以本配置文件所在目录为基准；也可写绝对路径。
+mesh.path = mesh.cgns
+
+# 两套 profile 必须整套独立使用，不可交叉组合。
+# 可选：phenglei_wcns | scmm6_wcns
+algorithm.profile = phenglei_wcns
+
+# 可选：zero_order | linear5 | weno_js | weno_z | mdcd_linear | mdcd_hybrid
+algorithm.reconstruction = weno_z
+
+# MDCD-LINEAR/MDCD-HYBRID 的可控色散/耗散系数；省略时使用下列默认值。
+# 两值会进入数值摘要与 restart signature。
+# algorithm.mdcd.disp = 0.0463783
+# algorithm.mdcd.diss = 0.01
+
+# 可选：conservative | primitive | characteristic
+algorithm.reconstruction_variables = characteristic
+
+# 可选：rusanov | hllc | roe
+algorithm.riemann = hllc
+
+# SSPRK 事后物理容许性与局部离散支持降阶。默认关闭，关闭时保持 v1.0 数值路径。
+# 开启后依次尝试：原方案 -> 同方案 primitive -> linear5/primitive
+# -> zero_order/conservative + Rusanov；相邻重复层会自动去重。
+robustness.enabled = false
+robustness.max_local_recomputations = 3
+robustness.max_step_retries = 4
+robustness.time_step_reduction = 0.5
+robustness.minimum_time_step = 1e-12
+
+# 热完全理想气体。
+gas.gamma = 1.4
+
+# molar_mass 与 specific_gas_constant 必须恰好给一个。
+# 空气可用 molar_mass = 0.029，单位 kg/mol。
+gas.molar_mass = 0.029
+# gas.specific_gas_constant = 287.0
+
+# 五个有量纲参考量，均必须为有限正数。
+# 程序由此导出 Re 和 Ma；配置中不能直接输入 Re 或 Ma。
+reference.velocity = 340.0
+reference.density = 1.225
+reference.temperature = 288.15
+reference.length = 1.0
+reference.viscosity = 1.7894e-5
+
+# 层流输运。下列常黏度配置也是省略全部 transport.* 键时的 v1.0 兼容默认值。
+transport.model = constant
+transport.prandtl = 0.72
+transport.constant.viscosity_ratio = 1.0
+
+# Sutherland 写法（启用时删除上面的 constant 专属键）：
+# transport.model = sutherland
+# transport.prandtl = 0.72
+# transport.sutherland.reference_viscosity_ratio = 1.0
+# transport.sutherland.temperature = 110.4
+# temperature 单位 K；也可改用无量纲 temperature_ratio，但两者不能同时给。
+# transport.sutherland.temperature_ratio = 0.38313378448724628
+
+# 可选：zones_only | auto_split | force_split
+partition.mode = auto_split
+
+# false：每个 rank 必须至少有一个叶块；true：允许空闲 rank。
+partition.allow_idle_ranks = false
+
+# 分区最大负载/平均负载目标，必须 >= 1。
+partition.max_load_ratio = 1.2
+
+# 每个分区叶块在活动方向上的最少单元数。
+# phenglei_wcns 不能小于 4；scmm6_wcns 不能小于 5。
+partition.min_cells_per_active_direction = 8
+
+# 当前启用均匀初场。其他初场的完整参数见用户手册第 8 章。
+# 可选：uniform | sod_x | quadrant_riemann | isentropic_vortex |
+#       couette | poiseuille | turbulent_channel | linear_conduction | manufactured_periodic |
+#       double_mach_reflection
+initial.type = uniform
+
+# 所有初场量都是内部无量纲量。uniform 可给 temperature 或 pressure；
+# 若两者都给，当前实现优先使用 pressure，因此建议只给一个。
+initial.rho = 1.0
+initial.u = 0.2
+initial.v = 0.0
+initial.w = 0.0
+initial.temperature = 1.0
+# initial.pressure = 7.142857142857143
+
+# 所有没有单独覆盖的 CGNS 物理边界采用此类型。
+# 可选：farfield | inflow | outflow | slip_wall |
+#       no_slip_adiabatic_wall | no_slip_isothermal_wall | symmetry |
+#       double_mach_reflection（仅限经典双马赫反射的 left/bottom/top）
+# periodic 字符串虽可解析，但生产周期边界必须由 CGNS 1-to-1 连接表达。
+boundary.default = farfield
+
+# 以下示例中的 left、wall 是 CGNS BC_t 节点名，必须与网格完全一致。
+# 删除行首 # 后才能启用；不要保留无关的物理数据。
+# boundary.left.type = inflow
+# boundary.left.rho = 1.0
+# boundary.left.u = 0.2
+# boundary.left.v = 0.0
+# boundary.left.w = 0.0
+# boundary.left.temperature = 1.0
+# boundary.left.pressure = 7.142857142857143
+# boundary.wall.type = no_slip_isothermal_wall
+# boundary.wall.wall_velocity_x = 0.0
+# boundary.wall.wall_velocity_y = 0.0
+# boundary.wall.wall_velocity_z = 0.0
+# boundary.wall.wall_temperature = 1.0
+
+# 源项总开关。false 时不要留下 models 或非零 source 参数。
+source.enabled = false
+
+# 开启源项时，可逗号分隔选择一个或多个模型；顺序参与重启签名。
+# source.enabled = true
+# source.models = uniform_conservative,body_force,pressure_gradient,manufactured
+# source.uniform.rho = 0.0
+# source.uniform.momentum_x = 0.0
+# source.uniform.momentum_y = 0.0
+# source.uniform.momentum_z = 0.0
+# source.uniform.energy = 0.0
+# source.body.ax = 0.0
+# source.body.ay = 0.0
+# source.body.az = 0.0
+# source.pressure_gradient.x = 0.0
+# source.pressure_gradient.y = 0.0
+# source.pressure_gradient.z = 0.0
+# source.manufactured.rho = 0.0
+# source.manufactured.momentum_x = 0.0
+# source.manufactured.momentum_y = 0.0
+# source.manufactured.momentum_z = 0.0
+# source.manufactured.energy = 0.0
+
+# 可选：steady | unsteady
+run.mode = unsteady
+
+# false 解 Euler；true 解层流 Navier-Stokes。
+run.viscous = false
+
+# 显式 SSPRK3 的全局 CFL。它不是任意算例都稳定的保证。
+run.cfl = 0.2
+
+# 无论 steady/unsteady 都生效的硬步数上限。
+run.max_steps = 1000000
+
+# unsteady 必须为正；程序把最后一步裁剪到精确 t_end。
+run.t_end = 0.1
+
+# 0 关闭墙钟限制；正值的单位是秒，并要求启用 checkpoint。
+run.max_wall_time = 0
+
+# 以下 steady.* 只决定 steady 模式的残差停止；在 unsteady 中可省略。
+# steady.min_steps = 100
+# steady.check_interval_steps = 10
+# steady.consecutive_checks = 3
+# steady.reference_floor = 1e-30
+# steady.l2_absolute = 1e-12
+# steady.l2_relative = 1e-8
+# steady.linf_enabled = true
+# steady.linf_absolute = 1e-11
+# steady.linf_relative = 1e-8
+
+# 相对输出目录以启动 wcns_run 时的当前工作目录为基准。
+output.directory = output/my_case
+
+# false 时只要目录已经存在就拒绝运行；推荐每次使用新目录。
+output.allow_existing = false
+
+# false 输出无量纲量；true 按参考量恢复量纲。
+output.dimensional = false
+
+# 流场快照。
+output.field.enabled = true
+# 可选：cgns | tecplot | both
+output.field.format = both
+# 0 表示关闭对应周期。步数、时间、显式时刻、初场、终场取并集。
+output.field.every_steps = 100
+output.field.every_time = 0
+# 必须非负且严格递增；不需要时省略本键。
+# output.field.explicit_times = 0.025,0.05,0.075
+output.field.write_initial = true
+output.field.write_final = true
+output.field.quantities = rho,u,v,w,p,T,rho_u,rho_v,rho_w,rho_E,sound_speed,mach,total_enthalpy,entropy_proxy,viscosity,jacobian
+
+# 固定列残差历史；禁止配置 output.history.quantities。
+output.history.enabled = true
+# 可选：txt | tecplot
+output.history.format = txt
+output.history.every_steps = 1
+output.history.every_time = 0
+# output.history.explicit_times = 0.025,0.05,0.075
+output.history.write_initial = true
+output.history.write_final = true
+
+# 全场积分统计。
+output.statistics.enabled = true
+# 可选：txt | tecplot
+output.statistics.format = txt
+output.statistics.every_steps = 10
+output.statistics.every_time = 0
+# output.statistics.explicit_times = 0.025,0.05,0.075
+output.statistics.write_initial = true
+output.statistics.write_final = true
+output.statistics.quantities = total_mass,total_momentum_x,total_momentum_y,total_momentum_z,total_energy
+
+# 三维槽道可选：监测一个或多个原 CGNS zone 的零基 cell-j 层。
+# 开启后自动在 statistics 列表末尾加入每层的 <u>_xz 和 integral(rho*u dA_xz)。
+# output.statistics.xz_planes.enabled = true
+# output.statistics.xz_planes.cell_j_indices = 0,23,47
+
+# 三维常 x 的 y-z 截面可选：每个目标选择其正 x 侧最近的单元中心面，
+# 自动追加截面面积平均 u 和 integral(rho*u dA_yz)。
+# output.statistics.yz_planes.enabled = true
+# output.statistics.yz_planes.target_x_coordinates = 0.0,3.141592653589793
+
+# 三维等温槽道可选：自动追加上/下壁摩擦、平均摩擦、u_tau 和 Re_tau。
+# lower/upper patch 必须是 J-lower/J-upper 的 no_slip_isothermal_wall。
+# output.statistics.channel_walls.enabled = true
+# output.statistics.channel_walls.lower_patch = bottom
+# output.statistics.channel_walls.upper_patch = top
+# output.statistics.channel_walls.half_height = 1.0
+
+# v1.1 边界面事件和积分载荷。下面是二维圆柱式示例；默认关闭。
+# patch 必须是 CGNS 物理边界名。无黏性运行不要请求 mu_w/Cf/q_wall 或 viscous traction。
+output.boundary.enabled = false
+# output.boundary.format = tecplot
+# output.boundary.every_steps = 100
+# output.boundary.every_time = 0
+# output.boundary.explicit_times = 0.025,0.05,0.075
+# output.boundary.write_initial = true
+# output.boundary.write_final = true
+# output.boundary.patches = cylinder
+# output.boundary.quantities = p_w,T_w,mu_w,Cp,Cf,q_wall,traction_x,traction_y
+# output.boundary.reference_pressure = 17.8571428759968
+# output.boundary.reference_density = 1.0
+# output.boundary.reference_velocity_x = 1.0
+# output.boundary.reference_velocity_y = 0.0
+# output.boundary.reference_velocity_z = 0.0
+# output.boundary.reference_area = 1.0
+# output.boundary.reference_length = 1.0
+# output.boundary.moment_center_x = 0.0
+# output.boundary.moment_center_y = 0.0
+# output.boundary.moment_center_z = 0.0
+# output.boundary.drag_direction_x = 1.0
+# output.boundary.drag_direction_y = 0.0
+# output.boundary.drag_direction_z = 0.0
+# output.boundary.lift_direction_x = 0.0
+# output.boundary.lift_direction_y = 1.0
+# output.boundary.lift_direction_z = 0.0
+# output.boundary.tangent_direction_x = 1.0
+# output.boundary.tangent_direction_y = 0.0
+# output.boundary.tangent_direction_z = 0.0
+
+# 内部 CGNS 检查点。即使只想在终止时保存，也要保持 enabled=true。
+output.checkpoint.enabled = true
+output.checkpoint.every_steps = 1000
+output.checkpoint.every_time = 0
+# output.checkpoint.explicit_times = 0.05
+output.checkpoint.write_initial = false
+output.checkpoint.write_final = true
+
+# 从检查点继续时取消下一行注释。相对路径以本配置文件目录为基准。
+# restart.path = output/previous/my_case.checkpoint.latest.cgns

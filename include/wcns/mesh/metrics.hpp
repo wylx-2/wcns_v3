@@ -16,4 +16,3 @@ public:
 void compute_metrics(StructuredBlock& block);
 
 } // namespace wcns
-

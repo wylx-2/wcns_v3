@@ -1,0 +1,1 @@
+check=tecplot_consistency samples=518400 max_abs=1.7763568394002505e-15 tolerance=9.9999999999999998e-13

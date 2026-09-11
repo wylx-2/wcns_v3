@@ -41,9 +41,8 @@ struct GeometryExchangeDescriptor {
 
 class GeometryHaloPlan {
 public:
-    [[nodiscard]] static GeometryHaloPlan build(
-        const StructuredMesh& mesh,
-        const AlgorithmProfile& profile);
+    [[nodiscard]] static GeometryHaloPlan build(const StructuredMesh& mesh,
+                                                const AlgorithmProfile& profile);
 
     [[nodiscard]] AlgorithmProfileKind profile() const noexcept { return profile_; }
     [[nodiscard]] const std::vector<GeometryExchangeDescriptor>& exchanges() const noexcept
@@ -59,9 +58,8 @@ private:
 
 class SharedMetricSynchronizer {
 public:
-    static void synchronize(
-        const StructuredMesh& mesh,
-        std::unordered_map<BlockId, MetricField>& metrics);
+    static void synchronize(const StructuredMesh& mesh,
+                            std::unordered_map<BlockId, MetricField>& metrics);
 
 private:
     static FaceAreaVectors& face_vectors(MetricField& metric, Axis axis);

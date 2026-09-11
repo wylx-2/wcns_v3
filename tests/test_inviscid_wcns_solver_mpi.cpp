@@ -16,10 +16,7 @@
 
 namespace {
 
-void add_farfield(
-    wcns::StructuredBlock& block,
-    const char* name,
-    wcns::FaceLocation face)
+void add_farfield(wcns::StructuredBlock& block, const char* name, wcns::FaceLocation face)
 {
     using namespace wcns;
     const auto vertices = block.vertex_extent();
@@ -62,24 +59,32 @@ wcns::StructuredMesh make_solver_mesh()
             right.coordinates.z(i, j, 0) = 0.0;
         }
     }
-    left.connectivities.push_back({
-        "left-right", 0, 1, 0,
-        {Axis::I, Side::Upper}, {Axis::I, Side::Lower},
-        {{vertices - 1, 0, 0}, {vertices - 1, vertices - 1, 0}},
-        {{0, 0, 0}, {0, vertices - 1, 0}},
-        {{vertices - 2, 0, 0}, {vertices - 2, vertices - 2, 0}},
-        {{0, 0, 0}, {0, vertices - 2, 0}},
-        {{vertices - 1, 0, 0}, {vertices - 1, vertices - 2, 0}},
-        {{{1, 2, 3}}}, 3});
-    right.connectivities.push_back({
-        "right-left", 1, 0, 0,
-        {Axis::I, Side::Lower}, {Axis::I, Side::Upper},
-        {{0, 0, 0}, {0, vertices - 1, 0}},
-        {{vertices - 1, 0, 0}, {vertices - 1, vertices - 1, 0}},
-        {{0, 0, 0}, {0, vertices - 2, 0}},
-        {{vertices - 2, 0, 0}, {vertices - 2, vertices - 2, 0}},
-        {{0, 0, 0}, {0, vertices - 2, 0}},
-        {{{1, 2, 3}}}, 3});
+    left.connectivities.push_back({"left-right",
+                                   0,
+                                   1,
+                                   0,
+                                   {Axis::I, Side::Upper},
+                                   {Axis::I, Side::Lower},
+                                   {{vertices - 1, 0, 0}, {vertices - 1, vertices - 1, 0}},
+                                   {{0, 0, 0}, {0, vertices - 1, 0}},
+                                   {{vertices - 2, 0, 0}, {vertices - 2, vertices - 2, 0}},
+                                   {{0, 0, 0}, {0, vertices - 2, 0}},
+                                   {{vertices - 1, 0, 0}, {vertices - 1, vertices - 2, 0}},
+                                   {{{1, 2, 3}}},
+                                   3});
+    right.connectivities.push_back({"right-left",
+                                    1,
+                                    0,
+                                    0,
+                                    {Axis::I, Side::Lower},
+                                    {Axis::I, Side::Upper},
+                                    {{0, 0, 0}, {0, vertices - 1, 0}},
+                                    {{vertices - 1, 0, 0}, {vertices - 1, vertices - 1, 0}},
+                                    {{0, 0, 0}, {0, vertices - 2, 0}},
+                                    {{vertices - 2, 0, 0}, {vertices - 2, vertices - 2, 0}},
+                                    {{0, 0, 0}, {0, vertices - 2, 0}},
+                                    {{{1, 2, 3}}},
+                                    3});
     add_farfield(left, "left-i-lower", {Axis::I, Side::Lower});
     add_farfield(left, "left-j-lower", {Axis::J, Side::Lower});
     add_farfield(left, "left-j-upper", {Axis::J, Side::Upper});
@@ -101,13 +106,10 @@ wcns::GasModel solver_gas()
 
 wcns::ReferenceScales solver_reference(const wcns::GasModel& gas)
 {
-    return wcns::ReferenceScales::derive(
-        {340.0, 1.2, 288.0, 1.0, 1.8e-5, {}, {}}, gas);
+    return wcns::ReferenceScales::derive({340.0, 1.2, 288.0, 1.0, 1.8e-5, {}, {}}, gas);
 }
 
-void run_profile(
-    const wcns::MpiRuntime& mpi,
-    wcns::AlgorithmProfileKind kind)
+void run_profile(const wcns::MpiRuntime& mpi, wcns::AlgorithmProfileKind kind)
 {
     using namespace wcns;
     auto mesh = make_solver_mesh();
@@ -127,8 +129,7 @@ void run_profile(
     const auto reference = solver_reference(gas);
     const NumericalFloors floors;
     const TemperaturePrimitiveState freestream {1.0, 0.35, -0.15, 0.0, 1.0};
-    const auto expected = thermodynamic_conservative(
-        freestream, gas, reference, floors, 2);
+    const auto expected = thermodynamic_conservative(freestream, gas, reference, floors, 2);
     const auto profile = ProfileFactory::create(kind);
     BlockMetricMap metrics;
     BlockBoundaryDataMap boundary_data;
@@ -139,11 +140,9 @@ void run_profile(
                 store_state(block.flow.conservative, {i, j, 0}, expected);
             }
         }
-        metrics.emplace(
-            std::piecewise_construct,
-            std::forward_as_tuple(block.id()),
-            std::forward_as_tuple(
-                initialize_metric_field(block, profile).metric));
+        metrics.emplace(std::piecewise_construct,
+                        std::forward_as_tuple(block.id()),
+                        std::forward_as_tuple(initialize_metric_field(block, profile).metric));
         BoundaryDataMap block_data;
         for (const auto& patch : block.boundaries) {
             BoundaryData data;
@@ -156,12 +155,11 @@ void run_profile(
     balance_config.enable_source_terms = true;
     balance_config.models = {SourceModelKind::UniformConservative};
     balance_config.uniform_conservative = {{0.1, -0.2, 0.3, 0.0, 0.4}};
-    const auto balance_registry
-        = SourceTermRegistry::create_stage_j(balance_config);
+    const auto balance_registry = SourceTermRegistry::create_stage_j(balance_config);
     ConservativeState local_balance {};
     for (const auto& block : local.blocks()) {
-        const auto value = volume_weighted_source(
-            block, metrics.at(block.id()), balance_registry, 0.25);
+        const auto value
+            = volume_weighted_source(block, metrics.at(block.id()), balance_registry, 0.25);
         for (int component = 0; component < euler_components; ++component) {
             local_balance[static_cast<std::size_t>(component)]
                 += value[static_cast<std::size_t>(component)];
@@ -171,30 +169,71 @@ void run_profile(
     for (int component = 0; component < euler_components; ++component) {
         WCNS_REQUIRE_NEAR(
             mpi.sum(local_balance[static_cast<std::size_t>(component)]),
-            total_volume
-                * balance_config.uniform_conservative[
-                    static_cast<std::size_t>(component)],
+            total_volume * balance_config.uniform_conservative[static_cast<std::size_t>(component)],
             2.0e-11);
     }
     InviscidWcnsConfig config;
-    config.reconstruction.kind = ReconstructionKind::Linear5;
-    InviscidWcnsSolver solver(
-        mpi, local, mesh, topology, distribution.rank_count(), metrics,
-        boundary_data, profile, gas, reference, floors, config);
+    config.reconstruction.scheme = std::string(reconstruction_name(ReconstructionKind::Linear5));
+    InviscidWcnsSolver solver(mpi,
+                              local,
+                              mesh,
+                              topology,
+                              distribution.rank_count(),
+                              metrics,
+                              boundary_data,
+                              profile,
+                              gas,
+                              reference,
+                              floors,
+                              config);
     solver.compute_residuals(0.0);
     WCNS_REQUIRE(solver.global_residual_l2() < 5.0e-11);
-    solver.advance(0.01, 0.0);
+    WCNS_REQUIRE(solver.global_riemann_face_count() == 280);
+    WCNS_REQUIRE(solver.global_riemann_fallback_count() == 0);
+    WCNS_REQUIRE(solver.global_reconstruction_fallback_count() == 0);
+    for (const auto* riemann_name : {"rusanov", "hllc", "roe"}) {
+        InviscidWcnsConfig stage_l_config;
+        stage_l_config.reconstruction.scheme = "weno_z";
+        stage_l_config.reconstruction.variables = ReconstructionVariables::Characteristic;
+        stage_l_config.riemann.scheme = riemann_name;
+        InviscidWcnsSolver stage_l_solver(mpi,
+                                          local,
+                                          mesh,
+                                          topology,
+                                          distribution.rank_count(),
+                                          metrics,
+                                          boundary_data,
+                                          profile,
+                                          gas,
+                                          reference,
+                                          floors,
+                                          stage_l_config);
+        stage_l_solver.compute_residuals(0.0, 2);
+        WCNS_REQUIRE(stage_l_solver.global_residual_l2() < 5.0e-11);
+        WCNS_REQUIRE(stage_l_solver.global_riemann_face_count() == 280);
+        WCNS_REQUIRE(stage_l_solver.global_riemann_fallback_count() == 0);
+        WCNS_REQUIRE(stage_l_solver.global_reconstruction_fallback_count() == 0);
+        for (const auto& [name, count] : stage_l_solver.riemann_diagnostics().requested_faces) {
+            static_cast<void>(count);
+            WCNS_REQUIRE(name == riemann_name);
+        }
+    }
+    WCNS_REQUIRE_NEAR(solver.advance(0.01, 0.0), 0.01, 0.0);
+    WCNS_REQUIRE(solver.global_riemann_face_count() == 280);
+    for (const auto& event : solver.riemann_diagnostics().fallback_events) {
+        WCNS_REQUIRE(event.location.rk_stage == 3);
+    }
     Real local_error = 0.0;
     for (const auto& block : local.blocks()) {
         const auto extent = block.cell_extent();
         for (int j = 0; j < extent.nj; ++j) {
             for (int i = 0; i < extent.ni; ++i) {
-                const auto state = load_conservative(
-                    block.flow.conservative, {i, j, 0});
+                const auto state = load_conservative(block.flow.conservative, {i, j, 0});
                 for (int component = 0; component < euler_components; ++component) {
-                    local_error = std::max(local_error,
-                        std::abs(state[static_cast<std::size_t>(component)]
-                            - expected[static_cast<std::size_t>(component)]));
+                    local_error
+                        = std::max(local_error,
+                                   std::abs(state[static_cast<std::size_t>(component)]
+                                            - expected[static_cast<std::size_t>(component)]));
                 }
             }
         }
@@ -212,8 +251,7 @@ int main(int argc, char** argv)
         run_profile(mpi, wcns::AlgorithmProfileKind::PhengleiWcns);
         run_profile(mpi, wcns::AlgorithmProfileKind::Scmm6Wcns);
         if (mpi.rank() == 0) {
-            std::cout << "inviscid WCNS solver tests passed with "
-                      << mpi.size() << " ranks\n";
+            std::cout << "inviscid WCNS solver tests passed with " << mpi.size() << " ranks\n";
         }
         return EXIT_SUCCESS;
     } catch (const std::exception& error) {

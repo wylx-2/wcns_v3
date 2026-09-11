@@ -1,0 +1,67 @@
+schema_version = 1
+case.name = case03-vortex-phenglei-100x100
+mesh.path = grids/warped_100x100.cgns
+
+algorithm.profile = phenglei_wcns
+algorithm.reconstruction = weno_z
+algorithm.reconstruction_variables = characteristic
+algorithm.riemann = hllc
+
+gas.gamma = 1.4
+gas.molar_mass = 0.029
+reference.velocity = 340.0
+reference.density = 1.225
+reference.temperature = 288.15
+reference.length = 1.0
+reference.viscosity = 1.7894e-5
+
+partition.mode = zones_only
+partition.allow_idle_ranks = false
+partition.max_load_ratio = 1.2
+partition.min_cells_per_active_direction = 8
+
+initial.type = isentropic_vortex
+initial.x0 = 5.0
+initial.y0 = 5.0
+initial.beta = 5.0
+initial.background_u = 1.0
+initial.background_v = 1.0
+initial.period_x = 10.0
+initial.period_y = 10.0
+
+boundary.default = farfield
+source.enabled = false
+
+run.mode = unsteady
+run.viscous = false
+run.cfl = 0.5
+run.max_steps = 100000
+run.t_end = 10.0
+run.max_wall_time = 0
+
+output.directory = results/phenglei
+output.allow_existing = false
+output.dimensional = false
+
+output.field.enabled = true
+output.field.format = cgns
+output.field.every_steps = 0
+output.field.every_time = 0
+output.field.write_initial = true
+output.field.write_final = true
+output.field.quantities = rho,u,v,p,T,rho_u,rho_v,rho_w,rho_E,sound_speed,mach,total_enthalpy,entropy_proxy,jacobian
+
+output.history.enabled = true
+output.history.format = txt
+output.history.every_steps = 100
+output.history.write_initial = true
+output.history.write_final = true
+
+output.statistics.enabled = true
+output.statistics.format = txt
+output.statistics.every_steps = 100
+output.statistics.write_initial = true
+output.statistics.write_final = true
+output.statistics.quantities = total_mass,total_momentum_x,total_momentum_y,total_energy
+
+output.checkpoint.enabled = false

@@ -7,23 +7,23 @@
 #include <cmath>
 #include <limits>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace wcns {
 
-EulerSolver::EulerSolver(
-    const MpiRuntime& mpi,
-    LocalBlockSet& local_blocks,
-    const DistributedTopology& topology,
-    int distribution_rank_count,
-    PrimitiveState prescribed_state,
-    SpatialParameters parameters)
+EulerSolver::EulerSolver(const MpiRuntime& mpi,
+                         LocalBlockSet& local_blocks,
+                         const DistributedTopology& topology,
+                         int distribution_rank_count,
+                         PrimitiveState prescribed_state,
+                         SpatialParameters parameters)
     : mpi_(mpi)
     , local_blocks_(local_blocks)
     , topology_(topology)
     , exchanger_(mpi, topology, distribution_rank_count)
     , prescribed_state_(prescribed_state)
-    , parameters_(parameters)
+    , parameters_(std::move(parameters))
 {
     parameters_.validate();
     static_cast<void>(to_conservative(prescribed_state_, parameters_.gas));

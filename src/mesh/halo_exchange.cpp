@@ -20,12 +20,8 @@ int inward_step(Side side)
     return -outward_step(side);
 }
 
-template<class Range>
-void validate_cell_range(
-    const Range& range,
-    Extent3 extent,
-    int dimension,
-    const char* label)
+template <class Range>
+void validate_cell_range(const Range& range, Extent3 extent, int dimension, const char* label)
 {
     for (int axis = 0; axis < dimension; ++axis) {
         const auto axis_index = static_cast<std::size_t>(axis);
@@ -38,11 +34,10 @@ void validate_cell_range(
 
 } // namespace
 
-HaloExchangePlan make_halo_exchange_plan(
-    const ConnectivityPatch& connection,
-    Extent3 receiver_cell_extent,
-    Extent3 donor_cell_extent,
-    int dimension)
+HaloExchangePlan make_halo_exchange_plan(const ConnectivityPatch& connection,
+                                         Extent3 receiver_cell_extent,
+                                         Extent3 donor_cell_extent,
+                                         int dimension)
 {
     if (!connection.transform.valid(dimension)) {
         throw TopologyError("cannot build a halo plan from an invalid index transform");
@@ -53,35 +48,31 @@ HaloExchangePlan make_halo_exchange_plan(
 
     const int receiver_normal = axis_index(connection.receiver_face.axis);
     const int donor_normal = axis_index(connection.donor_face.axis);
-    const int mapped_normal = std::abs(
-        connection.transform.receiver_to_donor[
-            static_cast<std::size_t>(receiver_normal)])
+    const int mapped_normal
+        = std::abs(
+              connection.transform.receiver_to_donor[static_cast<std::size_t>(receiver_normal)])
         - 1;
     if (mapped_normal != donor_normal) {
-        throw TopologyError(
-            "connectivity transform does not map the receiver normal axis to the donor normal axis");
+        throw TopologyError("connectivity transform does not map the receiver normal axis to the "
+                            "donor normal axis");
     }
-    validate_cell_range(
-        connection.receiver_adjacent_cell_range,
-        receiver_cell_extent,
-        dimension,
-        "receiver cell-face range");
-    validate_cell_range(
-        connection.donor_adjacent_cell_range,
-        donor_cell_extent,
-        dimension,
-        "donor cell-face range");
+    validate_cell_range(connection.receiver_adjacent_cell_range,
+                        receiver_cell_extent,
+                        dimension,
+                        "receiver cell-face range");
+    validate_cell_range(connection.donor_adjacent_cell_range,
+                        donor_cell_extent,
+                        dimension,
+                        "donor cell-face range");
     const int expected_receiver_face = connection.receiver_face.side == Side::Lower
         ? 0
         : receiver_cell_extent[static_cast<std::size_t>(receiver_normal)] - 1;
     const int expected_donor_face = connection.donor_face.side == Side::Lower
         ? 0
         : donor_cell_extent[static_cast<std::size_t>(donor_normal)] - 1;
-    if (connection.receiver_adjacent_cell_range.begin[
-            static_cast<std::size_t>(receiver_normal)]
+    if (connection.receiver_adjacent_cell_range.begin[static_cast<std::size_t>(receiver_normal)]
             != expected_receiver_face
-        || connection.receiver_adjacent_cell_range.end[
-            static_cast<std::size_t>(receiver_normal)]
+        || connection.receiver_adjacent_cell_range.end[static_cast<std::size_t>(receiver_normal)]
             != expected_receiver_face
         || connection.donor_adjacent_cell_range.begin[static_cast<std::size_t>(donor_normal)]
             != expected_donor_face
@@ -89,17 +80,16 @@ HaloExchangePlan make_halo_exchange_plan(
             != expected_donor_face) {
         throw TopologyError("connectivity cell ranges are not located on their declared faces");
     }
-    if (connection.ghost_width
-        > donor_cell_extent[static_cast<std::size_t>(donor_normal)]) {
+    if (connection.ghost_width > donor_cell_extent[static_cast<std::size_t>(donor_normal)]) {
         throw TopologyError("donor block is too thin for the requested ghost width");
     }
 
     const auto receiver_counts = connection.receiver_adjacent_cell_range.counts();
     const auto donor_counts = connection.donor_adjacent_cell_range.counts();
     for (int receiver_axis = 0; receiver_axis < dimension; ++receiver_axis) {
-        const int donor_axis = std::abs(
-            connection.transform.receiver_to_donor[
-                static_cast<std::size_t>(receiver_axis)])
+        const int donor_axis
+            = std::abs(
+                  connection.transform.receiver_to_donor[static_cast<std::size_t>(receiver_axis)])
             - 1;
         if (receiver_counts[static_cast<std::size_t>(receiver_axis)]
             != donor_counts[static_cast<std::size_t>(donor_axis)]) {
@@ -115,9 +105,8 @@ HaloExchangePlan make_halo_exchange_plan(
         connection.donor_rank,
         {},
     };
-    plan.cell_pairs.reserve(
-        connection.receiver_adjacent_cell_range.size()
-        * static_cast<std::size_t>(connection.ghost_width));
+    plan.cell_pairs.reserve(connection.receiver_adjacent_cell_range.size()
+                            * static_cast<std::size_t>(connection.ghost_width));
 
     for (int k = 0; k < receiver_counts.nk; ++k) {
         for (int j = 0; j < receiver_counts.nj; ++j) {
@@ -125,9 +114,9 @@ HaloExchangePlan make_halo_exchange_plan(
                 const Index3 receiver_ordinal {i, j, k};
                 Index3 donor_ordinal;
                 for (int receiver_axis = 0; receiver_axis < dimension; ++receiver_axis) {
-                    const int donor_axis = std::abs(
-                        connection.transform.receiver_to_donor[
-                            static_cast<std::size_t>(receiver_axis)])
+                    const int donor_axis
+                        = std::abs(connection.transform
+                                       .receiver_to_donor[static_cast<std::size_t>(receiver_axis)])
                         - 1;
                     donor_ordinal[static_cast<std::size_t>(donor_axis)]
                         = receiver_ordinal[static_cast<std::size_t>(receiver_axis)];
@@ -135,8 +124,7 @@ HaloExchangePlan make_halo_exchange_plan(
 
                 const auto receiver_face_cell
                     = connection.receiver_adjacent_cell_range.at(receiver_ordinal);
-                const auto donor_face_cell
-                    = connection.donor_adjacent_cell_range.at(donor_ordinal);
+                const auto donor_face_cell = connection.donor_adjacent_cell_range.at(donor_ordinal);
                 for (int layer = 0; layer < connection.ghost_width; ++layer) {
                     auto receiver_ghost = receiver_face_cell;
                     receiver_ghost[static_cast<std::size_t>(receiver_normal)]

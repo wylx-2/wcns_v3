@@ -20,12 +20,9 @@ public:
     [[nodiscard]] StructuredBlock& block(BlockId id);
     [[nodiscard]] const StructuredBlock& block(BlockId id) const;
 
-    [[nodiscard]] const std::vector<StructuredBlock>& blocks() const noexcept
-    {
-        return blocks_;
-    }
+    [[nodiscard]] const std::vector<StructuredBlock>& blocks() const noexcept { return blocks_; }
 
-    void validate_connectivities() const;
+    void validate_connectivities(bool validate_coordinates = true) const;
 
 private:
     std::vector<StructuredBlock> blocks_;

@@ -10,13 +10,12 @@ namespace wcns {
 
 class EulerSolver {
 public:
-    EulerSolver(
-        const MpiRuntime& mpi,
-        LocalBlockSet& local_blocks,
-        const DistributedTopology& topology,
-        int distribution_rank_count,
-        PrimitiveState prescribed_state,
-        SpatialParameters parameters = {});
+    EulerSolver(const MpiRuntime& mpi,
+                LocalBlockSet& local_blocks,
+                const DistributedTopology& topology,
+                int distribution_rank_count,
+                PrimitiveState prescribed_state,
+                SpatialParameters parameters = {});
 
     // Refreshes interior primitive variables, exchanges conservative halos,
     // converts received ghosts, applies physical BCs, and computes residuals.
