@@ -328,7 +328,7 @@ StencilRow inviscid_residual_stencil(
         }
         return result;
     }
-    return LineOperators::build(profile, count)
+    return cached_line_operators(profile, count)
         .derivative_rows()[static_cast<std::size_t>(normal)];
 }
 

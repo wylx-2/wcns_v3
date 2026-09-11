@@ -187,6 +187,10 @@ ViscousWcnsSolver::ViscousWcnsSolver(
         if (boundary_data_.find(block.id()) == boundary_data_.end()) {
             throw std::invalid_argument("viscous WCNS boundary data is missing");
         }
+        for (int logical = 0; logical < block.cell_dimension(); ++logical) {
+            static_cast<void>(cached_line_operators(
+                profile_, block.cell_extent()[static_cast<std::size_t>(logical)]));
+        }
     }
 }
 

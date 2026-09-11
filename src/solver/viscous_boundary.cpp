@@ -197,7 +197,7 @@ Real interpolate_internal_pressure_trace(
 {
     const int count = block.cell_extent()[static_cast<std::size_t>(axis)];
     const int normal = face[static_cast<std::size_t>(axis)];
-    const auto operators = LineOperators::build(profile, count);
+    const auto& operators = cached_line_operators(profile, count);
     const auto& row = operators.interpolation_rows()[static_cast<std::size_t>(normal)];
     Real result = 0.0;
     for (const auto [center_index, coefficient] : row) {

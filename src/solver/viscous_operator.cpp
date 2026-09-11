@@ -405,7 +405,7 @@ void add_wcns_viscous_residual(
     const auto cells = block.cell_extent();
     const auto accumulate_axis = [&](Axis axis) {
         const int count = cells[static_cast<std::size_t>(axis)];
-        const auto operators = LineOperators::build(profile, count);
+        const auto& operators = cached_line_operators(profile, count);
         const auto& values = flux.field(axis);
         for (int k = 0; k < cells.nk; ++k) {
             for (int j = 0; j < cells.nj; ++j) {

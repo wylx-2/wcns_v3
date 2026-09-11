@@ -57,6 +57,12 @@ private:
     std::vector<StencilRow> derivative_;
 };
 
+// Line operators depend only on the validated profile kind and line length.
+// The returned reference remains stable for the lifetime of the process.
+[[nodiscard]] const LineOperators& cached_line_operators(
+    const AlgorithmProfile& profile,
+    int cell_count);
+
 [[nodiscard]] std::vector<Real> interpolate_vertices_to_centers_i6(
     const std::vector<Real>& vertices);
 

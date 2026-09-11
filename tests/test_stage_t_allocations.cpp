@@ -192,7 +192,19 @@ int main(int argc, char** argv)
         if (first.count == 0 || second.count == 0) {
             throw std::runtime_error("stage T allocation probe observed no allocations");
         }
+        constexpr std::size_t baseline_allocations = 946214;
+        constexpr std::size_t maximum_candidate_allocations = 94621;
+        if (first.count > maximum_candidate_allocations
+            || second.count > maximum_candidate_allocations) {
+            throw std::runtime_error(
+                "stage T residual allocations did not decrease by at least 90 percent");
+        }
+        if (second.count > first.count) {
+            throw std::runtime_error(
+                "stage T residual workspace expanded on its second use");
+        }
         std::cout << "stage_t_allocation_probe"
+                  << " baseline_allocations=" << baseline_allocations
                   << " first_allocations=" << first.count
                   << " first_bytes=" << first.bytes
                   << " second_allocations=" << second.count

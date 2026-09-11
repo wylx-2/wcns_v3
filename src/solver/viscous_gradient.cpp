@@ -299,7 +299,7 @@ PrimitiveGradientField compute_primitive_gradients(
                                 divergence += centered_derivative(
                                     values, axis, cell, component, profile.kind());
                             } else {
-                                const auto operators = LineOperators::build(profile, count);
+                                const auto& operators = cached_line_operators(profile, count);
                                 const auto& row = operators.derivative_rows()[
                                     static_cast<std::size_t>(normal)];
                                 for (const auto [face_index, coefficient] : row) {
@@ -380,7 +380,7 @@ PrimitiveGradients interpolate_gradient_face(
                         offsets, coefficients);
                 }
             } else {
-                const auto operators = LineOperators::build(profile, count);
+                const auto& operators = cached_line_operators(profile, count);
                 const auto& row = operators.interpolation_rows()[
                     static_cast<std::size_t>(normal)];
                 for (const auto [center_index, coefficient] : row) {
