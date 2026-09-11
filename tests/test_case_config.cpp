@@ -350,6 +350,70 @@ output.boundary.tangent_direction_z = 0
             wcns::CaseConfig::from_text(duplicate));
     }
     {
+        const auto legacy = wcns::CaseConfig::from_text(valid_config());
+        WCNS_REQUIRE(
+            std::holds_alternative<wcns::ConstantViscosity>(
+                legacy.transport.viscosity));
+        WCNS_REQUIRE_NEAR(legacy.transport.prandtl, 0.72, 0.0);
+        WCNS_REQUIRE_NEAR(
+            std::get<wcns::ConstantViscosity>(legacy.transport.viscosity)
+                .viscosity_ratio,
+            1.0, 0.0);
+        WCNS_REQUIRE(legacy.summary().find("law=constant") != std::string::npos);
+        WCNS_REQUIRE(legacy.restart_signature().find("transport_v1")
+            != std::string::npos);
+        WCNS_REQUIRE(legacy.legacy_v1_restart_signature().find("transport_v1")
+            == std::string::npos);
+
+        auto in_kelvin = valid_config()
+            + "transport.model = sutherland\n"
+              "transport.prandtl = 0.71\n"
+              "transport.sutherland.reference_viscosity_ratio = 1.25\n"
+              "transport.sutherland.temperature = 110.4\n";
+        auto as_ratio = valid_config()
+            + "transport.model = sutherland\n"
+              "transport.prandtl = 0.71\n"
+              "transport.sutherland.reference_viscosity_ratio = 1.25\n"
+              "transport.sutherland.temperature_ratio = "
+              "0.38313378448724628\n";
+        const auto kelvin_config = wcns::CaseConfig::from_text(in_kelvin);
+        const auto ratio_config = wcns::CaseConfig::from_text(as_ratio);
+        const auto& law = std::get<wcns::SutherlandViscosity>(
+            kelvin_config.transport.viscosity);
+        WCNS_REQUIRE_NEAR(law.reference_viscosity_ratio, 1.25, 0.0);
+        WCNS_REQUIRE_NEAR(
+            law.constant_temperature_ratio, 110.4 / 288.15, 1.0e-15);
+        WCNS_REQUIRE(kelvin_config.restart_signature()
+            == ratio_config.restart_signature());
+        WCNS_REQUIRE(kelvin_config.digest() != ratio_config.digest());
+
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(
+                in_kelvin
+                + "transport.sutherland.temperature_ratio = 0.383\n"));
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(
+                valid_config()
+                + "transport.model = constant\n"
+                  "transport.sutherland.temperature = 110.4\n"));
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(
+                valid_config()
+                + "transport.model = sutherland\n"
+                  "transport.sutherland.reference_viscosity_ratio = 1\n"));
+        WCNS_REQUIRE_THROWS(
+            wcns::CaseConfigurationError,
+            wcns::CaseConfig::from_text(
+                valid_config() + "transport.model = power_law\n"));
+        WCNS_REQUIRE_THROWS(
+            std::invalid_argument,
+            wcns::CaseConfig::from_text(
+                valid_config() + "transport.prandtl = 0\n"));
+    }
+    {
         auto reordered = valid_config();
         reordered = "# ignored\n" + reordered;
         const auto first = wcns::CaseConfig::from_text(valid_config());
