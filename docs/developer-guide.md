@@ -72,7 +72,9 @@ cmake --build build-dev-serial --parallel 4
 ctest --test-dir build-dev-serial --output-on-failure
 ```
 
-再建立独立 MPI 目录并运行 CTest。保存基线的 Git commit、测试结果和一个代表性算例 manifest。已有未提交修改属于用户工作，新增功能不能覆盖或顺带格式化无关文件。
+再建立独立 MPI 目录并运行 CTest。保存基线的 Git commit、测试结果和一个代表性算例 manifest。
+当前仓库不启用外部 CI，因此开发者必须在合并前完成与改动范围相称的本机串行/MPI 自动卡口。
+已有未提交修改属于用户工作，新增功能不能覆盖或顺带格式化无关文件。
 
 ### 3.2 格式与静态清理
 
