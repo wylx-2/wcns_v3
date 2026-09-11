@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "stage": "S",
+  "spatial": {
+    "source": "stage-s-spatial-convergence.csv",
+    "levels": [24, 48, 96],
+    "phenglei_wcns": {
+      "interior_l2_orders_2d": [3.9588938289973097, 4.052742698889437],
+      "boundary_l2_orders_2d": [0.6076959336504291, 0.9042620387392994],
+      "global_l2_orders_2d": [1.1194046515221785, 1.4045689056479236],
+      "interior_l2_orders_3d": [3.958893829267606, 4.052742700460337],
+      "boundary_l2_orders_3d": [0.6076959336365727, 0.9042620380697541],
+      "global_l2_orders_3d": [1.1194046515087288, 1.4045689049782963]
+    },
+    "scmm6_wcns": {
+      "interior_l2_orders_2d": [5.691835466391646, 6.028975263441891],
+      "boundary_l2_orders_2d": [3.3778042905171666, 3.1057209477228693],
+      "global_l2_orders_2d": [3.877985389899967, 3.605748611850516],
+      "interior_l2_orders_3d": [5.691835337247157, 6.039688933850994],
+      "boundary_l2_orders_3d": [3.377804319174402, 3.1057195853341453],
+      "global_l2_orders_3d": [3.8779854185370786, 3.605747267310413]
+    }
+  },
+  "time": {
+    "method": "SSPRK3 factor-two self-convergence on 48x48 periodic vortex",
+    "cfl": [0.4, 0.2, 0.1, 0.05],
+    "representative_dt": [0.016659954072493276, 0.008329797881401235, 0.004164912589109599, 0.002082449008525932],
+    "density_l2_successive_differences": [3.2962925570894055e-7, 4.0852262327551656e-8, 4.6211727581711193e-9],
+    "observed_orders": [3.012356412608405, 3.144085045122259],
+    "minimum_order": 2.8
+  },
+  "cfl_scan": {
+    "interpretation": "empirical outcomes only",
+    "inviscid_periodic_success": [0.1, 0.4, 0.8, 1.6, 3.2],
+    "viscous_sutherland_success": [0.05, 0.2, 0.8, 2.0],
+    "strong_shock_direct_success": [2.0],
+    "strong_shock_direct_numerical_failure": [4.0, 8.0],
+    "strong_shock_robust": {
+      "success": [2.0, 4.0, 8.0, 16.0],
+      "maximum_troubled_cells": [0, 32, 120, 72],
+      "maximum_step_retries": [0, 1, 2, 2]
+    },
+    "curved_cylinder_success": [0.1, 0.4, 1.6, 4.0]
+  }
+}
