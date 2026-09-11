@@ -48,6 +48,7 @@ def run_git(*arguments: str) -> str:
         ["git", *arguments],
         cwd=REPOSITORY,
         text=True,
+        encoding="utf-8",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         check=False,
