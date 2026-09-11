@@ -33,7 +33,7 @@ EXPLICIT_FILES = (
     Path("README.md"),
     Path("LICENSE.md"),
     Path("THIRD_PARTY_NOTICES.md"),
-    Path("算法补充.md"),
+    Path("\u7b97\u6cd5\u8865\u5145.md"),
     Path(".github/workflows/ci.yml"),
 )
 
@@ -45,7 +45,7 @@ GENERATED_FILES = (
 
 def run_git(*arguments: str) -> str:
     completed = subprocess.run(
-        ["git", *arguments],
+        ["git", "-c", "core.quotepath=false", *arguments],
         cwd=REPOSITORY,
         text=True,
         encoding="utf-8",
