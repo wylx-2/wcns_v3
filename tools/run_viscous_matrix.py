@@ -28,6 +28,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--profile", default="phenglei_wcns")
     parser.add_argument("--riemann", default="hllc")
     parser.add_argument("--reference-viscosity", type=float, default=0.1)
+    parser.add_argument(
+        "--transport-model", choices=("constant", "sutherland"),
+        default="constant",
+    )
+    parser.add_argument("--prandtl", type=float, default=0.72)
+    parser.add_argument("--viscosity-ratio", type=float, default=1.0)
+    parser.add_argument("--sutherland-temperature-ratio", type=float, default=0.4)
     parser.add_argument("--velocity-curvature", type=float, default=0.1)
     parser.add_argument(
         "--temperature-curvature",
@@ -60,7 +67,10 @@ def main() -> int:
         raise RuntimeError("viscous grid parameters must be positive")
     if args.cells_i % args.zones_i != 0:
         raise RuntimeError("viscous cells_i must be divisible by zones_i")
-    if min(args.reference_viscosity, args.cfl, args.profile_l2) <= 0.0:
+    if min(
+        args.reference_viscosity, args.cfl, args.profile_l2,
+        args.prandtl, args.viscosity_ratio, args.sutherland_temperature_ratio,
+    ) <= 0.0:
         raise RuntimeError("viscous physical and numerical parameters must be positive")
 
     clean_work_directory(args.work_dir)
@@ -123,7 +133,24 @@ def main() -> int:
             "LINF_RELATIVE": str(args.linf_relative),
             "OUTPUT_DIRECTORY": output.as_posix(),
         }
-        config.write_text(render(template, values), encoding="utf-8")
+        config_text = render(template, values)
+        if args.transport_model == "constant":
+            config_text += (
+                "transport.model = constant\n"
+                f"transport.prandtl = {args.prandtl}\n"
+                "transport.constant.viscosity_ratio = "
+                f"{args.viscosity_ratio}\n"
+            )
+        else:
+            config_text += (
+                "transport.model = sutherland\n"
+                f"transport.prandtl = {args.prandtl}\n"
+                "transport.sutherland.reference_viscosity_ratio = "
+                f"{args.viscosity_ratio}\n"
+                "transport.sutherland.temperature_ratio = "
+                f"{args.sutherland_temperature_ratio}\n"
+            )
+        config.write_text(config_text, encoding="utf-8")
         command = [str(args.run), "--config", str(config)]
         if rank_count > 1:
             command = [str(args.mpi_exec), "-n", str(rank_count)] + command
@@ -169,6 +196,13 @@ def main() -> int:
         "grid": [args.cells_i, args.cells_j],
         "zones_i": args.zones_i,
         "reynolds": reynolds,
+        "transport_model": args.transport_model,
+        "prandtl": args.prandtl,
+        "viscosity_ratio": args.viscosity_ratio,
+        "sutherland_temperature_ratio": (
+            args.sutherland_temperature_ratio
+            if args.transport_model == "sutherland" else None
+        ),
         "temperature_curvature": substitutions["TEMPERATURE_CURVATURE"],
         "ranks": ranks,
         "records": records,
