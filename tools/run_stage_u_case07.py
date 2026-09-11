@@ -219,7 +219,7 @@ def main() -> int:
     if last[header.index("stop_reason")] != "physical_time_reached":
         raise RuntimeError("Case07 history final stop reason mismatch")
     minimum_names = ("minimum_rho", "minimum_p", "minimum_T", "minimum_e")
-    minimum_state = {
+    minimum_attempted_state = {
         name: min(
             float(row[header.index(name)])
             for row in rows
@@ -227,9 +227,37 @@ def main() -> int:
         )
         for name in minimum_names
     }
+    invalid_candidate_rows = 0
+    for row in rows:
+        candidate = [
+            float(row[header.index(name)])
+            for name in minimum_names
+            if row[header.index(name)].lower() != "nan"
+        ]
+        if candidate and any(not math.isfinite(value) or value <= 0.0
+                             for value in candidate):
+            invalid_candidate_rows += 1
+            troubled = int(float(row[header.index("troubled_cells")]))
+            recomputations = int(float(
+                row[header.index("local_recomputations")]))
+            retries = int(float(row[header.index("step_retries")]))
+            if troubled <= 0 or (recomputations <= 0 and retries <= 0):
+                raise RuntimeError(
+                    "non-positive attempted candidate lacks robustness recovery")
+    final_accepted_state = {
+        name: float(last[header.index(name)]) for name in minimum_names
+    }
     if not all(math.isfinite(value) and value > 0.0
-               for value in minimum_state.values()):
-        raise RuntimeError("Case07 history contains a non-positive minimum state")
+               for value in final_accepted_state.values()):
+        raise RuntimeError("Case07 final accepted candidate is non-positive")
+    manifest_final_state = {
+        name: float(manifest[f"robustness_{name}"]) for name in minimum_names
+    }
+    if (not all(math.isfinite(value) and value > 0.0
+                for value in manifest_final_state.values())
+            or any(manifest_final_state[name] != final_accepted_state[name]
+                   for name in minimum_names)):
+        raise RuntimeError("Case07 manifest final robustness state mismatch")
 
     loads_path = one_file(output, "*.loads.r4.txt")
     load_rows = finite_numeric_series(loads_path)
@@ -263,7 +291,9 @@ def main() -> int:
             header, rows, "local_recomputations"),
         "maximum_step_retries": maximum_column(
             header, rows, "step_retries"),
-        "minimum_candidate_state": minimum_state,
+        "minimum_attempted_candidate_state": minimum_attempted_state,
+        "recovered_invalid_candidate_rows": invalid_candidate_rows,
+        "final_accepted_candidate_state": final_accepted_state,
         "load_rows": load_rows,
         "final_field": str(final_fields[0]),
         "history": str(history_path),
