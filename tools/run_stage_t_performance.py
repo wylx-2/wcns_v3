@@ -259,7 +259,9 @@ def scaling_matrix(
         item["efficiency"] = t1 / (rank_count * float(item["median_wall_seconds"]))
 
     weak: list[dict[str, object]] = []
-    local_grid = (24, 24, 27)
+    # Both periodic directions are split into two source zones, so their
+    # global counts must remain divisible by two at every rank count.
+    local_grid = (24, 24, 28)
     local_cells = math.prod(local_grid)
     for rank_count in ranks:
         grid = (local_grid[0] * rank_count, local_grid[1], local_grid[2])
